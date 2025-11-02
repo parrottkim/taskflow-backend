@@ -1,0 +1,79 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { SupplierService } from './supplier.service';
+import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
+import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { SupplierDto, SupplierListDto } from './dto/supplier';
+import { GetSuppliersDto } from './dto/get-suppliers';
+import { CreateSupplierDto } from './dto/create-supplier';
+import { UpdateSupplierDto } from './dto/update-supplier';
+
+@Controller('supplier')
+export class SupplierController {
+  constructor(private readonly supplierService: SupplierService) {}
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '공급처 목록 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: SupplierListDto,
+  })
+  @Get()
+  async getSuppliers(@Query() value: GetSuppliersDto) {
+    return this.supplierService.getSuppliers(value);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '공급처 생성' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: SupplierDto,
+  })
+  @Post()
+  async createSupplier(@Body() value: CreateSupplierDto) {
+    return this.supplierService.createSupplier(value);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '공급처 수정' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: SupplierDto,
+  })
+  @Patch(':id')
+  async updateSupplier(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() value: UpdateSupplierDto,
+  ) {
+    return this.supplierService.updateSupplier(id, value);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '공급처 삭제' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+  })
+  @Delete(':id')
+  async deleteSupplier(@Param('id', ParseIntPipe) id: number) {
+    return this.supplierService.deleteSupplier(id);
+  }
+}
