@@ -1,0 +1,82 @@
+import {
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { plainToInstance } from 'class-transformer';
+import { Bookmark } from 'src/entity/bookmark/bookmark.entity';
+import { Project } from 'src/entity/project/project.entity';
+import { User } from 'src/entity/user/user.entity';
+import { ProjectService } from 'src/project/project.service';
+import { Repository } from 'typeorm';
+import { BookmarkDto } from './dto/bookmark';
+
+@Injectable()
+export class BookmarkService {
+  constructor(
+    @InjectRepository(Bookmark)
+    private readonly bookmarkRepository: Repository<Bookmark>,
+    @Inject(forwardRef(() => ProjectService))
+    private readonly projectService: ProjectService,
+  ) {}
+
+  async create(user: User, project: Project) {
+    const bookmark = await this.bookmarkRepository.create({ user, project });
+    return await this.bookmarkRepository.save(bookmark);
+  }
+
+  async remove(bookmark: Bookmark) {
+    return await this.bookmarkRepository.remove(bookmark);
+  }
+
+  async findBookmarkById(userId: number, projectId: number) {
+    return await this.bookmarkRepository
+      .createQueryBuilder('bookmark')
+      .leftJoinAndSelect('bookmark.user', 'user')
+      .leftJoinAndSelect('bookmark.project', 'project')
+      .where('user.id = :userId', { userId })
+      .andWhere('project.id = :projectId', { projectId })
+      .getOne();
+  }
+
+  async addBookmark(user: User, id: number) {
+    const project = await this.projectService.findProjectById(id, user);
+
+    if (!project) {
+      throw new NotFoundException('project_not_found');
+    }
+
+    const bookmark = await this.findBookmarkById(user.id, id);
+
+    if (bookmark) {
+      throw new ConflictException('bookmark_exists');
+    }
+
+    const newBookmark = await this.create(user, project);
+
+    return plainToInstance(BookmarkDto, {
+      userId: newBookmark.user.id,
+      projectId: newBookmark.project.id,
+      createdAt: newBookmark.createdAt,
+    });
+  }
+
+  async removeBookmark(user: User, id: number) {
+    const bookmark = await this.findBookmarkById(user.id, id);
+
+    if (!bookmark) {
+      throw new NotFoundException('bookmark_not_found');
+    }
+
+    await this.remove(bookmark);
+
+    return plainToInstance(BookmarkDto, {
+      userId: bookmark.user.id,
+      projectId: bookmark.project.id,
+      createdAt: bookmark.createdAt,
+    });
+  }
+}

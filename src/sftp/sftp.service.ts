@@ -1,0 +1,174 @@
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
+import * as Client from 'ssh2-sftp-client';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import config from 'config';
+import { ConfigType } from '@nestjs/config';
+import { User } from 'src/entity/user/user.entity';
+import { UploadInlineImageDto } from './dto/upload-inline-image';
+import { plainToInstance } from 'class-transformer';
+
+@Injectable()
+export class SftpService {
+  constructor(
+    @Inject(config.KEY)
+    private readonly configService: ConfigType<typeof config>,
+  ) {}
+
+  private async withSftp<T>(action: (sftp: Client) => Promise<T>): Promise<T> {
+    const sftp = new Client();
+    const privateKey = readFileSync(
+      join(process.cwd(), this.configService.sftp.privateKeyPath),
+      'utf-8',
+    );
+
+    try {
+      await sftp.connect({
+        host: this.configService.sftp.host,
+        port: this.configService.sftp.port,
+        username: this.configService.sftp.username,
+        privateKey,
+        passphrase: this.configService.sftp.passphrase,
+        readyTimeout: 10000,
+        keepaliveInterval: 10000,
+      });
+
+      return await action(sftp);
+    } catch (err) {
+      throw new InternalServerErrorException('sftp_connection_failed');
+    } finally {
+      try {
+        await sftp.end();
+      } catch (err) {
+        // 무시: Windows에서 발생하는 ECONNRESET 방지
+      }
+    }
+  }
+
+  async uploadFile(buffer: Buffer, path: string) {
+    return this.withSftp(async (sftp) => {
+      const directory = path.substring(0, path.lastIndexOf('/'));
+      const exists = await sftp.exists(directory);
+      if (!exists) {
+        await sftp.mkdir(directory, true);
+      }
+      await sftp.put(buffer, path);
+
+      return plainToInstance(UploadInlineImageDto, {
+        path,
+        url: `${this.configService.sftp.url}${path}`,
+      });
+    });
+  }
+
+  async downloadFile(path: string) {
+    return this.withSftp(async (sftp) => {
+      const exists = await sftp.exists(path);
+      if (!exists) {
+        throw new NotFoundException('file_not_found');
+      }
+
+      const buffer = (await sftp.get(path)) as Buffer;
+      const fileName = path.substring(path.lastIndexOf('/') + 1);
+
+      return { buffer, fileName };
+    });
+  }
+
+  async deleteFile(url: string) {
+    const baseUrl = this.configService.sftp.url;
+
+    if (!url.startsWith(baseUrl)) {
+      throw new InternalServerErrorException('invalid_sftp_url');
+    }
+
+    const path = url.replace(baseUrl, '');
+
+    return this.withSftp(async (sftp) => {
+      const exists = await sftp.exists(path);
+      if (exists) {
+        await sftp.delete(path);
+      }
+    });
+  }
+
+  private getExtension(filename: string): string {
+    const parts = filename.split('.');
+    return parts.length > 1 ? parts.pop() : '';
+  }
+
+  async uploadInlineImages(user: User, files: Express.Multer.File[]) {
+    const directory = 'inline-images';
+    const basePath = `${this.configService.sftp.path}/${directory}/${user.id}`;
+    const date = `${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+    const images = await Promise.all(
+      files.map(async (file) => {
+        const extension = this.getExtension(file.originalname);
+        const uuid = `${uuidv4()}${extension ? '.' + extension : ''}`;
+        const path = `${basePath}/${date}/${uuid}`;
+
+        return await this.uploadFile(file.buffer, path);
+      }),
+    );
+
+    return images.map((result) =>
+      plainToInstance(UploadInlineImageDto, {
+        path: result.path,
+        url: result.url,
+      }),
+    );
+  }
+
+  async uploadAttachments(user: User, files: Express.Multer.File[]) {
+    const directory = 'attachments';
+    const basePath = `${this.configService.sftp.path}/${directory}/${user.id}`;
+    const date = `${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+    const attachments = await Promise.all(
+      files.map(async (file) => {
+        const extension = this.getExtension(file.originalname);
+        const uuid = `${uuidv4()}${extension ? '.' + extension : ''}`;
+        const path = `${basePath}/${date}/${uuid}`;
+
+        await this.uploadFile(file.buffer, path);
+
+        return {
+          name: file.originalname,
+          size: file.size,
+          url: `${this.configService.sftp.url}${path}`,
+        };
+      }),
+    );
+
+    return attachments;
+  }
+
+  async uploadSupplierLogo(user: User, file: Express.Multer.File) {
+    if (!user.isAdmin) {
+      throw new ForbiddenException('no_permission');
+    }
+
+    const directory = 'suppliers';
+    const basePath = `${this.configService.sftp.path}/${directory}`;
+
+    const extension = this.getExtension(file.originalname);
+    const uuid = `${uuidv4()}${extension ? '.' + extension : ''}`;
+    const path = `${basePath}/${uuid}`;
+
+    await this.uploadFile(file.buffer, path);
+
+    return {
+      name: file.originalname,
+      size: file.size,
+      url: `${this.configService.sftp.url}${path}`,
+    };
+  }
+}
