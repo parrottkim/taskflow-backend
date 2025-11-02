@@ -1,0 +1,415 @@
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
+import { google, calendar_v3 } from 'googleapis';
+import { join } from 'path';
+import { ConfigType } from '@nestjs/config';
+import config from 'config';
+import { CreateScheduleDto } from './dto/create-schedule';
+import { plainToInstance } from 'class-transformer';
+import { ScheduleDto, ScheduleListDto } from './dto/schedule';
+import { ProjectService } from 'src/project/project.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { ScheduleCategory } from 'src/entity/schedule/schedule-category.entity';
+import { Brackets, Repository } from 'typeorm';
+import { User } from 'src/entity/user/user.entity';
+import { ScheduleCategoryDto } from './dto/schedule-category';
+import { Schedule } from 'src/entity/schedule/schedule.entity';
+import { UpdateScheduleDto } from './dto/update-schedule';
+import { GetSchedulesDto } from './dto/get-schedules';
+
+@Injectable()
+export class ScheduleService {
+  private calendarClient: calendar_v3.Calendar;
+  private readonly scheduleCalendarId: string;
+
+  constructor(
+    @Inject(config.KEY)
+    private readonly configService: ConfigType<typeof config>,
+    @InjectRepository(Schedule)
+    private readonly scheduleRepository: Repository<Schedule>,
+    @InjectRepository(ScheduleCategory)
+    private readonly scheduleCategoryRepository: Repository<ScheduleCategory>,
+    private readonly projectService: ProjectService,
+  ) {
+    const credentialsPath = this.configService.googleCalendar.credentialsPath;
+    this.scheduleCalendarId =
+      this.configService.googleCalendar.scheduleCalendarId;
+
+    const auth = new google.auth.GoogleAuth({
+      keyFile: join(process.cwd(), credentialsPath),
+      scopes: ['https://www.googleapis.com/auth/calendar'],
+    });
+
+    this.calendarClient = google.calendar({ version: 'v3', auth });
+  }
+
+  async findCategoryById(id: number) {
+    return await this.scheduleCategoryRepository.findOneBy({ id });
+  }
+
+  async findAllCategories() {
+    return await this.scheduleCategoryRepository
+      .createQueryBuilder('category')
+      .orderBy('category.id', 'ASC')
+      .getMany();
+  }
+
+  async findTodaySchedules(today: Date, tomorrow: Date) {
+    return await this.scheduleRepository
+      .createQueryBuilder('schedule')
+      .leftJoinAndSelect('schedule.project', 'project')
+      .leftJoinAndSelect('schedule.category', 'category')
+      .leftJoinAndSelect('schedule.user', 'user')
+      .where('schedule.start <= :tomorrow AND schedule.end >= :today', {
+        today,
+        tomorrow,
+      })
+      .orderBy('schedule.start', 'ASC')
+      .getMany();
+  }
+
+  async findScheduleById(id: number) {
+    return await this.scheduleRepository
+      .createQueryBuilder('schedule')
+      .leftJoinAndSelect('schedule.project', 'project')
+      .leftJoinAndSelect('schedule.category', 'category')
+      .leftJoinAndSelect('schedule.user', 'user')
+      .where('schedule.id = :id', { id })
+      .getOne();
+  }
+
+  async findSchedules(user: User, value: GetSchedulesDto) {
+    let queryBuilder = await this.scheduleRepository
+      .createQueryBuilder('schedule')
+      .leftJoinAndSelect('schedule.project', 'project')
+      .leftJoinAndSelect('schedule.category', 'category')
+      .leftJoinAndSelect('schedule.user', 'user')
+      .where('user.id = :userId', { userId: user.id })
+      .andWhere('project.id = :projectId', { projectId: value.projectId });
+
+    if (value.search) {
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.orWhere('schedule.summary ILIKE :search', {
+            search: `%${value.search}%`,
+          }).orWhere('schedule.description ILIKE :search', {
+            search: `%${value.search}%`,
+          });
+        }),
+      );
+    }
+
+    if (value.start && value.end) {
+      queryBuilder.andWhere(
+        'schedule.start <= :end AND schedule.end >= :start',
+        { start: value.start, end: value.end },
+      );
+    }
+
+    return queryBuilder
+      .skip((value.page - 1) * value.limit)
+      .take(value.limit)
+      .getManyAndCount();
+  }
+
+  async getAllCategories() {
+    const categories = await this.findAllCategories();
+
+    const transformedCategories = categories.map((category) => {
+      let type;
+
+      if (category.id === 1) {
+        type = 'domestic';
+      } else {
+        type = 'overseas';
+      }
+
+      return {
+        type: type,
+        id: category.id,
+        name: category.name,
+        color: category.color,
+      };
+    });
+
+    const result = plainToInstance(ScheduleCategoryDto, transformedCategories, {
+      excludeExtraneousValues: true,
+    });
+
+    return result;
+  }
+
+  async getTodaySchedules() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // 자정으로 시간 초기화
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1); // 다음 날 자정
+
+    const schedules = await this.findTodaySchedules(today, tomorrow);
+
+    const result = await Promise.all(
+      schedules.map(async (schedule) => {
+        const project = await this.projectService.getProject(
+          schedule.project.id,
+        );
+
+        const scheduleDto = plainToInstance(
+          ScheduleDto,
+          {
+            ...schedule,
+          },
+          { excludeExtraneousValues: true },
+        );
+
+        scheduleDto.projectId = project.id;
+        scheduleDto.projectName = project.name;
+        scheduleDto.projectClientId = project.clients[0].id;
+        scheduleDto.projectClientName =
+          project.clients[project.clients.length - 1].name;
+        scheduleDto.start = schedule.start.toISOString().split('T')[0];
+        scheduleDto.end = schedule.end.toISOString().split('T')[0];
+
+        return scheduleDto;
+      }),
+    );
+
+    return result;
+  }
+
+  async getSchedule(id: number) {
+    const schedule = await this.findScheduleById(id);
+    const project = await this.projectService.getProject(schedule.project.id);
+
+    const scheduleDto = plainToInstance(ScheduleDto, schedule, {
+      excludeExtraneousValues: true,
+    });
+
+    scheduleDto.projectId = project.id;
+    scheduleDto.projectName = project.name;
+    scheduleDto.projectClientId = project.clients[0].id;
+    scheduleDto.projectClientName =
+      project.clients[project.clients.length - 1].name;
+
+    return scheduleDto;
+  }
+
+  async getScheduleWithUser(user: User, id: number) {
+    const schedule = await this.findScheduleById(id);
+    const project = await this.projectService.getProject(schedule.project.id);
+
+    if (!schedule) {
+      throw new NotFoundException('schedule_not_found');
+    }
+
+    // 2️⃣ 권한 체크: 본인 일정이거나 관리자만 접근 가능
+    if (schedule.user.id !== user.id && !user.isAdmin) {
+      throw new ForbiddenException('no_permission');
+    }
+
+    const scheduleDto = plainToInstance(ScheduleDto, schedule, {
+      excludeExtraneousValues: true,
+    });
+
+    scheduleDto.projectId = project.id;
+    scheduleDto.projectName = project.name;
+    scheduleDto.projectClientId = project.clients[0].id;
+    scheduleDto.projectClientName =
+      project.clients[project.clients.length - 1].name;
+
+    return scheduleDto;
+  }
+
+  async getScheduleWithUsers(user: User, value: GetSchedulesDto) {
+    const [schedules, total] = await this.findSchedules(user, value);
+
+    const items = await Promise.all(
+      schedules.map(async (schedule) => {
+        const project = await this.projectService.getProject(
+          schedule.project.id,
+        );
+
+        const scheduleDto = plainToInstance(ScheduleDto, schedule, {
+          excludeExtraneousValues: true,
+        });
+
+        scheduleDto.projectId = project.id;
+        scheduleDto.projectName = project.name;
+        scheduleDto.projectClientId = project.clients[0].id;
+        scheduleDto.projectClientName =
+          project.clients[project.clients.length - 1].name;
+
+        return scheduleDto;
+      }),
+    );
+
+    const scheduleListDto = plainToInstance(ScheduleListDto, {
+      items: items,
+      page: value.page,
+      total: total,
+    });
+
+    return scheduleListDto;
+  }
+
+  async createSchedule(user: User, value: CreateScheduleDto) {
+    const project = await this.projectService.getProject(value.projectId);
+    const category = await this.findCategoryById(value.categoryId);
+
+    const client = project.clients[project.clients.length - 1];
+
+    const res = await this.calendarClient.events.insert({
+      calendarId: this.scheduleCalendarId,
+      requestBody: {
+        summary: value.summary,
+        description: value.description,
+        location: client.name,
+        colorId: category.color,
+        start: {
+          date: value.start,
+        },
+        end: {
+          date: value.end,
+        },
+        extendedProperties: {
+          shared: {
+            categoryId: category.id.toString(),
+            owner: user.email,
+          },
+        },
+      },
+    });
+
+    const eventId = res.data.id;
+
+    const schedule = this.scheduleRepository.create({
+      eventId,
+      category,
+      project,
+      user,
+      summary: value.summary,
+      description: value.description,
+      start: new Date(value.start),
+      end: new Date(value.end),
+    });
+
+    const savedSchedule = await this.scheduleRepository.save(schedule);
+
+    const scheduleDto = plainToInstance(
+      ScheduleDto,
+      {
+        ...savedSchedule,
+        projectId: project.id,
+        projectName: project.name,
+        projectClientId: project.clients[0].id,
+        projectClientName: project.clients[project.clients.length - 1].name,
+      },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
+
+    return scheduleDto;
+  }
+
+  async updateSchedule(user: User, id: number, value: UpdateScheduleDto) {
+    // 1️⃣ 기존 스케줄 조회
+    const schedule = await this.findScheduleById(id);
+
+    if (!schedule) {
+      throw new NotFoundException('schedule_not_found');
+    }
+
+    // 2️⃣ 권한 체크
+    if (schedule.user.id !== user.id && !user.isAdmin) {
+      throw new ForbiddenException('no_permission');
+    }
+
+    // 3️⃣ 새 프로젝트/카테고리 값 처리
+    let projectId = value.projectId ?? schedule.project.id;
+    let categoryId = value.categoryId ?? schedule.category.id;
+
+    // ProjectDto로 가져오기 (clients 포함)
+    const project = await this.projectService.getProject(projectId);
+    const category = await this.findCategoryById(categoryId);
+
+    const client = project.clients[project.clients.length - 1];
+
+    const eventBody: calendar_v3.Schema$Event = {
+      summary: value.summary ?? schedule.summary,
+      description: value.description ?? schedule.description,
+      location: client.name,
+      colorId: category.color,
+      start: {
+        date: value.start ?? schedule.start.toISOString().split('T')[0], // all-day 이벤트 가정
+      },
+      end: {
+        date: value.end ?? schedule.end.toISOString().split('T')[0],
+      },
+      extendedProperties: {
+        shared: {
+          categoryId: category.id.toString(),
+          owner: user.email,
+        },
+      },
+    };
+
+    let newEventId = schedule.eventId;
+
+    // 4️⃣ Google Calendar 이벤트 업데이트 시도
+    try {
+      await this.calendarClient.events.update({
+        calendarId: this.scheduleCalendarId,
+        eventId: schedule.eventId,
+        requestBody: eventBody,
+      });
+    } catch (error: any) {
+      // 이벤트가 존재하지 않으면 새로 생성
+      if (error.code === 404) {
+        const res = await this.calendarClient.events.insert({
+          calendarId: this.scheduleCalendarId,
+          requestBody: eventBody,
+        });
+        newEventId = res.data.id;
+      } else {
+        throw error;
+      }
+    }
+
+    // 5️⃣ DB 업데이트
+    const updatedSchedule = await this.scheduleRepository.save({
+      id: schedule.id,
+      eventId: newEventId,
+      summary: value.summary ?? schedule.summary,
+      description: value.description ?? schedule.description,
+      start: value.start ? new Date(value.start) : schedule.start,
+      end: value.end ? new Date(value.end) : schedule.end,
+      project,
+      category,
+      user: schedule.user,
+    });
+
+    // 6️⃣ DTO 반환 (project 안에 clients 포함)
+    const scheduleDto = plainToInstance(
+      ScheduleDto,
+      {
+        ...updatedSchedule,
+        projectId: project.id,
+        projectName: project.name,
+        projectClientId: project.clients[0].id,
+        projectClientName: project.clients[project.clients.length - 1].name,
+        category,
+      },
+      { excludeExtraneousValues: true },
+    );
+
+    return scheduleDto;
+  }
+
+  async deleteSchedule(id: number) {
+    await this.scheduleRepository.softDelete(id);
+  }
+}

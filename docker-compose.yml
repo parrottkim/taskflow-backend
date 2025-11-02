@@ -1,0 +1,77 @@
+services:
+  libreoffice:
+    image: linuxserver/libreoffice
+    container_name: libreoffice-converter
+    user: "1000:1000"
+    volumes:
+      - doc-conversion:/app/conversion/shared
+    environment:
+      - PUID=1000
+      - PGID=1000
+    profiles:
+      - dev
+
+  postgres-dev:
+    image: postgres:16
+    container_name: taskflow-dev
+    env_file:
+      - .dev.env
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    profiles:
+      - dev
+
+  postgres-prod:
+    image: postgres:16
+    container_name: taskflow-prod
+    env_file:
+      - .prod.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-prod-data:/var/lib/postgresql/data
+    profiles:
+      - prod
+
+  backend-dev:
+    image: dantechhjkim/backend-dev:latest
+    container_name: backend-dev
+    env_file:
+      - .dev.env
+    volumes: 
+      - ./sftpuser-dev_id_rsa:/app/sftpuser-dev_id_rsa:ro
+    depends_on:
+      - postgres-dev
+    expose:
+      - "3000"
+    profiles:
+      - dev
+    networks:
+      - backend_default
+
+  backend-prod:
+    image: dantechhjkim/backend-prod:latest
+    container_name: backend-prod
+    env_file:
+      - .prod.env
+    volumes: 
+      - ./sftpuser_id_rsa:/app/sftpuser_id_rsa:ro
+    depends_on:
+      - postgres-prod
+    expose:
+      - "3000"
+    profiles:
+      - prod
+    networks:
+      - backend_default
+
+volumes: 
+  doc-conversion:
+  postgres-dev-data:
+  postgres-prod-data:
+
+networks:
+  backend_default:
+    external: true
