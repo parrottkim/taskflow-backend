@@ -26,8 +26,8 @@ export class GetProjectsDto {
 
   @ApiProperty()
   @IsOptional()
-  @IsIn(['all', 'preexecuted', 'active', 'finished'])
-  view?: 'all' | 'preexecuted' | 'active' | 'finished';
+  @IsIn(['all', 'preexecuted', 'active', 'closed'])
+  view?: 'all' | 'preexecuted' | 'active' | 'closed';
 
   @ApiProperty()
   @IsOptional()
