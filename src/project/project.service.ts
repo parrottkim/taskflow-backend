@@ -250,7 +250,7 @@ export class ProjectService {
       case 'preexecuted':
         queryBuilder.andWhere('project.isPreexecuted = true');
         break;
-      case 'finished':
+      case 'closed':
         queryBuilder.andWhere('project.isClosed = true');
         break;
     }
@@ -328,13 +328,13 @@ export class ProjectService {
 
   async getProjectSummary(value: GetProjectSummaryDto) {
     const total = await this.findAllProjectCount(value);
-    const finished = await this.findClosedProjectCount(value);
+    const closed = await this.findClosedProjectCount(value);
     const kickedOff = await this.findKickedOffProjectCount(value);
     const active = await this.findActiveProjectCount(value);
 
     return plainToInstance(ProjectSummaryDto, {
       total: total,
-      finished: finished,
+      closed: closed,
       kickedOff: kickedOff,
       active: active,
     });

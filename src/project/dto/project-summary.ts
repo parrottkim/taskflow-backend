@@ -10,7 +10,7 @@ export class ProjectSummaryDto {
   @ApiProperty()
   @IsInt()
   @IsNotEmpty()
-  finished: number;
+  closed: number;
 
   @ApiProperty()
   @IsInt()
