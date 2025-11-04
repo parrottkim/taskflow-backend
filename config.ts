@@ -18,10 +18,16 @@ export default registerAs('config', () => {
       accessTokenExpiration:
         (process.env.ACCESS_TOKEN_EXPIRATION as string) || '1h',
     },
-    googleCalendar: {
+    calendar: {
       credentialsPath: process.env.GOOGLE_CALENDAR_CREDENTIALS_PATH,
       scheduleCalendarId: process.env.GOOGLE_SCHEDULE_CALENDAR_ID,
       vacationCalendarId: process.env.GOOGLE_VACATION_CALENDAR_ID,
+    },
+    mail: {
+      user: process.env.GMAIL_USER,
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
     },
     sftp: {
       host: process.env.SFTP_HOST,

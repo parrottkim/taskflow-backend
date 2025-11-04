@@ -137,11 +137,14 @@ export class SftpService {
         const extension = this.getExtension(file.originalname);
         const uuid = `${uuidv4()}${extension ? '.' + extension : ''}`;
         const path = `${basePath}/${date}/${uuid}`;
+        const originalname = Buffer.from(file.originalname, 'latin1').toString(
+          'utf8',
+        );
 
         await this.uploadFile(file.buffer, path);
 
         return {
-          name: file.originalname,
+          name: originalname,
           size: file.size,
           url: `${this.configService.sftp.url}${path}`,
         };
