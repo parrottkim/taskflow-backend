@@ -89,7 +89,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Create ENV and SFTP key files (Final Fix)
+      - name: Create ENV and SFTP key files
         shell: powershell
         run: |
           $Env = "${{ env.ENV }}"
