@@ -97,27 +97,35 @@ jobs:
           Set-Location -Path $RemoteDir
 
           $GoogleCalendarFile = "google-calendar.json"
-          $GoogleCalendarContent = "${{ secrets.GOOGLE_CALENDAR_JSON_KEY }}"
+          $EnvFile = ".prod.env"
+          $SftpFile = "sftpuser_id_rsa"
+          $KeyContent = '${{ secrets.PROD_SFTP_SSH_KEY }}' # 작은따옴표로 감싸 변수 할당
+          $EnvContent = "${{ secrets.PROD_ENV }}"
+          $GoogleCalendarSecret = '${{ secrets.GOOGLE_CALENDAR_JSON_KEY }}' # 작은따옴표로 감싸 변수 할당
 
           if ($Env -eq "dev") {
               $EnvFile = ".dev.env"
               $SftpFile = "sftpuser-dev_id_rsa"
-              $KeyContent = "${{ secrets.DEV_SFTP_SSH_KEY }}"
+              $KeyContent = '${{ secrets.DEV_SFTP_SSH_KEY }}' # 작은따옴표로 감싸 변수 할당
               $EnvContent = "${{ secrets.DEV_ENV }}"
-          } else {
-              $EnvFile = ".prod.env"
-              $SftpFile = "sftpuser_id_rsa"
-              $KeyContent = "${{ secrets.PROD_SFTP_SSH_KEY }}"
-              $EnvContent = "${{ secrets.PROD_ENV }}"
           }
 
           $EnvFilePath = Join-Path $RemoteDir $EnvFile
           $SftpFilePath = Join-Path $RemoteDir $SftpFile
           $GoogleCalendarFilePath = Join-Path $RemoteDir $GoogleCalendarFile
 
+          # 1. ENV 파일 작성
           Set-Content -Path $EnvFilePath -Value $EnvContent -Force
+          
+          # 2. SFTP SSH Key 파일 작성 (다중 줄 Secret)
+          # $KeyContent 변수는 이미 리터럴 문자열로 할당되었으므로 안전하게 사용 가능
           Set-Content -Path $SftpFilePath -Value $KeyContent -Force
-          Set-Content -Path $GoogleCalendarFilePath -Value $GoogleCalendarContent -Force
+
+          # 3. Google Calendar JSON Key 파일 작성 (다중 줄 Secret)
+          # $GoogleCalendarSecret 변수는 이미 리터럴 문자열로 할당되었으므로 안전하게 사용 가능
+          Set-Content -Path $GoogleCalendarFilePath -Value $GoogleCalendarSecret -Force
+          
+          # 4. 권한 설정
           icacls $SftpFilePath /inheritance:r /grant:r "${{ secrets.SERVER_USER }}:F"
 
       - name: Deploy service
