@@ -97,27 +97,36 @@ jobs:
           Set-Location -Path $RemoteDir
 
           $GoogleCalendarFile = "google-calendar.json"
-          $GoogleCalendarContent = "${{ secrets.GOOGLE_CALENDAR_JSON_KEY }}"
+          $EnvFile = ".prod.env"
+          $SftpFile = "sftpuser_id_rsa"
+          $KeyContent = "${{ secrets.PROD_SFTP_SSH_KEY }}"
+          $EnvContent = "${{ secrets.PROD_ENV }}"
 
           if ($Env -eq "dev") {
               $EnvFile = ".dev.env"
               $SftpFile = "sftpuser-dev_id_rsa"
               $KeyContent = "${{ secrets.DEV_SFTP_SSH_KEY }}"
               $EnvContent = "${{ secrets.DEV_ENV }}"
-          } else {
-              $EnvFile = ".prod.env"
-              $SftpFile = "sftpuser_id_rsa"
-              $KeyContent = "${{ secrets.PROD_SFTP_SSH_KEY }}"
-              $EnvContent = "${{ secrets.PROD_ENV }}"
           }
 
           $EnvFilePath = Join-Path $RemoteDir $EnvFile
           $SftpFilePath = Join-Path $RemoteDir $SftpFile
           $GoogleCalendarFilePath = Join-Path $RemoteDir $GoogleCalendarFile
 
+          # Secret 값을 파일에 직접 작성 (구문 분석 오류 방지)
+          "${{ secrets.GOOGLE_CALENDAR_JSON_KEY }}" | Set-Content -Path $GoogleCalendarFilePath -Force
+          "${{ secrets.PROD_SFTP_SSH_KEY }}" | Set-Content -Path $SftpFilePath -Force # <--- 이 부분도 Secret 값 할당에 사용
+          
+          # DEV/PROD 키를 분기하여 사용하므로, 위에서 설정된 $KeyContent를 사용하도록 다시 수정
           Set-Content -Path $EnvFilePath -Value $EnvContent -Force
           Set-Content -Path $SftpFilePath -Value $KeyContent -Force
-          Set-Content -Path $GoogleCalendarFilePath -Value $GoogleCalendarContent -Force
+          # JSON 키는 그대로 유지: "${{ secrets.GOOGLE_CALENDAR_JSON_KEY }}" | Set-Content -Path $GoogleCalendarFilePath -Force
+          
+          # 올바른 최종 수정 (JSON 부분만 파이프 사용)
+          Set-Content -Path $EnvFilePath -Value $EnvContent -Force
+          Set-Content -Path $SftpFilePath -Value $KeyContent -Force
+          "${{ secrets.GOOGLE_CALENDAR_JSON_KEY }}" | Set-Content -Path $GoogleCalendarFilePath -Force
+          
           icacls $SftpFilePath /inheritance:r /grant:r "${{ secrets.SERVER_USER }}:F"
 
       - name: Deploy service
