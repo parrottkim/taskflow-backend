@@ -7,6 +7,7 @@ import { ScheduleCategory } from 'src/entity/schedule/schedule-category.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProjectClientModule } from 'src/project/project-client.module';
 import { ProjectModule } from 'src/project/project.module';
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ProjectModule } from 'src/project/project.module';
     ProjectModule,
     ProjectClientModule,
     UserModule,
+    MailModule,
   ],
   providers: [ScheduleService],
   controllers: [ScheduleController],

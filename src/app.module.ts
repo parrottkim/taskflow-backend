@@ -19,6 +19,7 @@ import { SupplierModule } from './supplier/supplier.module';
 import { TripModule } from './trip/trip.module';
 import { ExchangeModule } from './exchange/exchange.module';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
     ScheduleModule,
     IssueModule,
     IssueAttachmentModule,
+    MailModule,
     ProjectClientModule,
     ProjectModule,
     SftpModule,

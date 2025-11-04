@@ -10,16 +10,18 @@ import { ConfigType } from '@nestjs/config';
 import config from 'config';
 import { CreateScheduleDto } from './dto/create-schedule';
 import { plainToInstance } from 'class-transformer';
-import { ScheduleDto, ScheduleListDto } from './dto/schedule';
+import { ScheduleDto, ScheduleGroupDto, ScheduleListDto } from './dto/schedule';
 import { ProjectService } from 'src/project/project.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ScheduleCategory } from 'src/entity/schedule/schedule-category.entity';
-import { Brackets, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { User } from 'src/entity/user/user.entity';
 import { ScheduleCategoryDto } from './dto/schedule-category';
 import { Schedule } from 'src/entity/schedule/schedule.entity';
 import { UpdateScheduleDto } from './dto/update-schedule';
 import { GetSchedulesDto } from './dto/get-schedules';
+import { MailService } from 'src/mail/mail.service';
+import * as dayjs from 'dayjs';
 
 @Injectable()
 export class ScheduleService {
@@ -34,10 +36,10 @@ export class ScheduleService {
     @InjectRepository(ScheduleCategory)
     private readonly scheduleCategoryRepository: Repository<ScheduleCategory>,
     private readonly projectService: ProjectService,
+    private readonly mailService: MailService,
   ) {
-    const credentialsPath = this.configService.googleCalendar.credentialsPath;
-    this.scheduleCalendarId =
-      this.configService.googleCalendar.scheduleCalendarId;
+    const credentialsPath = this.configService.calendar.credentialsPath;
+    this.scheduleCalendarId = this.configService.calendar.scheduleCalendarId;
 
     const auth = new google.auth.GoogleAuth({
       keyFile: join(process.cwd(), credentialsPath),
@@ -83,37 +85,41 @@ export class ScheduleService {
   }
 
   async findSchedules(user: User, value: GetSchedulesDto) {
-    let queryBuilder = await this.scheduleRepository
-      .createQueryBuilder('schedule')
-      .leftJoinAndSelect('schedule.project', 'project')
-      .leftJoinAndSelect('schedule.category', 'category')
-      .leftJoinAndSelect('schedule.user', 'user')
-      .where('user.id = :userId', { userId: user.id })
-      .andWhere('project.id = :projectId', { projectId: value.projectId });
-
-    if (value.search) {
-      queryBuilder.andWhere(
-        new Brackets((qb) => {
-          qb.orWhere('schedule.summary ILIKE :search', {
-            search: `%${value.search}%`,
-          }).orWhere('schedule.description ILIKE :search', {
-            search: `%${value.search}%`,
-          });
-        }),
-      );
-    }
-
-    if (value.start && value.end) {
-      queryBuilder.andWhere(
-        'schedule.start <= :end AND schedule.end >= :start',
-        { start: value.start, end: value.end },
-      );
-    }
-
-    return queryBuilder
-      .skip((value.page - 1) * value.limit)
-      .take(value.limit)
-      .getManyAndCount();
+    // const queryBuilder = this.scheduleRepository
+    //   .createQueryBuilder('schedule')
+    //   .leftJoinAndSelect('schedule.project', 'project')
+    //   .leftJoinAndSelect('schedule.category', 'category')
+    //   .leftJoinAndSelect('schedule.user', 'user')
+    //   .where('project.id = :projectId', { projectId: value.projectId })
+    //   .andWhere('user.id = :userId', { userId: user.id });
+    // // 방향에 따라 쿼리 조건 다르게 설정
+    // if (value.lastStart) {
+    //   if (value.isBackward) {
+    //     queryBuilder
+    //       .andWhere(
+    //         '(schedule.start < :lastStart OR (schedule.start = :lastStart AND schedule.id < :lastId))',
+    //         { lastStart: value.lastStart, lastId: value.lastId },
+    //       )
+    //       .orderBy('schedule.start', 'DESC')
+    //       .addOrderBy('schedule.id', 'DESC');
+    //   } else {
+    //     queryBuilder
+    //       .andWhere(
+    //         '(schedule.start > :lastStart OR (schedule.start = :lastStart AND schedule.id > :lastId))',
+    //         { lastStart: value.lastStart, lastId: value.lastId },
+    //       )
+    //       .orderBy('schedule.start', 'ASC')
+    //       .addOrderBy('schedule.id', 'ASC');
+    //   }
+    // } else {
+    //   // 초기 로드 → 오늘 이후 일정
+    //   const today = new Date();
+    //   today.setHours(0, 0, 0, 0);
+    //   queryBuilder
+    //     .andWhere('schedule.end >= :today', { today })
+    //     .orderBy('schedule.start', 'ASC');
+    // }
+    // return await queryBuilder.take(value.limit + 1).getMany();
   }
 
   async getAllCategories() {
@@ -124,8 +130,10 @@ export class ScheduleService {
 
       if (category.id === 1) {
         type = 'domestic';
-      } else {
+      } else if (category.id === 2) {
         type = 'overseas';
+      } else {
+        type = 'center';
       }
 
       return {
@@ -224,18 +232,55 @@ export class ScheduleService {
   }
 
   async getScheduleWithUsers(user: User, value: GetSchedulesDto) {
-    const [schedules, total] = await this.findSchedules(user, value);
+    const start = value.start
+      ? dayjs(value.start).startOf('day')
+      : dayjs().subtract(7, 'day').startOf('day');
+    const end = value.end
+      ? dayjs(value.end).endOf('day')
+      : dayjs().add(7, 'day').endOf('day');
+
+    const events = await this.scheduleRepository
+      .createQueryBuilder('schedule')
+      .leftJoinAndSelect('schedule.project', 'project')
+      .leftJoinAndSelect('schedule.category', 'category')
+      .leftJoinAndSelect('schedule.user', 'user')
+      .where('schedule.start BETWEEN :start AND :end', {
+        start: start.toDate(),
+        end: end.toDate(),
+      })
+      .andWhere('user.id = :id', { id: user.id })
+      .andWhere('project.id = :id', { id: value.projectId })
+      .orderBy('schedule.start', 'ASC')
+      .getMany();
+
+    const hasPrevious = await this.scheduleRepository
+      .createQueryBuilder('schedule')
+      .leftJoinAndSelect('schedule.project', 'project')
+      .leftJoinAndSelect('schedule.category', 'category')
+      .leftJoinAndSelect('schedule.user', 'user')
+      .where('schedule.start < :start', { start: start.toDate() })
+      .andWhere('user.id = :id', { id: user.id })
+      .andWhere('project.id = :id', { id: value.projectId })
+      .getExists();
+
+    const hasNext = await this.scheduleRepository
+      .createQueryBuilder('schedule')
+      .leftJoinAndSelect('schedule.project', 'project')
+      .leftJoinAndSelect('schedule.category', 'category')
+      .leftJoinAndSelect('schedule.user', 'user')
+      .where('schedule.start > :end', { end: end.toDate() })
+      .andWhere('user.id = :id', { id: user.id })
+      .andWhere('project.id = :id', { id: value.projectId })
+      .getExists();
 
     const items = await Promise.all(
-      schedules.map(async (schedule) => {
+      events.map(async (schedule) => {
         const project = await this.projectService.getProject(
           schedule.project.id,
         );
-
         const scheduleDto = plainToInstance(ScheduleDto, schedule, {
           excludeExtraneousValues: true,
         });
-
         scheduleDto.projectId = project.id;
         scheduleDto.projectName = project.name;
         scheduleDto.projectClientId = project.clients[0].id;
@@ -246,13 +291,80 @@ export class ScheduleService {
       }),
     );
 
+    const grouped = items.reduce((acc, event) => {
+      const dateKey = dayjs(event.start).format('YYYY-MM-DD');
+      if (!acc[dateKey]) acc[dateKey] = [];
+      acc[dateKey].push(event);
+      return acc;
+    }, {});
+
+    const groupedItems = Object.entries(grouped).map(
+      ([dateKey, scheduleDtos]) =>
+        plainToInstance(
+          ScheduleGroupDto,
+          {
+            date: dateKey,
+            items: scheduleDtos,
+          },
+          {
+            excludeExtraneousValues: true,
+          },
+        ),
+    );
+
     const scheduleListDto = plainToInstance(ScheduleListDto, {
-      items: items,
-      page: value.page,
-      total: total,
+      items: groupedItems,
+      hasNext: hasNext,
+      hasPrevious: hasPrevious,
     });
 
     return scheduleListDto;
+
+    // const today = new Date();
+    // today.setHours(0, 0, 0, 0);
+
+    // const beforeQuery = this.findSchedules(user, {
+    //   ...value,
+    //   end: today.toISOString(),
+    //   isBackward: true,
+    //   limit: 5,
+    // });
+
+    // const afterQuery = this.findSchedules(user, {
+    //   ...value,
+    //   start: today.toISOString(),
+    //   isBackward: false,
+    //   limit: 5,
+    // });
+
+    // const [before, after] = await Promise.all([beforeQuery, afterQuery]);
+
+    // const merged = [...before.reverse(), ...after]; // 오늘 기준으로 양쪽 결합
+
+    // const items = await Promise.all(
+    //   merged.map(async (schedule) => {
+    //     const project = await this.projectService.getProject(
+    //       schedule.project.id,
+    //     );
+    //     const scheduleDto = plainToInstance(ScheduleDto, schedule, {
+    //       excludeExtraneousValues: true,
+    //     });
+    //     scheduleDto.projectId = project.id;
+    //     scheduleDto.projectName = project.name;
+    //     scheduleDto.projectClientId = project.clients[0].id;
+    //     scheduleDto.projectClientName =
+    //       project.clients[project.clients.length - 1].name;
+    //     return scheduleDto;
+    //   }),
+    // );
+
+    // const scheduleListDto = plainToInstance(ScheduleListDto, {
+    //   items,
+    //   hasNextPage: after.length > value.limit,
+    //   hasPreviousPage: before.length > value.limit,
+    // });
+
+    // return scheduleListDto;
   }
 
   async createSchedule(user: User, value: CreateScheduleDto) {
@@ -297,6 +409,8 @@ export class ScheduleService {
     });
 
     const savedSchedule = await this.scheduleRepository.save(schedule);
+
+    await this.mailService.sendMailToEveryone(value.summary, value.description);
 
     const scheduleDto = plainToInstance(
       ScheduleDto,
