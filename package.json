@@ -19,12 +19,10 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-
     "typeorm": "node ./node_modules/typeorm/cli.js",
     "typeorm:migrate": "npm run typeorm -- migration:run -d ./dist/src/data-source.js",
     "typeorm:generate": "npm run typeorm -- migration:generate -d ./dist/src/data-source.js",
     "typeorm:revert": "npm run typeorm -- migration:revert -d ./dist/src/data-source.js",
-
     "typeorm:local": "cross-env DOTENV_CONFIG_PATH=.local.env ts-node -r dotenv/config --files ./node_modules/typeorm/cli.js",
     "typeorm:local:create": "npm run typeorm:local -- migration:create -d ./src/data-source.ts",
     "typeorm:local:generate": "npm run typeorm:local -- migration:generate -d ./src/data-source.ts",
@@ -48,6 +46,7 @@
     "class-validator": "^0.14.2",
     "cross-env": "^7.0.3",
     "date-fns": "^4.1.0",
+    "dayjs": "^1.11.19",
     "exceljs": "^4.4.0",
     "google-auth-library": "^10.1.0",
     "googleapis": "^153.0.0",

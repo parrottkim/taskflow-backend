@@ -96,6 +96,9 @@ jobs:
           $RemoteDir = "${{ env.REMOTE_DIR }}"
           Set-Location -Path $RemoteDir
 
+          $GoogleCalendarFile = "google-calendar.json"
+          $GoogleCalendarContent = "${{ secrets.GOOGLE_CALENDAR_JSON_KEY }}"
+
           if ($Env -eq "dev") {
               $EnvFile = ".dev.env"
               $SftpFile = "sftpuser-dev_id_rsa"
@@ -110,10 +113,11 @@ jobs:
 
           $EnvFilePath = Join-Path $RemoteDir $EnvFile
           $SftpFilePath = Join-Path $RemoteDir $SftpFile
+          $GoogleCalendarFilePath = Join-Path $RemoteDir $GoogleCalendarFile
 
           Set-Content -Path $EnvFilePath -Value $EnvContent -Force
-
           Set-Content -Path $SftpFilePath -Value $KeyContent -Force
+          Set-Content -Path $GoogleCalendarFilePath -Value $GoogleCalendarContent -Force
           icacls $SftpFilePath /inheritance:r /grant:r "${{ secrets.SERVER_USER }}:F"
 
       - name: Deploy service

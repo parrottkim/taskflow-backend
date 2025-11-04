@@ -102,6 +102,14 @@ export class UserService {
       .getManyAndCount();
   }
 
+  async findAllUsers() {
+    return await this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.position', 'position')
+      .leftJoinAndSelect('user.department', 'department')
+      .getMany();
+  }
+
   async getAllDepartments() {
     const departments = await this.findAllDepartments();
 
@@ -146,6 +154,12 @@ export class UserService {
     });
 
     return userListDto;
+  }
+
+  async getAllUsers() {
+    const users = await this.findAllUsers();
+
+    return users;
   }
 
   async create(user: CreateUserDto) {
