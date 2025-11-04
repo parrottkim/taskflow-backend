@@ -42,6 +42,7 @@ services:
       - .dev.env
     volumes: 
       - ./sftpuser-dev_id_rsa:/app/sftpuser-dev_id_rsa:ro
+      - ./google-calendar.json:/app/google-calendar.json:ro
     depends_on:
       - postgres-dev
     expose:
@@ -58,6 +59,7 @@ services:
       - .prod.env
     volumes: 
       - ./sftpuser_id_rsa:/app/sftpuser_id_rsa:ro
+      - ./google-calendar.json:/app/google-calendar.json:ro
     depends_on:
       - postgres-prod
     expose:
