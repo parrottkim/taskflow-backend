@@ -2,6 +2,7 @@ import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { TransactionIssue } from './transaction-issue.entity';
 import { TransactionIssueItemCategory } from './transaction-issue-category.entity';
 import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
+import { Currency } from '../currency/currency.entity';
 
 @Entity()
 export class TransactionIssueItem {
@@ -13,6 +14,9 @@ export class TransactionIssueItem {
 
   @ManyToOne(() => TransactionIssueItemCategory, (category) => category.items)
   category: TransactionIssueItemCategory;
+
+  @ManyToOne(() => Currency, (currency) => currency.transactions)
+  currency: Currency;
 
   @Column('decimal', {
     precision: 12,
