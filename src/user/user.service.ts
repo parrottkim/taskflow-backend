@@ -159,7 +159,11 @@ export class UserService {
   async getAllUsers() {
     const users = await this.findAllUsers();
 
-    return users;
+    const result = plainToInstance(UserDto, users, {
+      excludeExtraneousValues: true,
+    });
+
+    return result;
   }
 
   async create(user: CreateUserDto) {

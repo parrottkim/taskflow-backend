@@ -17,9 +17,9 @@ import { UserDepartmentModule } from './user/user-department.module';
 import { IssueAttachmentModule } from './issue/issue-attachment.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { TripModule } from './trip/trip.module';
-import { ExchangeModule } from './exchange/exchange.module';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { MailModule } from './mail/mail.module';
+import { CurrencyModule } from './currency/currency.module';
 
 @Module({
   imports: [
@@ -57,7 +57,7 @@ import { MailModule } from './mail/mail.module';
     }),
     AuthModule,
     BookmarkModule,
-    ExchangeModule,
+    CurrencyModule,
     ScheduleModule,
     IssueModule,
     IssueAttachmentModule,

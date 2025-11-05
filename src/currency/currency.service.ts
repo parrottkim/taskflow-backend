@@ -1,25 +1,59 @@
+import { HttpService } from '@nestjs/axios';
 import {
-  Injectable,
   Inject,
+  Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { plainToInstance } from 'class-transformer';
 import config from 'config';
-import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import { Currency } from 'src/entity/issue/currency/currency.entity';
+import { Repository } from 'typeorm';
+import { CurrencyDto } from './dto/currency';
 
 @Injectable()
-export class ExchangeService {
-  // 업데이트된 API 기본 URL
+export class CurrencyService {
   private readonly BASE_URL =
     'https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON';
 
   constructor(
+    private readonly httpService: HttpService,
+    @InjectRepository(Currency)
+    private readonly currencyRepository: Repository<Currency>,
     @Inject(config.KEY)
     private readonly configService: ConfigType<typeof config>,
-    private readonly httpService: HttpService,
   ) {}
+
+  async findAllCurrencies() {
+    return await this.currencyRepository.find();
+  }
+
+  async findCurrencyById(id: number) {
+    return await this.currencyRepository.findOne({ where: { id: id } });
+  }
+
+  async getAllCurrencies() {
+    const currencies = await this.findAllCurrencies();
+
+    const result = plainToInstance(CurrencyDto, currencies, {
+      excludeExtraneousValues: true,
+    });
+
+    return result;
+  }
+
+  async getCurrency(id: number) {
+    const currency = await this.findCurrencyById(id);
+
+    const result = plainToInstance(CurrencyDto, currency, {
+      excludeExtraneousValues: true,
+    });
+
+    return result;
+  }
 
   /**
    * 한국수출입은행 환율 API를 호출하여 특정 날짜의 데이터를 가져옵니다.

@@ -19,6 +19,11 @@ export class CreateContractIssueItemDto {
   item: string;
 
   @ApiProperty()
+  @IsInt()
+  @IsNotEmpty()
+  currencyId: number;
+
+  @ApiProperty()
   @Transform(({ value }) => {
     // 쉼표(,)를 제거하고 숫자로 변환합니다.
     if (typeof value === 'string') {
@@ -103,6 +108,11 @@ export class CreateTransactionIssueItemDto {
   @IsInt()
   @IsNotEmpty()
   categoryId: number;
+
+  @ApiProperty()
+  @IsInt()
+  @IsNotEmpty()
+  currencyId: number;
 
   @ApiProperty()
   @Transform(({ value }) => {

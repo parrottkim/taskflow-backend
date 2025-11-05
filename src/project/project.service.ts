@@ -437,10 +437,13 @@ export class ProjectService {
       });
       if (!client) throw new NotFoundException('client_not_found');
 
-      const manager = await queryRunner.manager.findOne(User, {
-        where: { id: value.managerId },
-      });
-      if (!manager) throw new NotFoundException('manager_not_found');
+      let manager: User | null = null;
+      if (value.managerId) {
+        manager = await queryRunner.manager.findOne(User, {
+          where: { id: value.managerId },
+        });
+        if (!manager) throw new NotFoundException('manager_not_found');
+      }
 
       // 프로젝트 생성
       const project = queryRunner.manager.create(Project, {

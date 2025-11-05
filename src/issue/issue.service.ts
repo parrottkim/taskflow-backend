@@ -36,6 +36,9 @@ import { TransactionIssueItem } from 'src/entity/issue/transaction/transaction-i
 import { TransactionIssueItemCategory } from 'src/entity/issue/transaction/transaction-issue-category.entity';
 import { TransactionIssueItemCategoryDto } from './dto/issue-details';
 import { UpdateProjectDto } from 'src/project/dto/update-project';
+import { CurrencyService } from 'src/currency/currency.service';
+import { Currency } from 'src/entity/issue/currency/currency.entity';
+import { Supplier } from 'src/entity/supplier/supplier.entity';
 
 @Injectable()
 export class IssueService {
@@ -50,6 +53,7 @@ export class IssueService {
     private readonly projectService: ProjectService,
     private readonly projectClientService: ProjectClientService,
     private readonly sftpService: SftpService,
+    private readonly currencyService: CurrencyService,
     private readonly supplierService: SupplierService,
   ) {}
 
@@ -108,6 +112,7 @@ export class IssueService {
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('issue.contract', 'contract')
       .leftJoinAndSelect('contract.items', 'contractItems')
+      .leftJoinAndSelect('contractItems.currency', 'contractCurrency')
       .leftJoinAndSelect('issue.kickoff', 'kickoff')
       .leftJoinAndSelect('issue.approval', 'approval')
       .leftJoinAndSelect('issue.procurement', 'procurement')
@@ -116,6 +121,7 @@ export class IssueService {
       .leftJoinAndSelect('supplier.keywords', 'keywords')
       .leftJoinAndSelect('issue.transaction', 'transaction')
       .leftJoinAndSelect('transaction.items', 'transactionItems')
+      .leftJoinAndSelect('transactionItems.currency', 'transactionCurrency')
       .leftJoinAndSelect(
         'transactionItems.category',
         'transactionItemsCategory',
@@ -138,6 +144,7 @@ export class IssueService {
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('issue.contract', 'contract')
       .leftJoinAndSelect('contract.items', 'contractItems')
+      .leftJoinAndSelect('contractItems.currency', 'contractCurrency')
       .leftJoinAndSelect('issue.kickoff', 'kickoff')
       .leftJoinAndSelect('issue.approval', 'approval')
       .leftJoinAndSelect('issue.procurement', 'procurement')
@@ -146,6 +153,7 @@ export class IssueService {
       .leftJoinAndSelect('supplier.keywords', 'keywords')
       .leftJoinAndSelect('issue.transaction', 'transaction')
       .leftJoinAndSelect('transaction.items', 'transactionItems')
+      .leftJoinAndSelect('transactionItems.currency', 'transactionCurrency')
       .leftJoinAndSelect(
         'transactionItems.category',
         'transactionItemsCategory',
@@ -276,10 +284,23 @@ export class IssueService {
       switch (value.categoryId) {
         case 1:
           if (value.contract) {
-            issue.contract = queryRunner.manager.create(
-              ContractIssue,
-              value.contract,
+            const contractItems = await Promise.all(
+              value.contract.items.map(async (item) => {
+                const currency = await queryRunner.manager.findOne(Currency, {
+                  where: { id: item.currencyId },
+                });
+
+                return queryRunner.manager.create(ContractIssueItem, {
+                  currency: currency,
+                  item: item.item,
+                  price: item.price,
+                });
+              }),
             );
+
+            issue.contract = queryRunner.manager.create(ContractIssue, {
+              items: contractItems,
+            });
           }
           break;
         case 2:
@@ -295,7 +316,9 @@ export class IssueService {
             const procurementItems = await Promise.all(
               value.procurement.items.map(async (item) => {
                 const supplier = item.supplierId
-                  ? await this.supplierService.getSupplier(item.supplierId)
+                  ? await queryRunner.manager.findOne(Supplier, {
+                      where: { id: item.supplierId },
+                    })
                   : null;
 
                 return queryRunner.manager.create(ProcurementIssueItem, {
@@ -320,11 +343,19 @@ export class IssueService {
           if (value.transaction) {
             const transactionItems = await Promise.all(
               value.transaction.items.map(async (item) => {
-                const transactionCategory =
-                  await this.findTransactionCategoryById(item.categoryId);
+                const category = await queryRunner.manager.findOne(
+                  TransactionIssueItemCategory,
+                  {
+                    where: { id: item.categoryId },
+                  },
+                );
+                const currency = await queryRunner.manager.findOne(Currency, {
+                  where: { id: item.currencyId },
+                });
 
                 return queryRunner.manager.create(TransactionIssueItem, {
-                  category: transactionCategory,
+                  category: category,
+                  currency: currency,
                   price: item.price,
                   note: item.note,
                 });
@@ -382,25 +413,26 @@ export class IssueService {
     await queryRunner.startTransaction();
 
     try {
-      const issue = await queryRunner.manager.findOne(Issue, {
-        where: { id },
-        relations: [
-          'user',
-          'category',
-          'category.charge',
-          'attachments',
-          'contract',
-          'contract.items',
-          'kickoff',
-          'approval',
-          'procurement',
-          'procurement.items',
-          'transaction',
-          'transaction.items',
-          'declaration',
-          'payment',
-        ],
-      });
+      const issue = await queryRunner.manager
+        .createQueryBuilder(Issue, 'issue')
+        .leftJoinAndSelect('issue.user', 'user')
+        .leftJoinAndSelect('issue.category', 'category')
+        .leftJoinAndSelect('issue.attachments', 'attachments')
+        .leftJoinAndSelect('issue.contract', 'contract')
+        .leftJoinAndSelect('issue.kickoff', 'kickoff')
+        .leftJoinAndSelect('issue.approval', 'approval')
+        .leftJoinAndSelect('issue.procurement', 'procurement')
+        .leftJoinAndSelect('issue.transaction', 'transaction')
+        .leftJoinAndSelect('issue.declaration', 'declaration')
+        .leftJoinAndSelect('issue.payment', 'payment')
+        .leftJoinAndSelect('category.charge', 'charge')
+        .leftJoinAndSelect('contract.items', 'contractItems')
+        .leftJoinAndSelect('contractItems.currency', 'contractCurrency')
+        .leftJoinAndSelect('procurement.items', 'procurementItems')
+        .leftJoinAndSelect('transaction.items', 'transactionItems')
+        .leftJoinAndSelect('transactionItems.currency', 'transactionCurrency')
+        .where('issue.id = :id', { id })
+        .getOne();
 
       if (!issue) {
         throw new NotFoundException('issue_not_found');
@@ -469,18 +501,24 @@ export class IssueService {
         issue.contract ??= queryRunner.manager.create(ContractIssue, { issue });
         issue.contract.items = await Promise.all(
           value.contract.items.map(async (dto) => {
+            const currency = await queryRunner.manager.findOne(Currency, {
+              where: { id: dto.currencyId },
+            });
+
             if (dto.id) {
               const existing = issue.contract.items.find(
                 (i) => i.id === dto.id,
               );
               if (existing) {
                 existing.item = dto.item;
+                existing.currency = currency;
                 existing.price = dto.price;
                 return existing;
               }
             }
             return queryRunner.manager.create(ContractIssueItem, {
               item: dto.item,
+              currency,
               price: dto.price,
               contract: issue.contract,
             });
@@ -546,8 +584,13 @@ export class IssueService {
           value.transaction.items.map(async (dto) => {
             const category = await queryRunner.manager.findOne(
               TransactionIssueItemCategory,
-              { where: { id: dto.categoryId } },
+              {
+                where: { id: dto.categoryId },
+              },
             );
+            const currency = await queryRunner.manager.findOne(Currency, {
+              where: { id: dto.currencyId },
+            });
 
             if (dto.id) {
               const existing = issue.transaction.items.find(
@@ -555,6 +598,7 @@ export class IssueService {
               );
               if (existing) {
                 existing.category = category;
+                existing.currency = currency;
                 existing.price = dto.price;
                 existing.note = dto.note;
                 return existing;
@@ -563,6 +607,7 @@ export class IssueService {
 
             return queryRunner.manager.create(TransactionIssueItem, {
               category,
+              currency,
               price: dto.price,
               note: dto.note,
               transaction: issue.transaction,

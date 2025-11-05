@@ -248,8 +248,8 @@ export class ScheduleService {
         start: start.toDate(),
         end: end.toDate(),
       })
-      .andWhere('user.id = :id', { id: user.id })
-      .andWhere('project.id = :id', { id: value.projectId })
+      .andWhere('user.id = :userId', { userId: user.id })
+      .andWhere('project.id = :projectId', { projectId: value.projectId })
       .orderBy('schedule.start', 'ASC')
       .getMany();
 
@@ -259,8 +259,8 @@ export class ScheduleService {
       .leftJoinAndSelect('schedule.category', 'category')
       .leftJoinAndSelect('schedule.user', 'user')
       .where('schedule.start < :start', { start: start.toDate() })
-      .andWhere('user.id = :id', { id: user.id })
-      .andWhere('project.id = :id', { id: value.projectId })
+      .andWhere('user.id = :userId', { userId: user.id })
+      .andWhere('project.id = :projectId', { projectId: value.projectId })
       .getExists();
 
     const hasNext = await this.scheduleRepository
@@ -269,8 +269,8 @@ export class ScheduleService {
       .leftJoinAndSelect('schedule.category', 'category')
       .leftJoinAndSelect('schedule.user', 'user')
       .where('schedule.start > :end', { end: end.toDate() })
-      .andWhere('user.id = :id', { id: user.id })
-      .andWhere('project.id = :id', { id: value.projectId })
+      .andWhere('user.id = :userId', { userId: user.id })
+      .andWhere('project.id = :projectId', { projectId: value.projectId })
       .getExists();
 
     const items = await Promise.all(
@@ -319,52 +319,6 @@ export class ScheduleService {
     });
 
     return scheduleListDto;
-
-    // const today = new Date();
-    // today.setHours(0, 0, 0, 0);
-
-    // const beforeQuery = this.findSchedules(user, {
-    //   ...value,
-    //   end: today.toISOString(),
-    //   isBackward: true,
-    //   limit: 5,
-    // });
-
-    // const afterQuery = this.findSchedules(user, {
-    //   ...value,
-    //   start: today.toISOString(),
-    //   isBackward: false,
-    //   limit: 5,
-    // });
-
-    // const [before, after] = await Promise.all([beforeQuery, afterQuery]);
-
-    // const merged = [...before.reverse(), ...after]; // 오늘 기준으로 양쪽 결합
-
-    // const items = await Promise.all(
-    //   merged.map(async (schedule) => {
-    //     const project = await this.projectService.getProject(
-    //       schedule.project.id,
-    //     );
-    //     const scheduleDto = plainToInstance(ScheduleDto, schedule, {
-    //       excludeExtraneousValues: true,
-    //     });
-    //     scheduleDto.projectId = project.id;
-    //     scheduleDto.projectName = project.name;
-    //     scheduleDto.projectClientId = project.clients[0].id;
-    //     scheduleDto.projectClientName =
-    //       project.clients[project.clients.length - 1].name;
-    //     return scheduleDto;
-    //   }),
-    // );
-
-    // const scheduleListDto = plainToInstance(ScheduleListDto, {
-    //   items,
-    //   hasNextPage: after.length > value.limit,
-    //   hasPreviousPage: before.length > value.limit,
-    // });
-
-    // return scheduleListDto;
   }
 
   async createSchedule(user: User, value: CreateScheduleDto) {
@@ -405,7 +359,7 @@ export class ScheduleService {
       summary: value.summary,
       description: value.description,
       start: new Date(value.start),
-      end: new Date(value.end),
+      end: new Date(new Date(value.end).getTime() - 1),
     });
 
     const savedSchedule = await this.scheduleRepository.save(schedule);
@@ -500,7 +454,9 @@ export class ScheduleService {
       summary: value.summary ?? schedule.summary,
       description: value.description ?? schedule.description,
       start: value.start ? new Date(value.start) : schedule.start,
-      end: value.end ? new Date(value.end) : schedule.end,
+      end: value.end
+        ? new Date(new Date(value.end).getTime() - 1)
+        : schedule.end,
       project,
       category,
       user: schedule.user,
