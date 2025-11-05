@@ -44,6 +44,19 @@ export class UserController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '모든 사용자 정보 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: UserListDto,
+  })
+  @Get('all')
+  getAllUsers() {
+    return this.userService.getAllUsers();
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '사용자 정보 조회' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({

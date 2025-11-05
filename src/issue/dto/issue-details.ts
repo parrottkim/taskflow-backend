@@ -9,6 +9,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { CurrencyDto } from 'src/currency/dto/currency';
 import { SupplierDto } from 'src/supplier/dto/supplier';
 
 export class ContractIssueItemDto {
@@ -23,6 +24,11 @@ export class ContractIssueItemDto {
   @IsNotEmpty()
   @Expose()
   item: string;
+
+  @ApiProperty({ type: CurrencyDto })
+  @Type(() => CurrencyDto)
+  @Expose()
+  currency: CurrencyDto;
 
   @ApiProperty()
   @Transform(({ value }) => value.toLocaleString('ko-KR'))
@@ -115,6 +121,11 @@ export class TransactionIssueItemDto {
   @Type(() => TransactionIssueItemCategoryDto)
   @Expose()
   category: TransactionIssueItemCategoryDto;
+
+  @ApiProperty({ type: CurrencyDto })
+  @Type(() => CurrencyDto)
+  @Expose()
+  currency: CurrencyDto;
 
   @ApiProperty()
   @Transform(({ value }) => value.toLocaleString('ko-KR'))

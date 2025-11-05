@@ -23,6 +23,8 @@ import { IssueAttachment } from 'src/entity/issue/issue-attachment.entity';
 import { IssueAttachmentSubscriber } from 'src/common/subscribers/issue-attachment.subscriber';
 import { SupplierModule } from 'src/supplier/supplier.module';
 import { Supplier } from 'src/entity/supplier/supplier.entity';
+import { Currency } from 'src/entity/issue/currency/currency.entity';
+import { CurrencyModule } from 'src/currency/currency.module';
 
 @Module({
   imports: [
@@ -43,10 +45,12 @@ import { Supplier } from 'src/entity/supplier/supplier.entity';
       TransactionIssueItem,
       TransactionIssueItemCategory,
       IssueAttachment,
+      Currency,
     ]),
     ProjectModule,
     ProjectClientModule,
     SftpModule,
+    CurrencyModule,
     SupplierModule,
   ],
   providers: [IssueService, IssueAttachmentSubscriber],
