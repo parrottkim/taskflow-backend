@@ -10,12 +10,12 @@ export class UpdateIssueAttachmentDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  url: string;
+  path: string;
 
   @ApiProperty()
   @IsString()
   @IsOptional()
-  name?: string;
+  filename?: string;
 
   @ApiProperty()
   @IsInt()

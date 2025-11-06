@@ -97,7 +97,7 @@ export class SftpController {
       'Content-Length': buffer.length,
     });
 
-    res.send(buffer);
+    res.end(buffer);
   }
 
   @UseGuards(JwtAccessAuthGuard)

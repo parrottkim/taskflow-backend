@@ -16,13 +16,13 @@ export class IssueAttachment {
   issue: Issue;
 
   @Column({ type: 'varchar' })
-  name: string;
+  filename: string;
 
   @Column()
   size: number;
 
   @Column({ type: 'varchar' })
-  url: string;
+  path: string;
 
   @CreateDateColumn()
   createdAt: Date;

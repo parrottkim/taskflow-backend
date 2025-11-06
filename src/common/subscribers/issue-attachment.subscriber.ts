@@ -23,8 +23,8 @@ export class IssueAttachmentSubscriber
   }
 
   async beforeRemove(event: RemoveEvent<IssueAttachment>) {
-    if (event.entity?.url) {
-      await this.sftpService.deleteFile(event.entity.url);
+    if (event.entity?.path) {
+      await this.sftpService.deleteFile(event.entity.path);
     }
   }
 }
