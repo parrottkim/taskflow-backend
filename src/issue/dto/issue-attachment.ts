@@ -13,7 +13,7 @@ export class IssueAttachmentDto {
   @IsString()
   @IsNotEmpty()
   @Expose()
-  name: string;
+  filename: string;
 
   @ApiProperty()
   @IsInt()
@@ -25,7 +25,7 @@ export class IssueAttachmentDto {
   @IsString()
   @IsNotEmpty()
   @Expose()
-  url: string;
+  path: string;
 
   @ApiProperty()
   @Type(() => Date)

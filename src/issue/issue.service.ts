@@ -469,9 +469,9 @@ export class IssueService {
 
         for (const att of toRemove) {
           try {
-            await this.sftpService.deleteFile(att.url);
+            await this.sftpService.deleteFile(att.path);
           } catch (e) {
-            console.warn(`SFTP 삭제 실패: ${att.url}`, e);
+            console.warn(`SFTP 삭제 실패: ${att.path}`, e);
           }
         }
 
@@ -486,8 +486,8 @@ export class IssueService {
           .filter((att) => !oldAttachments.some((old) => old.id === att.id))
           .map((att) =>
             queryRunner.manager.create(IssueAttachment, {
-              name: att.name,
-              url: att.url,
+              name: att.filename,
+              path: att.path,
               size: att.size,
               issue: issue,
             }),
