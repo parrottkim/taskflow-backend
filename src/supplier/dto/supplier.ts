@@ -64,12 +64,6 @@ export class SupplierDto {
   @IsOptional()
   @Expose()
   logo?: string;
-
-  @ApiProperty({ type: [SupplierKeywordDto] })
-  @ValidateNested({ each: true })
-  @Type(() => SupplierKeywordDto)
-  @Expose()
-  keywords: SupplierKeywordDto[];
 }
 
 export class SupplierListDto {
