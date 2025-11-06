@@ -144,9 +144,9 @@ export class SftpService {
         await this.uploadFile(file.buffer, path);
 
         return {
-          name: originalname,
+          filename: originalname,
           size: file.size,
-          url: `${this.configService.sftp.url}${path}`,
+          path: path,
         };
       }),
     );
