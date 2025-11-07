@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
@@ -32,8 +32,7 @@ export class CreateProjectDto {
   projectName: string;
 
   @ApiProperty()
-  @Transform(({ value }) => value === 'true')
   @IsBoolean()
-  @IsNotEmpty()
-  isPreexecuted: boolean = false;
+  @IsOptional()
+  isPreexecuted?: boolean;
 }
