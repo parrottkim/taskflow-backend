@@ -82,15 +82,14 @@ export class CreateRegulationRateDto {
 
 export class CreateFuelExpenseDto {
   @ApiProperty()
-  @IsNumber()
   @IsNotEmpty()
+  @IsString()
   @Transform(({ value }) => {
-    // 쉼표(,)를 제거하고 숫자로 변환합니다.
     if (typeof value === 'string') {
-      return parseInt(value.replace(/,/g, ''), 10);
+      const cleanValue = value.replace(/,/g, '');
+      return parseFloat(cleanValue);
     }
-    // 이미 숫자이거나 다른 타입이면 그대로 반환
-    return value;
+    return String(value);
   })
   rate: number;
 

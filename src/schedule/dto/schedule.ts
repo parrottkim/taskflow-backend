@@ -31,6 +31,11 @@ export class ScheduleDto {
   @ApiProperty()
   @IsString()
   @Expose()
+  projectCode: string;
+
+  @ApiProperty()
+  @IsString()
+  @Expose()
   projectName: string;
 
   @ApiProperty()
@@ -99,6 +104,11 @@ export class ScheduleDto {
   @IsString()
   @Expose()
   summary: string;
+
+  @ApiProperty()
+  @IsString()
+  @Expose()
+  url: string;
 
   @ApiProperty()
   @IsString()

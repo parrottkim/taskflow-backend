@@ -1,11 +1,5 @@
 import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
-import {
-  PrimaryGeneratedColumn,
-  ManyToOne,
-  Column,
-  OneToOne,
-  Entity,
-} from 'typeorm';
+import { PrimaryGeneratedColumn, Column, OneToOne, Entity } from 'typeorm';
 import { Trip } from './trip.entity';
 
 @Entity()
@@ -23,7 +17,11 @@ export class TripFuelExpense {
   })
   rate: number;
 
-  @Column()
+  @Column('decimal', {
+    precision: 12,
+    scale: 2,
+    transformer: new DecimalColumnTransformer(),
+  })
   mileage: number;
 
   @Column()

@@ -11,7 +11,7 @@ import {
   Patch,
   Delete,
   Query,
-  Res,
+  Response,
 } from '@nestjs/common';
 import { TripService } from './trip.service';
 import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
@@ -68,18 +68,23 @@ export class TripController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '출장 명령서 출력 ' })
+  @ApiOperation({ summary: '출장 명령서 출력' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
   })
   @Get('export/:id')
-  async exportTrip(
-    @Param('id', ParseIntPipe) id: number,
-    @Res() res: Response,
-  ) {
-    const buffer = await this.tripService.exportTrip(id);
+  async exportTrip(@Param('id', ParseIntPipe) id: number, @Response() res) {
+    const { buffer, filename } = await this.tripService.exportTrip(id);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+      'Content-Length': buffer.length,
+    });
+
+    res.end(buffer);
   }
 
   @UseGuards(JwtAccessAuthGuard)

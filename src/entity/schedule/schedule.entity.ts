@@ -41,6 +41,9 @@ export class Schedule {
   @Column({ type: 'varchar', nullable: true })
   description?: string;
 
+  @Column({ type: 'varchar' })
+  url: string;
+
   @Column()
   start: Date;
 

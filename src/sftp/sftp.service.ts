@@ -76,9 +76,9 @@ export class SftpService {
       }
 
       const buffer = (await sftp.get(path)) as Buffer;
-      const fileName = path.substring(path.lastIndexOf('/') + 1);
+      const filename = path.substring(path.lastIndexOf('/') + 1);
 
-      return { buffer, fileName };
+      return { buffer, filename };
     });
   }
 
@@ -144,9 +144,9 @@ export class SftpService {
         await this.uploadFile(file.buffer, path);
 
         return {
-          filename: originalname,
+          name: originalname,
           size: file.size,
-          path: path,
+          url: `${this.configService.sftp.url}${path}`,
         };
       }),
     );
