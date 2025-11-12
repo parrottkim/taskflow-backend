@@ -350,7 +350,7 @@ export class TripService {
         );
         const ulsanAccomodationRate = trip.rates.find(
           (rate) => rate.step.id == 7,
-        );
+        ) ?? { rate: 0, days: 0 };
         const totalUlsanAccomodationRate =
           ulsanAccomodationRate.rate * ulsanAccomodationRate.days;
         const totalUlsanAccomadationExpenses = ulsanAccomodationExpenses.reduce(
@@ -375,7 +375,7 @@ export class TripService {
         );
         const notUlsanAccomodationRate = trip.rates.find(
           (rate) => rate.step.id == 8,
-        );
+        ) ?? { rate: 0, days: 0 };
         const totalNotUlsanAccomodationRate =
           notUlsanAccomodationRate.rate * notUlsanAccomodationRate.days;
         const totalNotUlsanAccomodationExpenses =
@@ -398,7 +398,7 @@ export class TripService {
         );
         const weekdayAccomodationRate = trip.rates.find(
           (rate) => rate.step.id == 9,
-        );
+        ) ?? { rate: 0, days: 0 };
         const totalWeekdayAccomodationRate =
           weekdayAccomodationRate.rate * weekdayAccomodationRate.days;
         const totalWeekdayAccomdationExpenses =
