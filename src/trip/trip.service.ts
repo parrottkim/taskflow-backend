@@ -493,9 +493,9 @@ export class TripService {
         worksheet.getCell('I39').value = corporateFuelDetails;
 
         const personalFuelExpenses = trip.fuel;
-        const personalFuelRate = personalFuelExpenses.rate ?? 0;
-        const personalFuelMileage = personalFuelExpenses.mileage ?? 0;
-        const personalFuelDistance = personalFuelExpenses.distance ?? 0;
+        const personalFuelRate = personalFuelExpenses?.rate ?? 0;
+        const personalFuelMileage = personalFuelExpenses?.mileage ?? 0;
+        const personalFuelDistance = personalFuelExpenses?.distance ?? 0;
         const totalPersonalFuel =
           personalFuelRate * (personalFuelDistance / personalFuelMileage);
 
@@ -786,12 +786,7 @@ export class TripService {
       // 💡 데이터가 채워지고 불필요한 시트가 제거된 엑셀 파일을 저장
       await workbook.xlsx.writeFile(XLSX_PATH_LOCAL);
 
-      // 🌟 LibreOffice로 PDF 변환
-      const XLSX_PATH_TO_CONVERT = XLSX_PATH_LOCAL;
-
-      const sofficePath =
-        '/Applications/LibreOffice.app/Contents/MacOS/soffice';
-      const libreOfficeCommand = `${sofficePath} --headless --convert-to pdf ${XLSX_PATH_TO_CONVERT} --outdir ${TEMP_DIR_LOCAL}`;
+      const libreOfficeCommand = `soffice --headless --convert-to pdf ${XLSX_PATH_LOCAL} --outdir ${TEMP_DIR_LOCAL}`;
       const { stdout, stderr } = await execPromise(libreOfficeCommand);
 
       if (stderr && !stderr.includes('Warning')) {
