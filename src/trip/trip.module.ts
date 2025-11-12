@@ -11,6 +11,7 @@ import { TripRegulationRate } from 'src/entity/trip/trip-regulation-rate.entity'
 import { ScheduleModule } from 'src/schedule/schedule.module';
 import { UserModule } from 'src/user/user.module';
 import { TripFuelExpense } from 'src/entity/trip/trip-fuel-expense.entity';
+import { CurrencyModule } from 'src/currency/currency.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { TripFuelExpense } from 'src/entity/trip/trip-fuel-expense.entity';
     ]),
     ScheduleModule,
     UserModule,
+    CurrencyModule,
   ],
   controllers: [TripController],
   providers: [TripService],

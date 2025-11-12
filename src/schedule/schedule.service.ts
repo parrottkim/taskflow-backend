@@ -174,6 +174,7 @@ export class ScheduleService {
         );
 
         scheduleDto.projectId = project.id;
+        scheduleDto.projectCode = project.code;
         scheduleDto.projectName = project.name;
         scheduleDto.projectClientId = project.clients[0].id;
         scheduleDto.projectClientName =
@@ -197,6 +198,7 @@ export class ScheduleService {
     });
 
     scheduleDto.projectId = project.id;
+    scheduleDto.projectCode = project.code;
     scheduleDto.projectName = project.name;
     scheduleDto.projectClientId = project.clients[0].id;
     scheduleDto.projectClientName =
@@ -223,6 +225,7 @@ export class ScheduleService {
     });
 
     scheduleDto.projectId = project.id;
+    scheduleDto.projectCode = project.code;
     scheduleDto.projectName = project.name;
     scheduleDto.projectClientId = project.clients[0].id;
     scheduleDto.projectClientName =
@@ -250,7 +253,9 @@ export class ScheduleService {
       })
       .andWhere('user.id = :userId', { userId: user.id })
       .andWhere('project.id = :projectId', { projectId: value.projectId })
+      .andWhere('category.id = 1 OR category.id = 2')
       .orderBy('schedule.start', 'ASC')
+      .addOrderBy('schedule.id', 'ASC')
       .getMany();
 
     const hasPrevious = await this.scheduleRepository
@@ -258,9 +263,10 @@ export class ScheduleService {
       .leftJoinAndSelect('schedule.project', 'project')
       .leftJoinAndSelect('schedule.category', 'category')
       .leftJoinAndSelect('schedule.user', 'user')
-      .where('schedule.start < :start', { start: start.toDate() })
+      .where('schedule.end < :start', { start: start.toDate() })
       .andWhere('user.id = :userId', { userId: user.id })
       .andWhere('project.id = :projectId', { projectId: value.projectId })
+      .andWhere('category.id = 1 OR category.id = 2')
       .getExists();
 
     const hasNext = await this.scheduleRepository
@@ -271,6 +277,7 @@ export class ScheduleService {
       .where('schedule.start > :end', { end: end.toDate() })
       .andWhere('user.id = :userId', { userId: user.id })
       .andWhere('project.id = :projectId', { projectId: value.projectId })
+      .andWhere('category.id = 1 OR category.id = 2')
       .getExists();
 
     const items = await Promise.all(
@@ -282,6 +289,7 @@ export class ScheduleService {
           excludeExtraneousValues: true,
         });
         scheduleDto.projectId = project.id;
+        scheduleDto.projectCode = project.code;
         scheduleDto.projectName = project.name;
         scheduleDto.projectClientId = project.clients[0].id;
         scheduleDto.projectClientName =
@@ -291,12 +299,22 @@ export class ScheduleService {
       }),
     );
 
-    const grouped = items.reduce((acc, event) => {
-      const dateKey = dayjs(event.start).format('YYYY-MM-DD');
-      if (!acc[dateKey]) acc[dateKey] = [];
-      acc[dateKey].push(event);
-      return acc;
-    }, {});
+    const grouped = {};
+
+    for (const event of items) {
+      const startDate = dayjs(event.start).startOf('day');
+      const endDate = dayjs(event.end).endOf('day');
+
+      for (
+        let d = startDate;
+        d.isBefore(endDate) || d.isSame(endDate, 'day');
+        d = d.add(1, 'day')
+      ) {
+        const dateKey = d.format('YYYY-MM-DD');
+        if (!grouped[dateKey]) grouped[dateKey] = [];
+        grouped[dateKey].push(event);
+      }
+    }
 
     const groupedItems = Object.entries(grouped).map(
       ([dateKey, scheduleDtos]) =>
@@ -326,12 +344,16 @@ export class ScheduleService {
     const category = await this.findCategoryById(value.categoryId);
 
     const client = project.clients[project.clients.length - 1];
+    const summary = `[${category.name}][${client.name}][${user.username}] ${value.summary} (${dayjs(value.start).format('MM-DD')} - ${dayjs(value.end).format('MM-DD')})`;
+    const description =
+      `[URL] ${value.url}` +
+      (value.description ? `\n\n[설명]\n${value.description}` : '');
 
     const res = await this.calendarClient.events.insert({
       calendarId: this.scheduleCalendarId,
       requestBody: {
-        summary: value.summary,
-        description: value.description,
+        summary: summary,
+        description: description,
         location: client.name,
         colorId: category.color,
         start: {
@@ -358,6 +380,7 @@ export class ScheduleService {
       user,
       summary: value.summary,
       description: value.description,
+      url: value.url,
       start: new Date(value.start),
       end: new Date(new Date(value.end).getTime() - 1),
     });
@@ -371,6 +394,7 @@ export class ScheduleService {
       {
         ...savedSchedule,
         projectId: project.id,
+        projectCode: project.code,
         projectName: project.name,
         projectClientId: project.clients[0].id,
         projectClientName: project.clients[project.clients.length - 1].name,
@@ -405,10 +429,14 @@ export class ScheduleService {
     const category = await this.findCategoryById(categoryId);
 
     const client = project.clients[project.clients.length - 1];
+    const summary = `[${category.name}][${client.name}][${user.username}] ${value.summary} (${dayjs(value.start).format('MM-DD')} - ${dayjs(value.end).format('MM-DD')})`;
+    const description =
+      `[URL] ${value.url}` +
+      (value.description ? `\n\n[설명]\n${value.description}` : '');
 
     const eventBody: calendar_v3.Schema$Event = {
-      summary: value.summary ?? schedule.summary,
-      description: value.description ?? schedule.description,
+      summary: summary ?? schedule.summary,
+      description: description ?? schedule.description,
       location: client.name,
       colorId: category.color,
       start: {
@@ -453,6 +481,7 @@ export class ScheduleService {
       eventId: newEventId,
       summary: value.summary ?? schedule.summary,
       description: value.description ?? schedule.description,
+      url: value.url ?? schedule.url,
       start: value.start ? new Date(value.start) : schedule.start,
       end: value.end
         ? new Date(new Date(value.end).getTime() - 1)
@@ -468,6 +497,7 @@ export class ScheduleService {
       {
         ...updatedSchedule,
         projectId: project.id,
+        projectCode: project.code,
         projectName: project.name,
         projectClientId: project.clients[0].id,
         projectClientName: project.clients[project.clients.length - 1].name,

@@ -24,7 +24,7 @@ RUN npm run build
 # ----------------------------------------------------------------------
 # 2. 운영 스테이지 (Production Stage)
 # ----------------------------------------------------------------------
-FROM node:23.4.0-alpine as production
+FROM node:23.4.0-bullseye as production
 
 # 빌드 아규먼트 수신
 ARG NODE_ENV=prod
@@ -33,8 +33,17 @@ ENV NODE_ENV=${NODE_ENV}
 # 작업 디렉토리 설정
 WORKDIR /app
 
+# LibreOffice 설치
+RUN apt-get update && \
+    apt-get install -y libreoffice && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # package.json과 lock 파일을 복사합니다.
 COPY package*.json ./
+
+# 템플릿 폴더를 NestJS 컨테이너의 WORKDIR 내부(/app)로 복사
+COPY templates ./templates 
 
 # 환경에 따라 설치 분기
 RUN if [ "$NODE_ENV" = "production" ]; then npm ci --omit=dev; else npm ci; fi

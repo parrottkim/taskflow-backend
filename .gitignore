@@ -58,3 +58,4 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 sftpuser_id_rsa
 sftpuser-dev_id_rsa
 google-calendar.json
+docker-compose.local.yml
