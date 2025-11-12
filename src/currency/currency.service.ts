@@ -61,7 +61,7 @@ export class CurrencyService {
    * @param date 조회할 날짜 (YYYYMMDD 형식, 예: '20200102')
    * @returns Array<any> (환율 데이터 배열)
    */
-  async getExchangeRate(date: string): Promise<Array<any>> {
+  async getExchangeRate(date: string) {
     // 환경 설정에서 API 키를 가져옵니다.
     const apiKey = this.configService.exchange.key;
     if (!apiKey) {
@@ -106,9 +106,7 @@ export class CurrencyService {
         }
       } else {
         // 배열은 받았으나 내용이 비어있는 경우
-        throw new NotFoundException(
-          'API로부터 환율 데이터를 받지 못했습니다. 🚫',
-        );
+        throw new NotFoundException('exchange_not_found');
       }
 
       // 3. 미국 달러(USD) 데이터 추출
@@ -120,16 +118,17 @@ export class CurrencyService {
         );
       }
 
-      // 4. 최종 값(kftc_deal_bas_r) 반환
-      const dealBasR = usdRate.kftc_deal_bas_r;
-
-      if (!dealBasR) {
+      // 4. 최종 값(tts) 반환
+      const tts = usdRate.tts;
+      if (!tts) {
         throw new InternalServerErrorException(
-          'USD 환율 데이터에서 kftc_deal_bas_r 필드를 찾을 수 없습니다. ⚙️',
+          'USD 환율 데이터에서 tts 필드를 찾을 수 없습니다. ⚙️',
         );
       }
+      const cleanedString = tts.replace(/,/g, '');
+      const exchange = parseFloat(cleanedString);
 
-      return dealBasR;
+      return exchange;
     } catch (error) {
       // 이미 위에서 NestJS Exception으로 처리된 경우 그대로 던지기
       if (error.status) {

@@ -89,11 +89,11 @@ export class SftpController {
       throw new NotFoundException('path_not_found');
     }
 
-    const { buffer, fileName } = await this.sftpService.downloadFile(path);
+    const { buffer, filename } = await this.sftpService.downloadFile(path);
 
     res.set({
       'Content-Type': 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
       'Content-Length': buffer.length,
     });
 

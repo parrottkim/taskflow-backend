@@ -1,16 +1,4 @@
 services:
-  libreoffice:
-    image: linuxserver/libreoffice
-    container_name: libreoffice-converter
-    user: "1000:1000"
-    volumes:
-      - doc-conversion:/app/conversion/shared
-    environment:
-      - PUID=1000
-      - PGID=1000
-    profiles:
-      - dev
-
   postgres-dev:
     image: postgres:16
     container_name: taskflow-dev
@@ -22,6 +10,8 @@ services:
       - postgres-dev-data:/var/lib/postgresql/data
     profiles:
       - dev
+    networks:
+      - backend_default
 
   postgres-prod:
     image: postgres:16
@@ -34,6 +24,8 @@ services:
       - postgres-prod-data:/var/lib/postgresql/data
     profiles:
       - prod
+    networks:
+      - backend_default
 
   backend-dev:
     image: dantechhjkim/backend-dev:latest
@@ -45,8 +37,8 @@ services:
       - ./google-calendar.json:/app/google-calendar.json:ro
     depends_on:
       - postgres-dev
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"
     profiles:
       - dev
     networks:
@@ -70,7 +62,6 @@ services:
       - backend_default
 
 volumes: 
-  doc-conversion:
   postgres-dev-data:
   postgres-prod-data:
 

@@ -14,6 +14,11 @@ export class CreateScheduleDto {
   description?: string;
 
   @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  url: string;
+
+  @ApiProperty()
   @IsInt()
   @IsNotEmpty()
   projectId: number;
