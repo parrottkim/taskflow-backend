@@ -82,15 +82,7 @@ export class SftpService {
     });
   }
 
-  async deleteFile(url: string) {
-    const baseUrl = this.configService.sftp.url;
-
-    if (!url.startsWith(baseUrl)) {
-      throw new InternalServerErrorException('invalid_sftp_url');
-    }
-
-    const path = url.replace(baseUrl, '');
-
+  async deleteFile(path: string) {
     return this.withSftp(async (sftp) => {
       const exists = await sftp.exists(path);
       if (exists) {
