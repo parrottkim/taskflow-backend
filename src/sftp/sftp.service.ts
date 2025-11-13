@@ -82,7 +82,20 @@ export class SftpService {
     });
   }
 
-  async deleteFile(path: string) {
+  async deleteFileByUrl(url: string) {
+    const baseUrl = this.configService.sftp.url;
+
+    if (!url.startsWith(baseUrl)) {
+      throw new InternalServerErrorException('invalid_sftp_url');
+    }
+
+    const path = url.replace(baseUrl, '');
+
+    // 최종 삭제 로직은 deleteFileByPath를 호출
+    await this.deleteFileByPath(path);
+  }
+
+  async deleteFileByPath(path: string) {
     return this.withSftp(async (sftp) => {
       const exists = await sftp.exists(path);
       if (exists) {
@@ -138,7 +151,6 @@ export class SftpService {
         return {
           filename: originalname,
           size: file.size,
-          path: path,
           url: `${this.configService.sftp.url}${path}`,
         };
       }),

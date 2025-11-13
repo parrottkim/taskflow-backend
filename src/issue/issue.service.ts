@@ -446,7 +446,7 @@ export class IssueService {
 
         for (const url of removedUrls) {
           try {
-            await this.sftpService.deleteFile(url);
+            await this.sftpService.deleteFileByUrl(url);
           } catch (e) {
             console.warn(`삭제 실패: ${url}`, e);
           }
@@ -465,7 +465,7 @@ export class IssueService {
 
         for (const att of toRemove) {
           try {
-            await this.sftpService.deleteFile(att.path);
+            await this.sftpService.deleteFileByPath(att.path);
           } catch (e) {
             console.warn(`SFTP 삭제 실패: ${att.path}`, e);
           }

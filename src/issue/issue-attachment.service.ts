@@ -46,7 +46,7 @@ export class IssueAttachmentService {
 
     await this.issueAttachmentRepository.remove(attachment);
     // 필요하면 SFTP에서도 삭제
-    await this.sftpService.deleteFile(attachment.path);
+    await this.sftpService.deleteFileByPath(attachment.path);
     return { success: true };
   }
 }
