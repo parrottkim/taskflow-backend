@@ -39,7 +39,6 @@ services:
       - ./google-calendar.json:/app/google-calendar.json:ro
     depends_on:
       - postgres-dev
-      - libreoffice
     ports:
       - "3000:3000"
     profiles:
@@ -58,7 +57,6 @@ services:
       - ./google-calendar.json:/app/google-calendar.json:ro
     depends_on:
       - postgres-prod
-      - libreoffice
     expose:
       - "3000"
     profiles:
