@@ -12,6 +12,7 @@ services:
       - dev
     networks:
       - backend_default
+    restart: always
 
   postgres-prod:
     image: postgres:16
@@ -26,6 +27,7 @@ services:
       - prod
     networks:
       - backend_default
+    restart: always
 
   backend-dev:
     image: dantechhjkim/backend-dev:latest
@@ -37,12 +39,14 @@ services:
       - ./google-calendar.json:/app/google-calendar.json:ro
     depends_on:
       - postgres-dev
+      - libreoffice
     ports:
       - "3000:3000"
     profiles:
       - dev
     networks:
       - backend_default
+    restart: unless-stopped
 
   backend-prod:
     image: dantechhjkim/backend-prod:latest
@@ -54,12 +58,28 @@ services:
       - ./google-calendar.json:/app/google-calendar.json:ro
     depends_on:
       - postgres-prod
+      - libreoffice
     expose:
       - "3000"
     profiles:
       - prod
     networks:
       - backend_default
+    restart: unless-stopped
+
+  doc-converter:
+    image: gotenberg/gotenberg:latest
+    container_name: doc-converter
+    volumes:
+      - ./fonts:/usr/share/fonts:ro
+    ports:
+      - "3001:3000"
+    networks:
+      - backend_default
+    profiles:
+      - dev
+      - prod
+    restart: always
 
 volumes: 
   postgres-dev-data:
