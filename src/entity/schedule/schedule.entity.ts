@@ -22,17 +22,13 @@ export class Schedule {
   @ManyToOne(() => ScheduleCategory, (category) => category.schedules)
   category: ScheduleCategory;
 
-  @ManyToOne(() => Project, (project) => project.schedules, {
-    cascade: true,
-    eager: true,
-  })
+  @ManyToOne(() => Project, (project) => project.schedules)
   project: Project;
 
   @OneToOne(() => Trip, (trip) => trip.schedule)
-  @JoinColumn()
   trip: Trip;
 
-  @ManyToOne(() => User, (user) => user.schedules, { cascade: true })
+  @ManyToOne(() => User, (user) => user.schedules)
   user: User;
 
   @Column({ type: 'varchar' })
