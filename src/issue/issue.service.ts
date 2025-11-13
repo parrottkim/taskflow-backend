@@ -232,10 +232,6 @@ export class IssueService {
       throw new NotFoundException('issue_not_found');
     }
 
-    if (issue.user.id !== user.id && !user.isAdmin) {
-      throw new ForbiddenException('no_permission');
-    }
-
     const issueDto = plainToInstance(IssueDto, issue, {
       excludeExtraneousValues: true,
     });
