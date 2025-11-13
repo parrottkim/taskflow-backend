@@ -153,7 +153,7 @@ jobs:
           docker compose -f $ComposeFile --profile $Env pull $Service
 
           Write-Host "Bringing up service..."
-          docker compose -f $ComposeFile --profile $Env up -d $Service
+          docker compose -f $ComposeFile --profile $Env up -d $Service doc-converter
 
           Write-Host "Running migrations..."
           docker compose -f $ComposeFile --profile $Env run --rm $Service npm run typeorm:migrate
