@@ -386,7 +386,7 @@ export class ScheduleService {
 
     const savedSchedule = await this.scheduleRepository.save(schedule);
 
-    await this.mailService.sendMailToEveryone(value.summary, value.description);
+    await this.mailService.sendMailToEveryone(summary, description);
 
     const scheduleDto = plainToInstance(
       ScheduleDto,
