@@ -179,7 +179,7 @@ export class SupplierService {
       throw new NotFoundException('supplier_not_found');
     }
 
-    await this.sftpService.deleteFile(supplier.logo);
+    await this.sftpService.deleteFileByUrl(supplier.logo);
     await this.supplierRepository.remove(supplier);
 
     // 사용되지 않는 키워드 삭제
