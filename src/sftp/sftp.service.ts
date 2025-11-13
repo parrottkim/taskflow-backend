@@ -151,6 +151,7 @@ export class SftpService {
         return {
           filename: originalname,
           size: file.size,
+          path: path,
           url: `${this.configService.sftp.url}${path}`,
         };
       }),
