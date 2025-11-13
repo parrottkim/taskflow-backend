@@ -34,14 +34,13 @@ import { User } from 'src/entity/user/user.entity';
 import { TripFuelExpense } from 'src/entity/trip/trip-fuel-expense.entity';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as ExcelJS from 'exceljs';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 import * as dayjs from 'dayjs';
 import { CurrencyService } from 'src/currency/currency.service';
-
-const execPromise = promisify(exec);
+import * as FormData from 'form-data';
+import axios from 'axios';
 
 @Injectable()
 export class TripService {
@@ -174,15 +173,9 @@ export class TripService {
     const TEMPLATE_BASE_PATH = path.join(process.cwd(), 'templates');
     const TEMPLATE_FILE_NAME = 'template.xlsx';
 
-    const REQUEST_UUID = uuidv4();
-    const TEMP_DIR_BASE = path.join(process.cwd(), 'temp_exports');
-    const TEMP_DIR_LOCAL = path.join(TEMP_DIR_BASE, REQUEST_UUID);
-
+    // ❌ 임시 디렉토리/파일 관련 변수 제거 (XLSX_PATH_LOCAL, TEMP_DIR_LOCAL 등)
     const PATH_FILENAME = `trip_${id}_filled`;
-
     const TEMPLATE_PATH = path.join(TEMPLATE_BASE_PATH, TEMPLATE_FILE_NAME);
-    const XLSX_PATH_LOCAL = path.join(TEMP_DIR_LOCAL, `${PATH_FILENAME}.xlsx`);
-    const PDF_PATH_LOCAL = path.join(TEMP_DIR_LOCAL, `${PATH_FILENAME}.pdf`);
 
     const trip = await this.findTripById(id);
     if (!trip) throw new NotFoundException('trip_not_found');
@@ -191,8 +184,6 @@ export class TripService {
     const isDomestic = schedule.category.id === 1;
 
     try {
-      await fs.mkdir(TEMP_DIR_LOCAL, { recursive: true });
-
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.readFile(TEMPLATE_PATH);
 
@@ -209,12 +200,14 @@ export class TripService {
       worksheet.pageSetup = {
         fitToPage: true,
         fitToHeight: 1,
-        fitToWidth: 0,
+        fitToWidth: 1,
+        horizontalCentered: true,
+        verticalCentered: true,
         margins: {
           left: 0.5,
-          right: 0,
+          right: 0.5,
           top: 0.5,
-          bottom: 0,
+          bottom: 0.5,
           header: 0,
           footer: 0,
         },
@@ -497,7 +490,9 @@ export class TripService {
         const personalFuelMileage = personalFuelExpenses?.mileage ?? 0;
         const personalFuelDistance = personalFuelExpenses?.distance ?? 0;
         const totalPersonalFuel =
-          personalFuelRate * (personalFuelDistance / personalFuelMileage);
+          personalFuelMileage != 0
+            ? personalFuelRate * (personalFuelDistance / personalFuelMileage)
+            : 0;
 
         worksheet.getCell('E41').value = personalFuelRate;
         worksheet.getCell('F41').value = personalFuelMileage;
@@ -783,33 +778,34 @@ export class TripService {
           otherCost;
       }
 
-      // 💡 데이터가 채워지고 불필요한 시트가 제거된 엑셀 파일을 저장
-      await workbook.xlsx.writeFile(XLSX_PATH_LOCAL);
+      const xlsxBuffer = await workbook.xlsx.writeBuffer();
 
-      const libreOfficeCommand = `soffice --headless --convert-to pdf ${XLSX_PATH_LOCAL} --outdir ${TEMP_DIR_LOCAL}`;
-      const { stdout, stderr } = await execPromise(libreOfficeCommand);
+      const form = new FormData();
+      // 💡 [변경] fs.createReadStream 대신 메모리 버퍼를 직접 전달합니다.
+      form.append('files', xlsxBuffer, {
+        filename: `${PATH_FILENAME}.xlsx`,
+        contentType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
 
-      if (stderr && !stderr.includes('Warning')) {
-        console.error('LibreOffice Stderr:', stderr);
-        throw new Error('PDF 변환 중 오류가 발생했습니다.');
-      }
-
-      const buffer = await fs.readFile(PDF_PATH_LOCAL);
-      const filename = PDF_PATH_LOCAL.substring(
-        PDF_PATH_LOCAL.lastIndexOf('/') + 1,
+      const response = await axios.post(
+        `http://doc-converter:3000/forms/libreoffice/convert`,
+        form,
+        {
+          headers: {
+            ...form.getHeaders(),
+          },
+          responseType: 'arraybuffer', // PDF 파일을 버퍼로 받기 위함
+          timeout: 30000, // 30초 타임아웃
+        },
       );
 
-      await fs
-        .rm(TEMP_DIR_LOCAL, { recursive: true, force: true })
-        .catch(() => {});
+      const buffer = response.data;
+      const filename = `${PATH_FILENAME}.pdf`;
 
       return { buffer, filename };
     } catch (e) {
       throw e;
-    } finally {
-      await fs
-        .rm(TEMP_DIR_LOCAL, { recursive: true, force: true })
-        .catch(() => {});
     }
   }
 
