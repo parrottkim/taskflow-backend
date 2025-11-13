@@ -24,7 +24,7 @@ export class IssueAttachmentSubscriber
 
   async beforeRemove(event: RemoveEvent<IssueAttachment>) {
     if (event.entity?.path) {
-      await this.sftpService.deleteFile(event.entity.path);
+      await this.sftpService.deleteFileByPath(event.entity.path);
     }
   }
 }
