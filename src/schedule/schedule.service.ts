@@ -247,13 +247,12 @@ export class ScheduleService {
       .leftJoinAndSelect('schedule.project', 'project')
       .leftJoinAndSelect('schedule.category', 'category')
       .leftJoinAndSelect('schedule.user', 'user')
-      .where('schedule.start BETWEEN :start AND :end', {
+      .where('schedule.start <= :end AND schedule.end >= :start', {
         start: start.toDate(),
         end: end.toDate(),
       })
       .andWhere('user.id = :userId', { userId: user.id })
-      .andWhere('project.id = :projectId', { projectId: value.projectId })
-      .andWhere('(category.id = 1 OR category.id = 2)')
+      .andWhere('category.id IN (:...categoryIds)', { categoryIds: [1, 2] })
       .orderBy('schedule.start', 'ASC')
       .addOrderBy('schedule.id', 'ASC')
       .getMany();
@@ -266,7 +265,7 @@ export class ScheduleService {
       .where('schedule.end < :start', { start: start.toDate() })
       .andWhere('user.id = :userId', { userId: user.id })
       .andWhere('project.id = :projectId', { projectId: value.projectId })
-      .andWhere('(category.id = 1 OR category.id = 2)')
+      .andWhere('category.id IN (:...categoryIds)', { categoryIds: [1, 2] })
       .getExists();
 
     const hasNext = await this.scheduleRepository
@@ -277,7 +276,7 @@ export class ScheduleService {
       .where('schedule.start > :end', { end: end.toDate() })
       .andWhere('user.id = :userId', { userId: user.id })
       .andWhere('project.id = :projectId', { projectId: value.projectId })
-      .andWhere('(category.id = 1 OR category.id = 2)')
+      .andWhere('category.id IN (:...categoryIds)', { categoryIds: [1, 2] })
       .getExists();
 
     const items = await Promise.all(
