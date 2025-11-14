@@ -225,11 +225,15 @@ export class IssueService {
     return latestIssueListDto;
   }
 
-  async getIssue(user: User, id: number) {
+  async getIssueWithUser(user: User, id: number) {
     const issue = await this.findIssueById(id);
 
     if (!issue) {
       throw new NotFoundException('issue_not_found');
+    }
+
+    if (issue.user.id !== user.id && !user.isAdmin) {
+      throw new ForbiddenException('no_permission');
     }
 
     const issueDto = plainToInstance(IssueDto, issue, {
