@@ -22,6 +22,7 @@ import { UpdateScheduleDto } from './dto/update-schedule';
 import { GetSchedulesDto } from './dto/get-schedules';
 import { MailService } from 'src/mail/mail.service';
 import * as dayjs from 'dayjs';
+import { ProjectClientService } from 'src/project/project-client.service';
 
 @Injectable()
 export class ScheduleService {
@@ -36,6 +37,7 @@ export class ScheduleService {
     @InjectRepository(ScheduleCategory)
     private readonly scheduleCategoryRepository: Repository<ScheduleCategory>,
     private readonly projectService: ProjectService,
+    private readonly projectClientService: ProjectClientService,
     private readonly mailService: MailService,
   ) {
     const credentialsPath = this.configService.calendar.credentialsPath;
@@ -161,8 +163,11 @@ export class ScheduleService {
 
     const result = await Promise.all(
       schedules.map(async (schedule) => {
-        const project = await this.projectService.getProject(
+        const project = await this.projectService.findProjectById(
           schedule.project.id,
+        );
+        const ancestors = await this.projectClientService.findAncestors(
+          project.client.id,
         );
 
         const scheduleDto = plainToInstance(
@@ -176,9 +181,8 @@ export class ScheduleService {
         scheduleDto.projectId = project.id;
         scheduleDto.projectCode = project.code;
         scheduleDto.projectName = project.name;
-        scheduleDto.projectClientId = project.clients[0].id;
-        scheduleDto.projectClientName =
-          project.clients[project.clients.length - 1].name;
+        scheduleDto.projectClientId = ancestors[0].id;
+        scheduleDto.projectClientName = project.client.name;
         scheduleDto.start = schedule.start.toISOString().split('T')[0];
         scheduleDto.end = schedule.end.toISOString().split('T')[0];
 
@@ -191,7 +195,12 @@ export class ScheduleService {
 
   async getSchedule(id: number) {
     const schedule = await this.findScheduleById(id);
-    const project = await this.projectService.getProject(schedule.project.id);
+    const project = await this.projectService.findProjectById(
+      schedule.project.id,
+    );
+    const ancestors = await this.projectClientService.findAncestors(
+      project.client.id,
+    );
 
     const scheduleDto = plainToInstance(ScheduleDto, schedule, {
       excludeExtraneousValues: true,
@@ -200,16 +209,20 @@ export class ScheduleService {
     scheduleDto.projectId = project.id;
     scheduleDto.projectCode = project.code;
     scheduleDto.projectName = project.name;
-    scheduleDto.projectClientId = project.clients[0].id;
-    scheduleDto.projectClientName =
-      project.clients[project.clients.length - 1].name;
+    scheduleDto.projectClientId = ancestors[0].id;
+    scheduleDto.projectClientName = project.client.name;
 
     return scheduleDto;
   }
 
   async getScheduleWithUser(user: User, id: number) {
     const schedule = await this.findScheduleById(id);
-    const project = await this.projectService.getProject(schedule.project.id);
+    const project = await this.projectService.findProjectById(
+      schedule.project.id,
+    );
+    const ancestors = await this.projectClientService.findAncestors(
+      project.client.id,
+    );
 
     if (!schedule) {
       throw new NotFoundException('schedule_not_found');
@@ -227,9 +240,8 @@ export class ScheduleService {
     scheduleDto.projectId = project.id;
     scheduleDto.projectCode = project.code;
     scheduleDto.projectName = project.name;
-    scheduleDto.projectClientId = project.clients[0].id;
-    scheduleDto.projectClientName =
-      project.clients[project.clients.length - 1].name;
+    scheduleDto.projectClientId = ancestors[0].id;
+    scheduleDto.projectClientName = project.client.name;
 
     return scheduleDto;
   }
@@ -252,6 +264,7 @@ export class ScheduleService {
         end: end.toDate(),
       })
       .andWhere('user.id = :userId', { userId: user.id })
+      .andWhere('project.id = :projectId', { projectId: value.projectId })
       .andWhere('category.id IN (:...categoryIds)', { categoryIds: [1, 2] })
       .orderBy('schedule.start', 'ASC')
       .addOrderBy('schedule.id', 'ASC')
@@ -281,8 +294,11 @@ export class ScheduleService {
 
     const items = await Promise.all(
       events.map(async (schedule) => {
-        const project = await this.projectService.getProject(
+        const project = await this.projectService.findProjectById(
           schedule.project.id,
+        );
+        const ancestors = await this.projectClientService.findAncestors(
+          project.client.id,
         );
         const scheduleDto = plainToInstance(ScheduleDto, schedule, {
           excludeExtraneousValues: true,
@@ -290,9 +306,8 @@ export class ScheduleService {
         scheduleDto.projectId = project.id;
         scheduleDto.projectCode = project.code;
         scheduleDto.projectName = project.name;
-        scheduleDto.projectClientId = project.clients[0].id;
-        scheduleDto.projectClientName =
-          project.clients[project.clients.length - 1].name;
+        scheduleDto.projectClientId = ancestors[0].id;
+        scheduleDto.projectClientName = project.client.name;
 
         return scheduleDto;
       }),
@@ -339,11 +354,13 @@ export class ScheduleService {
   }
 
   async createSchedule(user: User, value: CreateScheduleDto) {
-    const project = await this.projectService.getProject(value.projectId);
+    const project = await this.projectService.findProjectById(value.projectId);
+    const ancestors = await this.projectClientService.findAncestors(
+      project.client.id,
+    );
     const category = await this.findCategoryById(value.categoryId);
 
-    const client = project.clients[project.clients.length - 1];
-    const summary = `[${category.name}][${client.name}][${user.username}] ${value.summary} (${dayjs(value.start).format('MM-DD')} - ${dayjs(value.end).format('MM-DD')})`;
+    const summary = `[${category.name}][${project.client.name}][${user.username}] ${value.summary} (${dayjs(value.start).format('MM/DD')} - ${dayjs(value.end).format('MM/DD')})`;
     const description =
       `[URL] ${value.url}` +
       (value.description ? `\n\n[설명]\n${value.description}` : '');
@@ -353,7 +370,7 @@ export class ScheduleService {
       requestBody: {
         summary: summary,
         description: description,
-        location: client.name,
+        location: project.client.name,
         colorId: category.color,
         start: {
           date: value.start,
@@ -395,8 +412,8 @@ export class ScheduleService {
         projectId: project.id,
         projectCode: project.code,
         projectName: project.name,
-        projectClientId: project.clients[0].id,
-        projectClientName: project.clients[project.clients.length - 1].name,
+        projectClientId: ancestors[0].id,
+        projectClientName: project.client.name,
       },
       {
         excludeExtraneousValues: true,
@@ -424,11 +441,13 @@ export class ScheduleService {
     let categoryId = value.categoryId ?? schedule.category.id;
 
     // ProjectDto로 가져오기 (clients 포함)
-    const project = await this.projectService.getProject(projectId);
+    const project = await this.projectService.findProjectById(value.projectId);
+    const ancestors = await this.projectClientService.findAncestors(
+      project.client.id,
+    );
     const category = await this.findCategoryById(categoryId);
 
-    const client = project.clients[project.clients.length - 1];
-    const summary = `[${category.name}][${client.name}][${user.username}] ${value.summary} (${dayjs(value.start).format('MM-DD')} - ${dayjs(value.end).format('MM-DD')})`;
+    const summary = `[${category.name}][${project.client.name}][${user.username}] ${value.summary} (${dayjs(value.start).format('MM-DD')} - ${dayjs(value.end).format('MM-DD')})`;
     const description =
       `[URL] ${value.url}` +
       (value.description ? `\n\n[설명]\n${value.description}` : '');
@@ -436,7 +455,7 @@ export class ScheduleService {
     const eventBody: calendar_v3.Schema$Event = {
       summary: summary ?? schedule.summary,
       description: description ?? schedule.description,
-      location: client.name,
+      location: project.client.name,
       colorId: category.color,
       start: {
         date: value.start ?? schedule.start.toISOString().split('T')[0], // all-day 이벤트 가정
@@ -498,8 +517,8 @@ export class ScheduleService {
         projectId: project.id,
         projectCode: project.code,
         projectName: project.name,
-        projectClientId: project.clients[0].id,
-        projectClientName: project.clients[project.clients.length - 1].name,
+        projectClientId: ancestors[0].id,
+        projectClientName: project.client.name,
         category,
       },
       { excludeExtraneousValues: true },
