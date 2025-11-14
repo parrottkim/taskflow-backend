@@ -78,7 +78,7 @@ export class IssueController {
   })
   @Get(':id')
   getIssue(@Request() req, @Param('id', ParseIntPipe) id: number) {
-    return this.issueService.getIssue(req.user, id);
+    return this.issueService.getIssueWithUser(req.user, id);
   }
 
   @UseGuards(JwtAccessAuthGuard)
