@@ -10,16 +10,16 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Project } from '../project/project.entity';
-import { IssueCategory } from './issue-category.entity';
 import { User } from '../user/user.entity';
-import { ContractIssue } from './contract/contract-issue.entity';
-import { IssueAttachment } from './issue-attachment.entity';
-import { KickoffIssue } from './kickoff/kickoff-issue.entity';
 import { ApprovalIssue } from './approval/approval-issue.entity';
+import { ContractIssue } from './contract/contract-issue.entity';
+import { DeclarationIssue } from './declaration/declaration-issue.entity';
+import { IssueAttachment } from './issue-attachment.entity';
+import { IssueCategory } from './issue-category.entity';
+import { KickoffIssue } from './kickoff/kickoff-issue.entity';
+import { PaymentIssue } from './payment/payment-issue.entity';
 import { ProcurementIssue } from './procurement/procurement-issue.entity';
 import { TransactionIssue } from './transaction/transaction-issue.entity';
-import { DeclarationIssue } from './declaration/declaration-issue.entity';
-import { PaymentIssue } from './payment/payment-issue.entity';
 
 @Entity()
 export class Issue {
@@ -58,7 +58,9 @@ export class Issue {
   })
   contract?: ContractIssue;
 
-  @OneToOne(() => KickoffIssue, (kickoff) => kickoff.issue, { cascade: true })
+  @OneToOne(() => KickoffIssue, (kickoff) => kickoff.issue, {
+    cascade: true,
+  })
   kickoff?: KickoffIssue;
 
   @OneToOne(() => ApprovalIssue, (approval) => approval.issue, {

@@ -37,7 +37,6 @@ export class ScheduleService {
     @InjectRepository(ScheduleCategory)
     private readonly scheduleCategoryRepository: Repository<ScheduleCategory>,
     private readonly projectService: ProjectService,
-    private readonly projectClientService: ProjectClientService,
     private readonly mailService: MailService,
   ) {
     const credentialsPath = this.configService.calendar.credentialsPath;
@@ -163,11 +162,8 @@ export class ScheduleService {
 
     const result = await Promise.all(
       schedules.map(async (schedule) => {
-        const project = await this.projectService.findProjectById(
+        const project = await this.projectService.getProjectWithoutUser(
           schedule.project.id,
-        );
-        const ancestors = await this.projectClientService.findAncestors(
-          project.client.id,
         );
 
         const scheduleDto = plainToInstance(
@@ -181,8 +177,9 @@ export class ScheduleService {
         scheduleDto.projectId = project.id;
         scheduleDto.projectCode = project.code;
         scheduleDto.projectName = project.name;
-        scheduleDto.projectClientId = ancestors[0].id;
-        scheduleDto.projectClientName = project.client.name;
+        scheduleDto.projectClientId = project.clients[0].id;
+        scheduleDto.projectClientName =
+          project.clients[project.clients.length - 1].name;
         scheduleDto.start = schedule.start.toISOString().split('T')[0];
         scheduleDto.end = schedule.end.toISOString().split('T')[0];
 
@@ -195,11 +192,8 @@ export class ScheduleService {
 
   async getSchedule(id: number) {
     const schedule = await this.findScheduleById(id);
-    const project = await this.projectService.findProjectById(
+    const project = await this.projectService.getProjectWithoutUser(
       schedule.project.id,
-    );
-    const ancestors = await this.projectClientService.findAncestors(
-      project.client.id,
     );
 
     const scheduleDto = plainToInstance(ScheduleDto, schedule, {
@@ -209,19 +203,17 @@ export class ScheduleService {
     scheduleDto.projectId = project.id;
     scheduleDto.projectCode = project.code;
     scheduleDto.projectName = project.name;
-    scheduleDto.projectClientId = ancestors[0].id;
-    scheduleDto.projectClientName = project.client.name;
+    scheduleDto.projectClientId = project.clients[0].id;
+    scheduleDto.projectClientName =
+      project.clients[project.clients.length - 1].name;
 
     return scheduleDto;
   }
 
   async getScheduleWithUser(user: User, id: number) {
     const schedule = await this.findScheduleById(id);
-    const project = await this.projectService.findProjectById(
+    const project = await this.projectService.getProjectWithoutUser(
       schedule.project.id,
-    );
-    const ancestors = await this.projectClientService.findAncestors(
-      project.client.id,
     );
 
     if (!schedule) {
@@ -240,8 +232,9 @@ export class ScheduleService {
     scheduleDto.projectId = project.id;
     scheduleDto.projectCode = project.code;
     scheduleDto.projectName = project.name;
-    scheduleDto.projectClientId = ancestors[0].id;
-    scheduleDto.projectClientName = project.client.name;
+    scheduleDto.projectClientId = project.clients[0].id;
+    scheduleDto.projectClientName =
+      project.clients[project.clients.length - 1].name;
 
     return scheduleDto;
   }
@@ -249,12 +242,12 @@ export class ScheduleService {
   async getScheduleWithUsers(user: User, value: GetSchedulesDto) {
     const start = value.start
       ? dayjs(value.start).startOf('day')
-      : dayjs().subtract(7, 'day').startOf('day');
+      : dayjs().subtract(28, 'day').startOf('day');
     const end = value.end
       ? dayjs(value.end).endOf('day')
-      : dayjs().add(7, 'day').endOf('day');
+      : dayjs().add(28, 'day').endOf('day');
 
-    const events = await this.scheduleRepository
+    let queryBuilder = this.scheduleRepository
       .createQueryBuilder('schedule')
       .leftJoinAndSelect('schedule.project', 'project')
       .leftJoinAndSelect('schedule.category', 'category')
@@ -263,42 +256,41 @@ export class ScheduleService {
         start: start.toDate(),
         end: end.toDate(),
       })
-      .andWhere('user.id = :userId', { userId: user.id })
-      .andWhere('project.id = :projectId', { projectId: value.projectId })
-      .andWhere('category.id IN (:...categoryIds)', { categoryIds: [1, 2] })
+      .andWhere('user.id = :userId', { userId: user.id });
+
+    // value.projectId가 있을 때만 필터링 조건을 추가합니다.
+    if (value.projectId) {
+      queryBuilder = queryBuilder.andWhere('project.id = :projectId', {
+        projectId: value.projectId,
+      });
+    }
+
+    // 이제 queryBuilder를 사용하여 events, hasPrevious, hasNext 쿼리를 작성합니다.
+
+    // 1. events 쿼리
+    const events = await queryBuilder
       .orderBy('schedule.start', 'ASC')
       .addOrderBy('schedule.id', 'ASC')
       .getMany();
 
-    const hasPrevious = await this.scheduleRepository
-      .createQueryBuilder('schedule')
-      .leftJoinAndSelect('schedule.project', 'project')
-      .leftJoinAndSelect('schedule.category', 'category')
-      .leftJoinAndSelect('schedule.user', 'user')
-      .where('schedule.end < :start', { start: start.toDate() })
-      .andWhere('user.id = :userId', { userId: user.id })
-      .andWhere('project.id = :projectId', { projectId: value.projectId })
-      .andWhere('category.id IN (:...categoryIds)', { categoryIds: [1, 2] })
+    // 2. hasPrevious 쿼리
+    // queryBuilder를 복사하여 start 이전 조건만 추가
+    const hasPrevious = await queryBuilder
+      .clone() // 쿼리 빌더 복사
+      .andWhere('schedule.end < :start', { start: start.toDate() })
       .getExists();
 
-    const hasNext = await this.scheduleRepository
-      .createQueryBuilder('schedule')
-      .leftJoinAndSelect('schedule.project', 'project')
-      .leftJoinAndSelect('schedule.category', 'category')
-      .leftJoinAndSelect('schedule.user', 'user')
-      .where('schedule.start > :end', { end: end.toDate() })
-      .andWhere('user.id = :userId', { userId: user.id })
-      .andWhere('project.id = :projectId', { projectId: value.projectId })
-      .andWhere('category.id IN (:...categoryIds)', { categoryIds: [1, 2] })
+    // 3. hasNext 쿼리
+    // queryBuilder를 복사하여 end 이후 조건만 추가
+    const hasNext = await queryBuilder
+      .clone() // 쿼리 빌더 복사
+      .andWhere('schedule.start > :end', { end: end.toDate() })
       .getExists();
 
     const items = await Promise.all(
       events.map(async (schedule) => {
-        const project = await this.projectService.findProjectById(
+        const project = await this.projectService.getProjectWithoutUser(
           schedule.project.id,
-        );
-        const ancestors = await this.projectClientService.findAncestors(
-          project.client.id,
         );
         const scheduleDto = plainToInstance(ScheduleDto, schedule, {
           excludeExtraneousValues: true,
@@ -306,8 +298,9 @@ export class ScheduleService {
         scheduleDto.projectId = project.id;
         scheduleDto.projectCode = project.code;
         scheduleDto.projectName = project.name;
-        scheduleDto.projectClientId = ancestors[0].id;
-        scheduleDto.projectClientName = project.client.name;
+        scheduleDto.projectClientId = project.clients[0].id;
+        scheduleDto.projectClientName =
+          project.clients[project.clients.length - 1].name;
 
         return scheduleDto;
       }),
@@ -354,13 +347,12 @@ export class ScheduleService {
   }
 
   async createSchedule(user: User, value: CreateScheduleDto) {
-    const project = await this.projectService.findProjectById(value.projectId);
-    const ancestors = await this.projectClientService.findAncestors(
-      project.client.id,
+    const project = await this.projectService.getProjectWithoutUser(
+      value.projectId,
     );
     const category = await this.findCategoryById(value.categoryId);
 
-    const summary = `[${category.name}][${project.client.name}][${user.username}] ${value.summary} (${dayjs(value.start).format('MM/DD')} - ${dayjs(value.end).format('MM/DD')})`;
+    const summary = `[${category.name}][${project.clients[project.clients.length - 1].name}][${user.username}] ${value.summary} (${dayjs(value.start).format('MM/DD')} - ${dayjs(value.end).format('MM/DD')})`;
     const description =
       `[URL] ${value.url}` +
       (value.description ? `\n\n[설명]\n${value.description}` : '');
@@ -370,13 +362,13 @@ export class ScheduleService {
       requestBody: {
         summary: summary,
         description: description,
-        location: project.client.name,
+        location: project.clients[project.clients.length - 1].name,
         colorId: category.color,
         start: {
-          date: value.start,
+          date: dayjs(value.start).format('YYYY-MM-DD'),
         },
         end: {
-          date: value.end,
+          date: dayjs(value.end).add(1, 'day').format('YYYY-MM-DD'),
         },
         extendedProperties: {
           shared: {
@@ -398,12 +390,10 @@ export class ScheduleService {
       description: value.description,
       url: value.url,
       start: new Date(value.start),
-      end: new Date(new Date(value.end).getTime() - 1),
+      end: new Date(value.end),
     });
 
     const savedSchedule = await this.scheduleRepository.save(schedule);
-
-    await this.mailService.sendMailToEveryone(summary, description);
 
     const scheduleDto = plainToInstance(
       ScheduleDto,
@@ -412,13 +402,15 @@ export class ScheduleService {
         projectId: project.id,
         projectCode: project.code,
         projectName: project.name,
-        projectClientId: ancestors[0].id,
-        projectClientName: project.client.name,
+        projectClientId: project.clients[0].id,
+        projectClientName: project.clients[project.clients.length - 1].name,
       },
       {
         excludeExtraneousValues: true,
       },
     );
+
+    await this.mailService.sendScheduleMail(project, scheduleDto);
 
     return scheduleDto;
   }
@@ -441,13 +433,12 @@ export class ScheduleService {
     let categoryId = value.categoryId ?? schedule.category.id;
 
     // ProjectDto로 가져오기 (clients 포함)
-    const project = await this.projectService.findProjectById(value.projectId);
-    const ancestors = await this.projectClientService.findAncestors(
-      project.client.id,
+    const project = await this.projectService.getProjectWithoutUser(
+      value.projectId,
     );
     const category = await this.findCategoryById(categoryId);
 
-    const summary = `[${category.name}][${project.client.name}][${user.username}] ${value.summary} (${dayjs(value.start).format('MM-DD')} - ${dayjs(value.end).format('MM-DD')})`;
+    const summary = `[${category.name}][${project.clients[project.clients.length - 1].name}][${user.username}] ${value.summary} (${dayjs(value.start).format('MM-DD')} - ${dayjs(value.end).format('MM-DD')})`;
     const description =
       `[URL] ${value.url}` +
       (value.description ? `\n\n[설명]\n${value.description}` : '');
@@ -455,13 +446,17 @@ export class ScheduleService {
     const eventBody: calendar_v3.Schema$Event = {
       summary: summary ?? schedule.summary,
       description: description ?? schedule.description,
-      location: project.client.name,
+      location: project.clients[project.clients.length - 1].name,
       colorId: category.color,
       start: {
-        date: value.start ?? schedule.start.toISOString().split('T')[0], // all-day 이벤트 가정
+        date:
+          dayjs(value.start).format('YYYY-MM-DD') ??
+          dayjs(schedule.start).format('YYYY-MM-DD'), // all-day 이벤트 가정
       },
       end: {
-        date: value.end ?? schedule.end.toISOString().split('T')[0],
+        date:
+          dayjs(value.end).add(1, 'day').format('YYYY-MM-DD') ??
+          dayjs(schedule.end).add(1, 'day').format('YYYY-MM-DD'),
       },
       extendedProperties: {
         shared: {
@@ -501,9 +496,7 @@ export class ScheduleService {
       description: value.description ?? schedule.description,
       url: value.url ?? schedule.url,
       start: value.start ? new Date(value.start) : schedule.start,
-      end: value.end
-        ? new Date(new Date(value.end).getTime() - 1)
-        : schedule.end,
+      end: value.end ? new Date(value.end) : schedule.end,
       project,
       category,
       user: schedule.user,
@@ -517,8 +510,8 @@ export class ScheduleService {
         projectId: project.id,
         projectCode: project.code,
         projectName: project.name,
-        projectClientId: ancestors[0].id,
-        projectClientName: project.client.name,
+        projectClientId: project.clients[0].id,
+        projectClientName: project.clients[project.clients.length - 1].name,
         category,
       },
       { excludeExtraneousValues: true },
@@ -528,6 +521,32 @@ export class ScheduleService {
   }
 
   async deleteSchedule(id: number) {
+    const schedule = await this.scheduleRepository.findOne({
+      where: { id },
+      select: ['id', 'eventId'], // 필요한 필드만 선택
+    });
+
+    if (!schedule) {
+      throw new NotFoundException('schedule_not_found');
+    }
+
+    // 2️⃣ Google Calendar 이벤트 삭제
+    try {
+      await this.calendarClient.events.delete({
+        calendarId: this.scheduleCalendarId,
+        eventId: schedule.eventId,
+      });
+    } catch (error: any) {
+      // 404 에러(이벤트가 이미 캘린더에서 삭제된 경우)는 무시하고 계속 진행
+      if (error.code !== 404) {
+        // 다른 유형의 에러는 throw
+        console.error(`Google Calendar Event Deletion Error: ${error.message}`);
+        throw error;
+      }
+      // 404인 경우: 캘린더에는 없지만 DB에는 있는 상황이므로 DB 삭제는 계속 진행
+    }
+
+    // 3️⃣ DB에서 Schedule 논리적 삭제 (softDelete)
     await this.scheduleRepository.softDelete(id);
   }
 }

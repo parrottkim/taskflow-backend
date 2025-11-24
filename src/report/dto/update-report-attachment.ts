@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsInt, IsOptional, IsString, IsNotEmpty } from 'class-validator';
 
-export class UpdateIssueAttachmentDto {
+export class UpdateReportAttachmentDto {
   @ApiProperty()
   @IsInt()
   @IsOptional()

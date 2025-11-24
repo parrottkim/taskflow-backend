@@ -16,9 +16,6 @@ export class IssueCategory {
   @Column({ type: 'varchar' })
   name: string;
 
-  @Column()
-  sequence: number = 10;
-
   @OneToMany(() => Issue, (issue) => issue.category)
   issues: Issue[];
 

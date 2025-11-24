@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Expose, plainToInstance, Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsDate,
   IsDateString,
   IsInt,
   IsNotEmpty,
@@ -90,6 +91,19 @@ export class ScheduleDto {
             excludeExtraneousValues: true,
           },
         );
+      case 4:
+        return plainToInstance(
+          ScheduleCategoryDto,
+          {
+            type: 'remote',
+            id: obj.category.id,
+            name: obj.category.name,
+            color: obj.category.color,
+          },
+          {
+            excludeExtraneousValues: true,
+          },
+        );
     }
   })
   @Expose()
@@ -125,6 +139,24 @@ export class ScheduleDto {
   @IsDateString()
   @Expose()
   end: string;
+
+  @ApiProperty()
+  @Type(() => Date)
+  @IsDate()
+  @Expose()
+  createdAt: Date;
+
+  @ApiProperty()
+  @Type(() => Date)
+  @IsDate()
+  @Expose()
+  updatedAt: Date;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Type(() => Date)
+  @IsDate()
+  @Expose()
+  deletedAt: Date | null;
 }
 
 export class ScheduleGroupDto {

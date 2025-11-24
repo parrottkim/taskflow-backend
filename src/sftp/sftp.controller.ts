@@ -15,19 +15,21 @@ import {
   MaxFileSizeValidator,
   ParseFilePipe,
   UploadedFile,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { SftpService } from './sftp.service';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
 import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
 import { UploadInlineImageDto } from './dto/upload-inline-image';
+import { AttachmentDto } from './dto/attachment';
 
 @Controller('files')
 export class SftpController {
   constructor(private readonly sftpService: SftpService) {}
 
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '이슈 인라인 이미지 업로드' })
+  @ApiOperation({ summary: '인라인 이미지 업로드' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -38,6 +40,7 @@ export class SftpController {
   @UseInterceptors(FilesInterceptor('files'))
   async uploadInlineImage(
     @Request() req,
+    @Query('path') path: string,
     @UploadedFiles(
       new ParseFilePipe({
         validators: [new MaxFileSizeValidator({ maxSize: 1024 * 1024 * 5 })],
@@ -50,7 +53,7 @@ export class SftpController {
       throw new Error('파일이 없습니다');
     }
 
-    return await this.sftpService.uploadInlineImages(req.user, files);
+    return await this.sftpService.uploadInlineImages(req.user, path, files);
   }
 
   @UseGuards(JwtAccessAuthGuard)

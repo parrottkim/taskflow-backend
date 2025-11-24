@@ -65,13 +65,27 @@ services:
       - backend_default
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: taskflow-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    profiles:
+      - dev
+      - prod
+    networks:
+      - backend_default
+    restart: always
+
   doc-converter:
     image: gotenberg/gotenberg:latest
     container_name: doc-converter
     volumes:
       - ./fonts:/usr/share/fonts:ro
     ports:
-      - "3001:3000"
+      - "3001:3001"
     networks:
       - backend_default
     profiles:
