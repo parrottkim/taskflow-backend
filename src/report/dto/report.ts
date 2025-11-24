@@ -5,17 +5,15 @@ import {
   IsDate,
   IsInt,
   IsNotEmpty,
+  IsString,
   ValidateNested,
 } from 'class-validator';
 import { UserDto } from 'src/user/dto/user';
-import {
-  TripActualExpenseDto,
-  TripFuelExpenseDto,
-  TripRegulationRateDto,
-} from './trip-expense';
 import { ScheduleDto } from 'src/schedule/dto/schedule';
+import { TripReportDto } from './trip/trip-report';
+import { ReportAttachmentDto } from './report-attachment';
 
-export class TripDto {
+export class ReportDto {
   @ApiProperty()
   @IsInt()
   @IsNotEmpty()
@@ -32,28 +30,23 @@ export class TripDto {
   @Expose()
   user: UserDto;
 
-  @ApiProperty({ type: [TripActualExpenseDto] })
-  @ValidateNested({ each: true })
-  @Type(() => TripActualExpenseDto)
+  @ApiProperty({ type: TripReportDto, required: false, nullable: true })
+  @ValidateNested()
+  @Type(() => TripReportDto)
   @Expose()
-  expenses: TripActualExpenseDto[];
-
-  @ApiProperty({ type: [TripRegulationRateDto] })
-  @ValidateNested({ each: true })
-  @Type(() => TripRegulationRateDto)
-  @Expose()
-  rates: TripRegulationRateDto[];
-
-  @ApiProperty({ type: TripFuelExpenseDto })
-  @Type(() => TripFuelExpenseDto)
-  @Expose()
-  fuel: TripFuelExpenseDto;
+  trip?: TripReportDto;
 
   @ApiProperty()
-  @IsBoolean()
+  @IsString()
   @IsNotEmpty()
   @Expose()
-  isDeducted: boolean;
+  content: string;
+
+  @ApiProperty({ type: [ReportAttachmentDto] })
+  @ValidateNested({ each: true })
+  @Type(() => ReportAttachmentDto)
+  @Expose()
+  attachments: ReportAttachmentDto[];
 
   @ApiProperty()
   @Type(() => Date)
@@ -74,12 +67,12 @@ export class TripDto {
   deletedAt: Date | null;
 }
 
-export class TripListDto {
-  @ApiProperty({ type: [TripDto] })
+export class ReportListDto {
+  @ApiProperty({ type: [ReportDto] })
   @ValidateNested({ each: true })
-  @Type(() => TripDto)
+  @Type(() => ReportDto)
   @Expose()
-  items: TripDto[];
+  items: ReportDto[];
 
   @ApiProperty()
   @IsInt()

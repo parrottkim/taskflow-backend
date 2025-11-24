@@ -1,5 +1,4 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
-import { ScheduleCategory } from '../schedule/schedule-category.entity';
 import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
 import { TripStep } from './trip-step.entity';
 

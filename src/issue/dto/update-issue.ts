@@ -16,7 +16,7 @@ import {
   UpdateDeclarationIssueDetailsDto,
   UpdatePaymentIssueDetailsDto,
 } from './update-issue-details';
-import { UpdateIssueAttachmentDto } from './update-issue-attachment';
+import { IssueAttachmentDto } from './issue-attachment';
 
 export class UpdateIssueDto {
   @ApiProperty()
@@ -82,6 +82,6 @@ export class UpdateIssueDto {
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => UpdateIssueAttachmentDto)
-  attachments?: UpdateIssueAttachmentDto[];
+  @Type(() => IssueAttachmentDto)
+  attachments?: IssueAttachmentDto[];
 }

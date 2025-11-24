@@ -9,10 +9,11 @@ import { JwtAccessStrategy } from './strategies/jwt-access-strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh-strategy';
 import { UserModule } from 'src/user/user.module';
 import { ConfigService } from '@nestjs/config';
+import { MailModule } from 'src/mail/mail.module';
+import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({
   imports: [
-    UserModule,
     TypeOrmModule.forFeature([User]),
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -29,6 +30,9 @@ import { ConfigService } from '@nestjs/config';
         };
       },
     }),
+    RedisModule,
+    UserModule,
+    MailModule,
   ],
   providers: [
     AuthService,

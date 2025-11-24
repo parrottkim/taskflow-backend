@@ -1,6 +1,6 @@
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Schedule } from './schedule.entity';
-import { TripStep } from '../trip/trip-step.entity';
+import { TripStep } from '../report/trip/trip-step.entity';
 
 @Entity()
 export class ScheduleCategory {

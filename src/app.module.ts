@@ -10,16 +10,18 @@ import { AuthModule } from './auth/auth.module';
 import { ProjectModule } from './project/project.module';
 import { ProjectClientModule } from './project/project-client.module';
 import { ScheduleModule } from './schedule/schedule.module';
-import { IssueModule } from './issue/issue.module';
 import { BookmarkModule } from './bookmark/bookmark.module';
 import { SftpModule } from './sftp/sftp.module';
 import { UserDepartmentModule } from './user/user-department.module';
-import { IssueAttachmentModule } from './issue/issue-attachment.module';
 import { SupplierModule } from './supplier/supplier.module';
-import { TripModule } from './trip/trip.module';
+import { ReportModule } from './report/report.module';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { MailModule } from './mail/mail.module';
 import { CurrencyModule } from './currency/currency.module';
+import { RedisModule } from '@nestjs-modules/ioredis';
+import { IssueModule } from './issue/issue.module';
+import { IssueAttachmentModule } from './issue/issue-attachment.module';
+import { ReportAttachmentModule } from './report/report-attachment.module';
 
 @Module({
   imports: [
@@ -28,7 +30,7 @@ import { CurrencyModule } from './currency/currency.module';
       load: [config],
       isGlobal: true,
       validationSchema: Joi.object({
-        JWT_SECRET: Joi.string().required(),
+        JWT_ACCESS_SECRET: Joi.string().required(),
         JWT_REFRESH_SECRET: Joi.string().required(),
         ACCESS_TOKEN_EXPIRATION: Joi.string().required(),
         REFRESH_TOKEN_EXPIRATION: Joi.string().required(),
@@ -55,6 +57,10 @@ import { CurrencyModule } from './currency/currency.module';
         };
       },
     }),
+    RedisModule.forRoot({
+      type: 'single',
+      url: 'redis://localhost:6379',
+    }),
     AuthModule,
     BookmarkModule,
     CurrencyModule,
@@ -66,7 +72,8 @@ import { CurrencyModule } from './currency/currency.module';
     ProjectModule,
     SftpModule,
     SupplierModule,
-    TripModule,
+    ReportModule,
+    ReportAttachmentModule,
     UserDepartmentModule,
     UserModule,
   ],

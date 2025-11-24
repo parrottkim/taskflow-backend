@@ -6,9 +6,9 @@ export class GetSchedulesDto {
   @ApiProperty()
   @Type(() => Number)
   @IsInt()
-  @IsNotEmpty()
+  @IsOptional()
   @Expose({ name: 'project_id' })
-  projectId: number;
+  projectId?: number;
 
   @ApiProperty()
   @IsOptional()

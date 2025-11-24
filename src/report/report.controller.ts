@@ -13,20 +13,20 @@ import {
   Query,
   Response,
 } from '@nestjs/common';
-import { TripService } from './trip.service';
+import { ReportService } from './report.service';
 import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
 import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
-import { TripCategoryDto } from './dto/trip-category';
-import { TripStepDto } from './dto/trip-step';
-import { TripRegulationDto } from './dto/trip-regulation';
-import { CreateTripDto } from './dto/create-trip';
-import { TripDto, TripListDto } from './dto/trip';
-import { UpdateTripDto } from './dto/update-trip';
-import { GetTripDto } from './dto/get-trip';
+import { TripCategoryDto } from './dto/trip/trip-category';
+import { TripStepDto } from './dto/trip/trip-step';
+import { TripRegulationDto } from './dto/trip/trip-regulation';
+import { CreateReportDto } from './dto/create-report';
+import { ReportDto, ReportListDto } from './dto/report';
+import { UpdateReportDto } from './dto/update-report';
+import { GetReportDto } from './dto/get-report';
 
-@Controller('trip')
-export class TripController {
-  constructor(private readonly tripService: TripService) {}
+@Controller('report')
+export class ReportController {
+  constructor(private readonly reportService: ReportService) {}
 
   @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '전체 카테고리 조회' })
@@ -36,9 +36,9 @@ export class TripController {
     description: 'Successful response',
     type: [TripCategoryDto],
   })
-  @Get('categories')
-  async getAllCategories() {
-    return this.tripService.getAllCategories();
+  @Get('trip/categories')
+  async getAllTripCategories() {
+    return this.reportService.getAllTripCategories();
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -49,9 +49,9 @@ export class TripController {
     description: 'Successful response',
     type: [TripStepDto],
   })
-  @Get('steps/:id')
-  async getAllSteps(@Param('id', ParseIntPipe) id: number) {
-    return this.tripService.getAllSteps(id);
+  @Get('trip/steps/:id')
+  async getAllTripSteps(@Param('id', ParseIntPipe) id: number) {
+    return this.reportService.getAllTripSteps(id);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -62,9 +62,9 @@ export class TripController {
     description: 'Successful response',
     type: [TripRegulationDto],
   })
-  @Get('regulations/:id')
-  async getAllRegulations(@Param('id', ParseIntPipe) id: number) {
-    return this.tripService.getAllRegulations(id);
+  @Get('trip/regulations/:id')
+  async getAllTripRegulations(@Param('id', ParseIntPipe) id: number) {
+    return this.reportService.getAllTripRegulations(id);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -74,9 +74,9 @@ export class TripController {
     status: HttpStatus.OK,
     description: 'Successful response',
   })
-  @Get('export/:id')
+  @Get('trip/export/:id')
   async exportTrip(@Param('id', ParseIntPipe) id: number, @Response() res) {
-    const { buffer, filename } = await this.tripService.exportTrip(id);
+    const { buffer, filename } = await this.reportService.exportTrip(id);
 
     res.set({
       'Content-Type': 'application/pdf',
@@ -93,11 +93,11 @@ export class TripController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
-    type: TripDto,
+    type: ReportDto,
   })
   @Get(':id')
-  getTrip(@Request() req, @Param('id', ParseIntPipe) id: number) {
-    return this.tripService.getTripWithUser(req.user, id);
+  getReport(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    return this.reportService.getReportWithUser(req.user, id);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -106,11 +106,23 @@ export class TripController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
-    type: TripListDto,
+    type: ReportListDto,
   })
   @Get()
-  getTrips(@Query() value: GetTripDto) {
-    return this.tripService.getTrips(value);
+  getReports(@Query() value: GetReportDto) {
+    return this.reportService.getReports(value);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '실무 결과 메일 전송' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+  })
+  @Post('mail/:id')
+  sendMail(@Param('id', ParseIntPipe) id: number) {
+    return this.reportService.sendMail(id);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -119,11 +131,11 @@ export class TripController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
-    type: TripDto,
+    type: ReportDto,
   })
   @Post()
-  async createTrip(@Request() req, @Body() value: CreateTripDto) {
-    return this.tripService.createTrip(req.user, value);
+  async createReport(@Request() req, @Body() value: CreateReportDto) {
+    return this.reportService.createReport(req.user, value);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -132,15 +144,15 @@ export class TripController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
-    type: TripDto,
+    type: ReportDto,
   })
   @Patch(':id')
-  updateTrip(
+  updateReport(
     @Request() req,
     @Param('id', ParseIntPipe) id: number,
-    @Body() value: UpdateTripDto,
+    @Body() value: UpdateReportDto,
   ) {
-    return this.tripService.updateTrip(req.user, id, value);
+    return this.reportService.updateReport(req.user, id, value);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -151,7 +163,7 @@ export class TripController {
     description: 'Successful response',
   })
   @Delete(':id')
-  async deleteTrip(@Param('id', ParseIntPipe) id: number) {
-    return this.tripService.deleteTrip(id);
+  async deleteReport(@Param('id', ParseIntPipe) id: number) {
+    return this.reportService.deleteReport(id);
   }
 }

@@ -1,15 +1,17 @@
 import {
   Column,
+  CreateDateColumn,
+  DeleteDateColumn,
   Entity,
-  JoinColumn,
   ManyToOne,
   OneToOne,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { ScheduleCategory } from './schedule-category.entity';
 import { Project } from '../project/project.entity';
 import { User } from '../user/user.entity';
-import { Trip } from '../trip/trip.entity';
+import { Report } from '../report/report.entity';
 
 @Entity()
 export class Schedule {
@@ -25,8 +27,8 @@ export class Schedule {
   @ManyToOne(() => Project, (project) => project.schedules)
   project: Project;
 
-  @OneToOne(() => Trip, (trip) => trip.schedule)
-  trip: Trip;
+  @OneToOne(() => Report, (report) => report.schedule)
+  report: Report;
 
   @ManyToOne(() => User, (user) => user.schedules)
   user: User;
@@ -45,4 +47,13 @@ export class Schedule {
 
   @Column()
   end: Date;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt!: Date | null;
 }

@@ -5,17 +5,17 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { Issue } from './issue.entity';
+import { Report } from './report.entity';
 
 @Entity()
-export class IssueAttachment {
+export class ReportAttachment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Issue, (issue) => issue.attachments, {
+  @ManyToOne(() => Report, (report) => report.attachments, {
     onDelete: 'CASCADE',
   })
-  issue: Issue;
+  report: Report;
 
   @Column({ type: 'varchar' })
   filename: string;

@@ -1,28 +1,25 @@
 import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
 import { Entity, PrimaryGeneratedColumn, ManyToOne, Column } from 'typeorm';
+import { TripReport } from './trip-report.entity';
 import { TripStep } from './trip-step.entity';
-import { Trip } from './trip.entity';
 
 @Entity()
-export class TripRegulationRate {
+export class TripActualExpense {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Trip, (trip) => trip.rates)
-  trip: Trip;
+  @ManyToOne(() => TripReport, (trip) => trip.expenses)
+  trip: TripReport;
 
-  @ManyToOne(() => TripStep, (step) => step.rates)
+  @ManyToOne(() => TripStep, (step) => step.expenses)
   step: TripStep;
-
-  @Column()
-  days: number;
 
   @Column('decimal', {
     precision: 12,
     scale: 2,
     transformer: new DecimalColumnTransformer(),
   })
-  rate: number;
+  price: number;
 
   @Column({ nullable: true })
   details?: string;

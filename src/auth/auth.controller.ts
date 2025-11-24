@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  HttpCode,
   HttpStatus,
   Post,
   Request,
@@ -19,6 +20,8 @@ import {
 import { TokenDto } from './dto/token';
 import { LoginRequestDto } from './dto/login-request';
 import { CreateUserDto } from 'src/user/dto/create-user';
+import { ResetPasswordDto } from './dto/reset-password';
+import { ForgotPasswordDto } from './dto/forgot-password';
 
 @ApiTags('Authorization (인증)')
 @Controller('auth')
@@ -63,5 +66,18 @@ export class AuthController {
   @Post('refresh')
   async refrshToken(@Request() req) {
     return this.authService.refreshToken(req.user);
+  }
+
+  @ApiOperation({ summary: '비밀번호 재설정 요청' })
+  @Post('forgot-password')
+  @HttpCode(200)
+  async forgotPassword(@Body() value: ForgotPasswordDto) {
+    await this.authService.forgotPassword(value);
+  }
+
+  @ApiOperation({ summary: '새로운 비밀번호 설정' })
+  @Post('reset-password')
+  async resetPassword(@Body() value: ResetPasswordDto) {
+    return await this.authService.resetPassword(value);
   }
 }

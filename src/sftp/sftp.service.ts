@@ -109,9 +109,13 @@ export class SftpService {
     return parts.length > 1 ? parts.pop() : '';
   }
 
-  async uploadInlineImages(user: User, files: Express.Multer.File[]) {
+  async uploadInlineImages(
+    user: User,
+    path: string,
+    files: Express.Multer.File[],
+  ) {
     const directory = 'inline-images';
-    const basePath = `${this.configService.sftp.path}/${directory}/${user.id}`;
+    const basePath = `${this.configService.sftp.path}/${directory}/${path}/${user.id}`;
     const date = `${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
     const images = await Promise.all(
@@ -132,9 +136,13 @@ export class SftpService {
     );
   }
 
-  async uploadAttachments(user: User, files: Express.Multer.File[]) {
+  async uploadAttachments(
+    user: User,
+    path: string,
+    files: Express.Multer.File[],
+  ) {
     const directory = 'attachments';
-    const basePath = `${this.configService.sftp.path}/${directory}/${user.id}`;
+    const basePath = `${this.configService.sftp.path}/${directory}/${path}/${user.id}`;
     const date = `${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
     const attachments = await Promise.all(

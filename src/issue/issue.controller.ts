@@ -14,16 +14,15 @@ import {
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IssueService } from './issue.service';
-import { IssueCategoryDto } from './dto/issue-category';
 import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
-import { LatestIssueDto } from './dto/latest-issue';
-import { GetIssuesDto } from './dto/get-issues';
-import { GetLatestIssuesDto } from './dto/get-latest-issues';
-import { IssueDto } from './dto/issue';
 import { CreateIssueDto } from './dto/create-issue';
-import { UpdateIssueDto } from './dto/update-issue';
+import { GetLatestIssuesDto } from './dto/get-latest-issues';
+import { GetIssuesDto } from './dto/get-issues';
+import { LatestIssueDto } from './dto/latest-issue';
+import { IssueDto } from './dto/issue';
+import { IssueCategoryDto } from './dto/issue-category';
 import { TransactionIssueItemCategoryDto } from './dto/issue-details';
-
+import { UpdateIssueDto } from './dto/update-issue';
 @ApiTags('Issue (이슈)')
 @Controller('issue')
 export class IssueController {
@@ -92,6 +91,18 @@ export class IssueController {
   @Get()
   getIssues(@Query() value: GetIssuesDto) {
     return this.issueService.getIssues(value);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '이슈 메일 전송' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+  })
+  @Post('mail/:id')
+  sendMail(@Param('id', ParseIntPipe) id: number) {
+    return this.issueService.sendMail(id);
   }
 
   @UseGuards(JwtAccessAuthGuard)

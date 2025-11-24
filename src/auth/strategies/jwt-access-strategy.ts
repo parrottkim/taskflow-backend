@@ -19,7 +19,7 @@ export class JwtAccessStrategy extends PassportStrategy(
       passwordField: 'password',
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.jwt.jwtSecret,
+      secretOrKey: configService.jwt.jwtAccessSecret,
     });
   }
 

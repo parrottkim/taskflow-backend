@@ -36,9 +36,9 @@ import { TransactionIssueItem } from 'src/entity/issue/transaction/transaction-i
 import { TransactionIssueItemCategory } from 'src/entity/issue/transaction/transaction-issue-category.entity';
 import { TransactionIssueItemCategoryDto } from './dto/issue-details';
 import { UpdateProjectDto } from 'src/project/dto/update-project';
-import { CurrencyService } from 'src/currency/currency.service';
 import { Currency } from 'src/entity/issue/currency/currency.entity';
 import { Supplier } from 'src/entity/supplier/supplier.entity';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class IssueService {
@@ -53,8 +53,8 @@ export class IssueService {
     private readonly projectService: ProjectService,
     private readonly projectClientService: ProjectClientService,
     private readonly sftpService: SftpService,
-    private readonly currencyService: CurrencyService,
     private readonly supplierService: SupplierService,
+    private readonly mailService: MailService,
   ) {}
 
   async findCategoryById(id: number) {
@@ -225,6 +225,20 @@ export class IssueService {
     return latestIssueListDto;
   }
 
+  async getIssueWithoutUser(id: number) {
+    const issue = await this.findIssueById(id);
+
+    if (!issue) {
+      throw new NotFoundException('issue_not_found');
+    }
+
+    const issueDto = plainToInstance(IssueDto, issue, {
+      excludeExtraneousValues: true,
+    });
+
+    return issueDto;
+  }
+
   async getIssueWithUser(user: User, id: number) {
     const issue = await this.findIssueById(id);
 
@@ -259,6 +273,19 @@ export class IssueService {
     );
 
     return issueListDto;
+  }
+
+  async sendMail(id: number) {
+    const issue = await this.findIssueById(id);
+    const project = await this.projectService.getProjectWithoutUser(
+      issue.project.id,
+    );
+
+    const issueDto = plainToInstance(IssueDto, issue, {
+      excludeExtraneousValues: true,
+    });
+
+    await this.mailService.sendIssueMail(project, issueDto);
   }
 
   async createIssue(user: User, value: CreateIssueDto) {
@@ -483,10 +510,10 @@ export class IssueService {
           (att) => !toRemove.includes(att),
         );
         const newAttachments = value.attachments
-          .filter((att) => !oldAttachments.some((old) => old.id === att.id))
+          .filter((att) => !issue.attachments?.some((old) => old.id === att.id))
           .map((att) =>
             queryRunner.manager.create(IssueAttachment, {
-              name: att.filename,
+              filename: att.filename,
               path: att.path,
               size: att.size,
               issue: issue,
@@ -498,7 +525,9 @@ export class IssueService {
 
       // --- contract items 처리 ---
       if (value.contract) {
-        issue.contract ??= queryRunner.manager.create(ContractIssue, { issue });
+        issue.contract ??= queryRunner.manager.create(ContractIssue, {
+          issue,
+        });
         issue.contract.items = await Promise.all(
           value.contract.items.map(async (dto) => {
             const currency = await queryRunner.manager.findOne(Currency, {
@@ -527,7 +556,9 @@ export class IssueService {
       }
 
       if (value.kickoff) {
-        issue.kickoff ??= queryRunner.manager.create(KickoffIssue, { issue });
+        issue.kickoff ??= queryRunner.manager.create(KickoffIssue, {
+          issue,
+        });
         issue.kickoff.kickoffDate =
           value.kickoff.kickoffDate ?? issue.kickoff.kickoffDate;
       }
