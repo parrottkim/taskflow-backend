@@ -340,7 +340,29 @@ export class ProjectService {
     });
   }
 
-  async getProject(id: number) {
+  async getProject(user: User, id: number) {
+    const project = await this.findProjectById(id, user);
+
+    if (!project) {
+      throw new NotFoundException('project_not_found');
+    }
+
+    const ancestors = await this.projectClientService.findAncestors(
+      project.client.id,
+    );
+
+    const projectDto = plainToInstance(ProjectDto, project, {
+      excludeExtraneousValues: true,
+    });
+    projectDto.clients = plainToInstance(ProjectClientDto, ancestors, {
+      excludeExtraneousValues: true,
+    });
+    projectDto.isBookmarked = project.bookmarks && project.bookmarks.length > 0;
+
+    return projectDto;
+  }
+
+  async getProjectWithoutUser(id: number) {
     const project = await this.findProjectById(id);
 
     if (!project) {
@@ -357,6 +379,7 @@ export class ProjectService {
     projectDto.clients = plainToInstance(ProjectClientDto, ancestors, {
       excludeExtraneousValues: true,
     });
+    projectDto.isBookmarked = project.bookmarks && project.bookmarks.length > 0;
 
     return projectDto;
   }
@@ -366,6 +389,10 @@ export class ProjectService {
 
     if (!project) {
       throw new NotFoundException('project_not_found');
+    }
+
+    if (project.user.id !== user.id && !user.isAdmin) {
+      throw new ForbiddenException('no_permission');
     }
 
     const ancestors = await this.projectClientService.findAncestors(
@@ -511,8 +538,10 @@ export class ProjectService {
         .getOne();
 
       if (!project) throw new NotFoundException('project_not_found');
-      if (project.user.id !== user.id && !user.isAdmin)
+
+      if (project.user.id !== user.id && !user.isAdmin) {
         throw new ForbiddenException('no_permission');
+      }
 
       // 프로젝트 코드 중복 체크
       if (value.projectCode && value.projectCode !== project.code) {

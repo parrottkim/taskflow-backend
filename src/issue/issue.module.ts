@@ -20,11 +20,12 @@ import { TransactionIssue } from 'src/entity/issue/transaction/transaction-issue
 import { TransactionIssueItem } from 'src/entity/issue/transaction/transaction-issue-item.entity';
 import { TransactionIssueItemCategory } from 'src/entity/issue/transaction/transaction-issue-category.entity';
 import { IssueAttachment } from 'src/entity/issue/issue-attachment.entity';
-import { IssueAttachmentSubscriber } from 'src/common/subscribers/issue-attachment.subscriber';
 import { SupplierModule } from 'src/supplier/supplier.module';
 import { Supplier } from 'src/entity/supplier/supplier.entity';
 import { Currency } from 'src/entity/issue/currency/currency.entity';
 import { CurrencyModule } from 'src/currency/currency.module';
+import { IssueAttachmentSubscriber } from 'src/common/subscribers/issue-attachment.subscriber';
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { CurrencyModule } from 'src/currency/currency.module';
     SftpModule,
     CurrencyModule,
     SupplierModule,
+    MailModule,
   ],
   providers: [IssueService, IssueAttachmentSubscriber],
   controllers: [IssueController],

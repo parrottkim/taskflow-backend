@@ -1,54 +1,54 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
-import { IssueAttachment } from 'src/entity/issue/issue-attachment.entity';
+import { ReportAttachment } from 'src/entity/report/report-attachment.entity';
 import { User } from 'src/entity/user/user.entity';
 import { SftpService } from 'src/sftp/sftp.service';
 import { Repository } from 'typeorm';
-import { IssueAttachmentDto } from './dto/issue-attachment';
+import { ReportAttachmentDto } from './dto/report-attachment';
 
 @Injectable()
-export class IssueAttachmentService {
+export class ReportAttachmentService {
   constructor(
-    @InjectRepository(IssueAttachment)
-    private readonly issueAttachmentRepository: Repository<IssueAttachment>,
+    @InjectRepository(ReportAttachment)
+    private readonly reportAttachmentRepository: Repository<ReportAttachment>,
     private readonly sftpService: SftpService,
   ) {}
 
   async uploadAttachments(
     user: User,
-    issueId: number,
+    reportId: number,
     files: Express.Multer.File[],
   ) {
     const uploadedFiles = await this.sftpService.uploadAttachments(
       user,
-      'issue',
+      'report',
       files,
     );
 
     const attachments = uploadedFiles.map((file) =>
-      this.issueAttachmentRepository.create({
+      this.reportAttachmentRepository.create({
         ...file,
-        issue: { id: issueId },
+        report: { id: reportId },
       }),
     );
 
-    const saved = await this.issueAttachmentRepository.save(attachments);
+    const saved = await this.reportAttachmentRepository.save(attachments);
 
-    const issueAttachmentDto = plainToInstance(IssueAttachmentDto, saved, {
+    const reportAttachmentDto = plainToInstance(ReportAttachmentDto, saved, {
       excludeExtraneousValues: true, // @Expose가 붙은 필드만 포함
     });
 
-    return issueAttachmentDto;
+    return reportAttachmentDto;
   }
 
-  async deleteAttachment(user: User, issueId: number, fileId: number) {
-    const attachment = await this.issueAttachmentRepository.findOne({
-      where: { id: fileId, issue: { id: issueId } },
+  async deleteAttachment(user: User, reportId: number, fileId: number) {
+    const attachment = await this.reportAttachmentRepository.findOne({
+      where: { id: fileId, report: { id: reportId } },
     });
     if (!attachment) throw new NotFoundException('not_found');
 
-    await this.issueAttachmentRepository.remove(attachment);
+    await this.reportAttachmentRepository.remove(attachment);
     // 필요하면 SFTP에서도 삭제
     await this.sftpService.deleteFileByPath(attachment.path);
     return { success: true };

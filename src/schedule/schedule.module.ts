@@ -5,7 +5,6 @@ import { UserModule } from 'src/user/user.module';
 import { Schedule } from 'src/entity/schedule/schedule.entity';
 import { ScheduleCategory } from 'src/entity/schedule/schedule-category.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ProjectClientModule } from 'src/project/project-client.module';
 import { ProjectModule } from 'src/project/project.module';
 import { MailModule } from 'src/mail/mail.module';
 
@@ -13,7 +12,6 @@ import { MailModule } from 'src/mail/mail.module';
   imports: [
     TypeOrmModule.forFeature([Schedule, ScheduleCategory]),
     ProjectModule,
-    ProjectClientModule,
     UserModule,
     MailModule,
   ],

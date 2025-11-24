@@ -15,12 +15,6 @@ export class TripActualExpenseDto {
   @Expose()
   id: number;
 
-  @ApiProperty({ description: '여행 ID' })
-  @IsInt()
-  @IsNotEmpty()
-  @Expose()
-  tripId: number; // Trip FK
-
   @ApiProperty({ description: '경비 항목 스텝 ID (예: 교통비, 숙박비 스텝)' })
   @IsInt()
   @IsNotEmpty()
@@ -47,12 +41,6 @@ export class TripRegulationRateDto {
   @IsNotEmpty()
   @Expose()
   id: number;
-
-  @ApiProperty({ description: '여행 ID' })
-  @IsInt()
-  @IsNotEmpty()
-  @Expose()
-  tripId: number; // Trip FK
 
   @ApiProperty({
     description: '규정 정산 항목 스텝 ID (예: 국내 숙박비 스텝 ID)',

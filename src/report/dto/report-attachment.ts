@@ -1,9 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { TripCategoryDto } from './trip-category';
+import { IsInt, IsNotEmpty, IsString, IsDate } from 'class-validator';
 
-export class TripStepDto {
+export class ReportAttachmentDto {
   @ApiProperty()
   @IsInt()
   @IsNotEmpty()
@@ -11,20 +10,26 @@ export class TripStepDto {
   id: number;
 
   @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @Expose()
+  filename: string;
+
+  @ApiProperty()
   @IsInt()
   @IsNotEmpty()
   @Expose()
-  categoryId: Number;
+  size: number;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
   @Expose()
-  name: string;
+  path: string;
 
   @ApiProperty()
-  @IsString()
-  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
   @Expose()
-  description?: string;
+  createdAt: Date;
 }

@@ -8,14 +8,15 @@ import {
   IsString,
   IsBoolean,
 } from 'class-validator';
+import { ReportAttachmentDto } from './report-attachment';
 
 export class CreateActualExpenseDto {
-  @ApiProperty({ description: '연결할 TripStep ID', example: 5 })
+  @ApiProperty()
   @IsNumber()
   @IsNotEmpty()
   stepId: number;
 
-  @ApiProperty({ description: '지출 금액', example: 15000 })
+  @ApiProperty()
   @IsNumber()
   @IsNotEmpty()
   @Transform(({ value }) => {
@@ -28,23 +29,19 @@ export class CreateActualExpenseDto {
   })
   price: number;
 
-  @ApiProperty({
-    description: '지출 상세 내용',
-    required: false,
-    example: '여행 1일차 식비',
-  })
+  @ApiProperty()
   @IsOptional()
   @IsString()
   details?: string;
 }
 
 export class CreateRegulationRateDto {
-  @ApiProperty({ description: 'TripStep ID', example: 12 })
+  @ApiProperty()
   @IsNumber()
   @IsNotEmpty()
   stepId: number;
 
-  @ApiProperty({ description: '규정 적용 일수', example: 2 })
+  @ApiProperty()
   @IsNumber()
   @IsNotEmpty()
   @Transform(({ value }) => {
@@ -57,7 +54,7 @@ export class CreateRegulationRateDto {
   })
   days: number;
 
-  @ApiProperty({ description: '규정 적용 요율/금액', example: 80.0 })
+  @ApiProperty()
   @IsNumber()
   @IsNotEmpty()
   @Transform(({ value }) => {
@@ -120,29 +117,56 @@ export class CreateFuelExpenseDto {
   distance: number;
 }
 
-export class CreateTripDto {
+// ⭐️ 새로운 DTO: TripReport 생성 전용
+export class CreateTripReportDto {
   @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  scheduleId: number;
-
-  @ApiProperty({ type: [CreateActualExpenseDto] })
   @ValidateNested({ each: true })
   @Type(() => CreateActualExpenseDto)
   expenses: CreateActualExpenseDto[];
 
-  @ApiProperty({ type: [CreateRegulationRateDto] })
+  @ApiProperty()
   @ValidateNested({ each: true })
   @Type(() => CreateRegulationRateDto)
   rates: CreateRegulationRateDto[];
 
-  @ApiProperty({ type: CreateFuelExpenseDto })
+  @ApiProperty()
   @IsOptional()
   @Type(() => CreateFuelExpenseDto)
   fuel?: CreateFuelExpenseDto;
 
-  @ApiProperty()
+  @ApiProperty({ description: '공제 여부' })
   @IsBoolean()
   @IsNotEmpty()
   isDeducted: boolean;
+}
+
+// ⭐️ Report 생성 DTO (공통 필드만 포함)
+export class CreateReportDto {
+  @ApiProperty({ description: '연결할 스케줄 ID' })
+  @IsNumber()
+  @IsNotEmpty()
+  scheduleId: number;
+
+  @ApiProperty({
+    description: '보고서 상세 내용 (원격 대응 시 필수, 출장 명령서 공통)',
+    example: '원격 대응 결과',
+  })
+  @IsString()
+  @IsNotEmpty()
+  content: string;
+
+  @ApiProperty({ type: [ReportAttachmentDto], description: '첨부 파일 목록' })
+  @ValidateNested({ each: true })
+  @Type(() => ReportAttachmentDto)
+  attachments: ReportAttachmentDto[];
+
+  @ApiProperty({
+    type: CreateTripReportDto,
+    required: false,
+    description: '출장 보고서 상세 (출장 명령서일 경우 필요)',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateTripReportDto)
+  trip?: CreateTripReportDto;
 }

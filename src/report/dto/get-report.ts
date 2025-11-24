@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type, Expose } from 'class-transformer';
 import { IsInt, Min, IsOptional, IsNotEmpty } from 'class-validator';
 
-export class GetTripDto {
+export class GetReportDto {
   @ApiProperty()
   @Type(() => Number)
   @IsInt()

@@ -7,11 +7,10 @@ import {
   OneToOne,
 } from 'typeorm';
 import { TripCategory } from './trip-category.entity';
-import { ScheduleCategory } from '../schedule/schedule-category.entity';
-import { TripRegulation } from './trip-regulation.entity';
+import { ScheduleCategory } from '../../schedule/schedule-category.entity';
 import { TripActualExpense } from './trip-actual-expense.entity';
 import { TripRegulationRate } from './trip-regulation-rate.entity';
-import { TripFuelExpense } from './trip-fuel-expense.entity';
+import { TripRegulation } from './trip-regulation.entity';
 
 @Entity()
 export class TripStep {

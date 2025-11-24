@@ -5,8 +5,8 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { TransactionIssueItem } from '../transaction/transaction-issue-item.entity';
 import { ContractIssueItem } from '../contract/contract-issue-item.entity';
+import { TransactionIssueItem } from '../transaction/transaction-issue-item.entity';
 
 @Entity()
 export class Currency {

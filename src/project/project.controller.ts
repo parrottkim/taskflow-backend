@@ -56,6 +56,19 @@ export class ProjectController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '프로젝트 수정용 데이터 조회 (권한 강화)' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: ProjectDto,
+  })
+  @Get(':id/edit')
+  getProjectForEdit(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    return this.projectService.getProjectWithUser(req.user, id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '프로젝트 단일 조회' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -65,7 +78,7 @@ export class ProjectController {
   })
   @Get(':id')
   getProject(@Request() req, @Param('id', ParseIntPipe) id: number) {
-    return this.projectService.getProjectWithUser(req.user, id);
+    return this.projectService.getProject(req.user, id);
   }
 
   @UseGuards(JwtAccessAuthGuard)

@@ -10,7 +10,8 @@ export default registerAs('config', () => {
       database: process.env.POSTGRES_DB,
     },
     jwt: {
-      jwtSecret: process.env.JWT_SECRET || 'fallback-secret',
+      jwtAccessSecret:
+        process.env.JWT_ACCESS_SECRET || 'fallback-access-secret',
       jwtRefreshSecret:
         process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret',
       refreshTokenExpiration:
@@ -40,6 +41,9 @@ export default registerAs('config', () => {
     },
     exchange: {
       key: process.env.EXCHANGE_API_KEY,
+    },
+    frontend: {
+      url: process.env.FRONTEND_URL,
     },
   };
 });

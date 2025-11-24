@@ -8,11 +8,10 @@ import {
 import { UserPosition } from './user-position.entity';
 import { UserDepartment } from './user-department.entity';
 import { Project } from '../project/project.entity';
-import { Exclude } from 'class-transformer';
 import { Issue } from '../issue/issue.entity';
 import { Bookmark } from '../bookmark/bookmark.entity';
 import { Schedule } from '../schedule/schedule.entity';
-import { Trip } from '../trip/trip.entity';
+import { Report } from '../report/report.entity';
 
 @Entity()
 export class User {
@@ -58,6 +57,6 @@ export class User {
   @OneToMany(() => Schedule, (schedule) => schedule.user)
   schedules: Schedule[];
 
-  @OneToMany(() => Trip, (trip) => trip.user)
-  trips: Trip[];
+  @OneToMany(() => Report, (report) => report.user)
+  reports: Report[];
 }
