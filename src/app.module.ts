@@ -59,7 +59,7 @@ import { ReportAttachmentModule } from './report/report-attachment.module';
     }),
     RedisModule.forRoot({
       type: 'single',
-      url: 'redis://localhost:6379',
+      url: 'redis://redis:6379',
     }),
     AuthModule,
     BookmarkModule,
