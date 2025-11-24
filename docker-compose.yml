@@ -96,6 +96,7 @@ services:
 volumes: 
   postgres-dev-data:
   postgres-prod-data:
+  redis-data:
 
 networks:
   backend_default:
