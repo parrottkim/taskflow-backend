@@ -45,6 +45,8 @@ import { extractImages } from 'src/common/utils/markdown.util';
 import { SftpService } from 'src/sftp/sftp.service';
 import { MailService } from 'src/mail/mail.service';
 import { ProjectService } from 'src/project/project.service';
+import { Project } from 'src/entity/project/project.entity';
+import { Schedule } from 'src/entity/schedule/schedule.entity';
 
 @Injectable()
 export class ReportService {
@@ -115,8 +117,9 @@ export class ReportService {
   async findReportById(id: number) {
     return await this.reportRepository
       .createQueryBuilder('report')
+      .leftJoinAndSelect('report.project', 'project')
       .leftJoinAndSelect('report.schedule', 'schedule')
-      .leftJoinAndSelect('schedule.project', 'project')
+      .leftJoinAndSelect('schedule.project', 'scheduleProject')
       .leftJoinAndSelect('report.user', 'user')
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('report.trip', 'trip')
@@ -133,8 +136,9 @@ export class ReportService {
   async findReports(value: GetReportDto) {
     return await this.reportRepository
       .createQueryBuilder('report')
+      .leftJoinAndSelect('report.project', 'project')
       .leftJoinAndSelect('report.schedule', 'schedule')
-      .leftJoinAndSelect('schedule.project', 'project')
+      .leftJoinAndSelect('schedule.project', 'scheduleProject')
       .leftJoinAndSelect('report.user', 'user')
       .leftJoinAndSelect('report.trip', 'trip')
       .leftJoinAndSelect('trip.expenses', 'expense')
@@ -211,28 +215,41 @@ export class ReportService {
       }
 
       worksheet.pageSetup = {
+        paperSize: 9,
+        orientation: 'portrait',
         fitToPage: true,
         fitToHeight: 1,
         fitToWidth: 1,
         horizontalCentered: true,
         verticalCentered: true,
         margins: {
-          left: 0.5,
-          right: 0.5,
-          top: 0.5,
-          bottom: 0.5,
+          left: 0.5 / 2.54,
+          right: 0.5 / 2.54,
+          top: 0.5 / 2.54,
+          bottom: 0.5 / 2.54,
           header: 0,
           footer: 0,
         },
       };
 
-      const timeDiff =
-        new Date(new Date(report.schedule.end).getTime() - 1).getTime() -
-        report.schedule.start.getTime();
-      const durationDays = Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) + 1;
-      const durationNights = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-      const duration =
-        durationDays === 1
+      // 3) 인쇄 영역 지정 (여백 반영 안정화)
+      worksheet.pageSetup.printArea = 'A1:M60';
+
+      const startDate = dayjs(report.schedule.start);
+      const endDate = dayjs(report.schedule.end);
+
+      // 1. 일수 (Days) 계산
+      // 'day' 단위를 사용하여 두 날짜 사이의 차이를 구합니다.
+      // 자정 기준으로 계산되므로, 2025-12-04 - 2025-12-02 = 2일이 나옵니다.
+      const durationDays = endDate.diff(startDate, 'day');
+
+      // 2. 박수 (Nights) 계산
+      // 박수는 일수보다 1 작습니다. (단, 0일 미만은 없으므로 Math.max(0, ...) 사용)
+      const durationNights = Math.max(0, durationDays - 1);
+
+      // 3. 최종 출력 포맷
+      let duration =
+        durationDays <= 1
           ? '당일 출장'
           : `${durationNights}박 ${durationDays}일`;
 
@@ -796,22 +813,36 @@ export class ReportService {
       const xlsxBuffer = await workbook.xlsx.writeBuffer();
 
       const form = new FormData();
-      // 💡 [변경] fs.createReadStream 대신 메모리 버퍼를 직접 전달합니다.
       form.append('files', xlsxBuffer, {
         filename: `${PATH_FILENAME}.xlsx`,
         contentType:
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
 
+      // 🟢 핵심: Gotenberg 출력 여백 강제 지정
+      form.append('marginTop', '0.5cm');
+      form.append('marginBottom', '0.5cm');
+      form.append('marginLeft', '0.5cm');
+      form.append('marginRight', '0.5cm');
+
+      // 🟢 A4 페이지 정보를 Excel 기준에 맞게 존중
+      form.append('preferCssPageSize', 'true');
+
+      // 🟢 필요하면 배경 유지
+      form.append('printBackground', 'true');
+
+      // ⚠️ scale은 fitToPage와 충돌하므로 미지정 권장
+      // form.append('scale', '1.0');  // ❌ 비추천
+
       const response = await axios.post(
-        `http://doc-converter:3001/forms/libreoffice/convert`,
+        `http://doc-converter:3000/forms/libreoffice/convert`,
         form,
         {
           headers: {
             ...form.getHeaders(),
           },
-          responseType: 'arraybuffer', // PDF 파일을 버퍼로 받기 위함
-          timeout: 30000, // 30초 타임아웃
+          responseType: 'arraybuffer',
+          timeout: 30000,
         },
       );
 
@@ -831,7 +862,9 @@ export class ReportService {
       throw new NotFoundException('report_not_found');
     }
 
-    const schedule = await this.scheduleService.getSchedule(report.schedule.id);
+    const schedule = report.schedule
+      ? await this.scheduleService.getSchedule(report.schedule.id)
+      : null;
 
     const reportDto = plainToInstance(
       ReportDto,
@@ -875,7 +908,9 @@ export class ReportService {
       throw new ForbiddenException('no_permission');
     }
 
-    const schedule = await this.scheduleService.getSchedule(report.schedule.id);
+    const schedule = report.schedule
+      ? await this.scheduleService.getSchedule(report.schedule.id)
+      : null;
 
     const reportDto = plainToInstance(
       ReportDto,
@@ -909,14 +944,14 @@ export class ReportService {
     return reportDto;
   }
 
-  async getReports(value: GetReportDto) {
-    const [reports, total] = await this.findReports(value);
+  async getReports(query: GetReportDto) {
+    const [reports, total] = await this.findReports(query);
 
     const items = await Promise.all(
       reports.map(async (report) => {
-        const schedule = await this.scheduleService.getSchedule(
-          report.schedule.id,
-        );
+        const schedule = report.schedule
+          ? await this.scheduleService.getSchedule(report.schedule.id)
+          : null;
         const user = await this.userService.getUser(report.user.id);
 
         const reportDto = plainToInstance(
@@ -954,7 +989,7 @@ export class ReportService {
 
     const reportListDto = plainToInstance(ReportListDto, {
       items: items,
-      page: value.page,
+      page: query.page,
       total: total,
     });
 
@@ -963,9 +998,11 @@ export class ReportService {
 
   async sendMail(id: number) {
     const report = await this.findReportById(id);
-    const schedule = await this.scheduleService.getSchedule(report.schedule.id);
+    const schedule = report.schedule
+      ? await this.scheduleService.getSchedule(report.schedule.id)
+      : null;
     const project = await this.projectService.getProjectWithoutUser(
-      report.schedule.project.id,
+      report.project.id,
     );
 
     const reportDto = plainToInstance(
@@ -999,48 +1036,49 @@ export class ReportService {
     await this.mailService.sendReportMail(project, reportDto);
   }
 
-  async createReport(user: any, value: CreateReportDto) {
+  async createReport(user: any, body: CreateReportDto) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
-    const isTripReport = value.trip;
-
     try {
-      const initialSchedule = await this.scheduleService.findScheduleById(
-        value.scheduleId,
-      );
+      const scheduleReference = body.scheduleId
+        ? ({ id: body.scheduleId } as Schedule)
+        : null;
 
-      if (!initialSchedule) {
-        throw new NotFoundException('schedule_not_found');
-      }
+      const projectReference = body.projectId
+        ? ({ id: body.projectId } as Project)
+        : null;
 
-      const existingReport = await queryRunner.manager.findOne(Report, {
-        where: { schedule: { id: value.scheduleId } },
-      });
+      if (scheduleReference) {
+        const existingReport = await queryRunner.manager.findOne(Report, {
+          where: { schedule: { id: body.scheduleId } },
+        });
 
-      if (existingReport) {
-        throw new ConflictException('report_exists');
+        if (existingReport) {
+          throw new ConflictException('report_exists');
+        }
       }
 
       const report = queryRunner.manager.create(Report, {
-        schedule: initialSchedule,
+        schedule: scheduleReference,
+        project: projectReference,
         user: user,
-        description: value.content,
+        content: body.content,
       });
 
       const saved = await queryRunner.manager.save(report);
 
-      if (isTripReport) {
+      if (body.trip) {
         const trip = queryRunner.manager.create(TripReport, {
-          report: saved, // Report와의 OneToOne 관계 설정
-          isDeducted: value.trip.isDeducted, // isDeducted는 TripReport로 이동
+          report: saved,
+          isDeducted: body.trip.isDeducted ?? false,
         });
         const savedTrip = await queryRunner.manager.save(trip);
 
         // 2-1. Expense 생성 (TripReport에 연결)
-        if (value.trip.expenses) {
-          const expenseEntities = value.trip.expenses.map(
+        if (body.trip.expenses) {
+          const expenseEntities = body.trip.expenses.map(
             (expenseDto: CreateActualExpenseDto) => {
               const expense = new TripActualExpense();
               expense.trip = savedTrip; // ⭐️ report 대신 trip에 연결
@@ -1055,8 +1093,8 @@ export class ReportService {
         }
 
         // 2-2. Rate 생성 (TripReport에 연결)
-        if (value.trip.rates) {
-          const rateEntities = value.trip.rates.map(
+        if (body.trip.rates) {
+          const rateEntities = body.trip.rates.map(
             (rateDto: CreateRegulationRateDto) => {
               const rate = new TripRegulationRate();
               rate.trip = savedTrip; // ⭐️ report 대신 trip에 연결
@@ -1071,12 +1109,12 @@ export class ReportService {
         }
 
         // 2-3. Fuel 생성 (TripReport에 연결)
-        if (value.trip.fuel) {
+        if (body.trip.fuel) {
           const fuel = new TripFuelExpense();
           fuel.trip = savedTrip; // ⭐️ report 대신 trip에 연결
-          fuel.rate = value.trip.fuel.rate;
-          fuel.mileage = value.trip.fuel.mileage;
-          fuel.distance = value.trip.fuel.distance;
+          fuel.rate = body.trip.fuel.rate;
+          fuel.mileage = body.trip.fuel.mileage;
+          fuel.distance = body.trip.fuel.distance;
 
           await queryRunner.manager.save(fuel);
         }
@@ -1084,9 +1122,9 @@ export class ReportService {
         saved.trip = savedTrip; // 최종 Report 객체에 연결
       }
 
-      const schedule = await this.scheduleService.getSchedule(
-        report.schedule.id,
-      );
+      const schedule = saved.schedule
+        ? await this.scheduleService.getSchedule(saved.schedule.id)
+        : null;
 
       await queryRunner.commitTransaction();
 
@@ -1127,7 +1165,7 @@ export class ReportService {
     }
   }
 
-  async updateReport(user: any, reportId: number, value: UpdateReportDto) {
+  async updateReport(user: any, reportId: number, body: UpdateReportDto) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1151,9 +1189,9 @@ export class ReportService {
       if (report.user.id !== user.id && !user.isAdmin)
         throw new ForbiddenException('no_permission');
 
-      if (typeof value.content === 'string') {
+      if (typeof body.content === 'string') {
         const oldUrls = extractImages(report.content);
-        const newUrls = extractImages(value.content);
+        const newUrls = extractImages(body.content);
         const removedUrls = oldUrls.filter((url) => !newUrls.includes(url));
 
         for (const url of removedUrls) {
@@ -1164,15 +1202,15 @@ export class ReportService {
           }
         }
 
-        report.content = value.content;
+        report.content = body.content;
       }
 
       // --- attachments 처리 ---
-      if (value.attachments) {
+      if (body.attachments) {
         const oldAttachments = report.attachments || [];
         const toRemove = oldAttachments.filter(
           (oldAtt) =>
-            !value.attachments.some((newAtt) => newAtt.id === oldAtt.id),
+            !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
         );
 
         for (const att of toRemove) {
@@ -1190,7 +1228,7 @@ export class ReportService {
         const remainingAttachments = oldAttachments.filter(
           (att) => !toRemove.includes(att),
         );
-        const newAttachments = value.attachments
+        const newAttachments = body.attachments
           .filter(
             (att) => !report.attachments?.some((old) => old.id === att.id),
           )
@@ -1207,15 +1245,15 @@ export class ReportService {
       }
 
       let trip = report.trip;
-      const hasTripDataInValue = value.trip;
+
       const isTripReportNow =
-        hasTripDataInValue ||
+        body.trip ||
         (trip && (trip.expenses.length || trip.rates.length || trip.fuel));
 
       if (!trip && isTripReportNow) {
         trip = queryRunner.manager.create(TripReport, {
           report: report,
-          isDeducted: value.trip.isDeducted, // UpdateReportDto에 isDeducted가 있다고 가정
+          isDeducted: body.trip.isDeducted, // UpdateReportDto에 isDeducted가 있다고 가정
         });
         trip = await queryRunner.manager.save(trip);
         report.trip = trip;
@@ -1224,14 +1262,14 @@ export class ReportService {
       // 2. 출장 관련 데이터가 있다면 TripReport 필드 업데이트
       if (trip) {
         // isDeducted 업데이트
-        if (value.trip.isDeducted !== undefined) {
-          trip.isDeducted = value.trip.isDeducted;
+        if (body.trip.isDeducted !== undefined) {
+          trip.isDeducted = body.trip.isDeducted;
         }
         await queryRunner.manager.save(trip);
 
-        if (value.trip.expenses) {
+        if (body.trip.expenses) {
           const currentExpenseIds = trip.expenses.map((e) => e.id);
-          const incomingExpenseIds = value.trip.expenses
+          const incomingExpenseIds = body.trip.expenses
             .map((e) => e.id)
             .filter((id) => id); // ID가 있는 항목만 필터링
 
@@ -1248,7 +1286,7 @@ export class ReportService {
           }
 
           // 생성 또는 업데이트할 항목 엔티티 생성
-          const expenseEntities = value.trip.expenses.map(
+          const expenseEntities = body.trip.expenses.map(
             (e: UpdateActualExpenseDto) =>
               queryRunner.manager.create(TripActualExpense, {
                 id: e.id,
@@ -1261,9 +1299,9 @@ export class ReportService {
           trip.expenses = await queryRunner.manager.save(expenseEntities);
         }
 
-        if (value.trip.rates) {
+        if (body.trip.rates) {
           const currentRateIds = trip.rates.map((r) => r.id);
-          const incomingRateIds = value.trip.rates
+          const incomingRateIds = body.trip.rates
             .map((r) => r.id)
             .filter((id) => id);
           const ratesToDelete = currentRateIds.filter(
@@ -1272,7 +1310,7 @@ export class ReportService {
           if (ratesToDelete.length)
             await queryRunner.manager.delete(TripRegulationRate, ratesToDelete);
 
-          const rateEntities = value.trip.rates.map(
+          const rateEntities = body.trip.rates.map(
             (r: UpdateRegulationRateDto) =>
               queryRunner.manager.create(TripRegulationRate, {
                 id: r.id,
@@ -1286,24 +1324,24 @@ export class ReportService {
           trip.rates = await queryRunner.manager.save(rateEntities);
         }
 
-        if (value.trip.fuel) {
+        if (body.trip.fuel) {
           if (trip.fuel) {
-            trip.fuel.rate = value.trip.fuel.rate;
-            trip.fuel.mileage = value.trip.fuel.mileage;
-            trip.fuel.distance = value.trip.fuel.distance;
+            trip.fuel.rate = body.trip.fuel.rate;
+            trip.fuel.mileage = body.trip.fuel.mileage;
+            trip.fuel.distance = body.trip.fuel.distance;
             await queryRunner.manager.save(trip.fuel);
           } else {
             // 기존 연료 비용이 없으면 새로 생성
             const fuel = queryRunner.manager.create(TripFuelExpense, {
               trip: trip, // ⭐️ report 대신 trip에 연결
-              rate: value.trip.fuel.rate,
-              mileage: value.trip.fuel.mileage,
-              distance: value.trip.fuel.distance,
+              rate: body.trip.fuel.rate,
+              mileage: body.trip.fuel.mileage,
+              distance: body.trip.fuel.distance,
             });
             trip.fuel = await queryRunner.manager.save(fuel);
           }
         } else if (trip.fuel) {
-          // value.fuel이 없고 기존 데이터가 있으면 삭제 (OneToOne 관계 삭제 로직 필요)
+          // body.fuel이 없고 기존 데이터가 있으면 삭제 (OneToOne 관계 삭제 로직 필요)
           const fuelToDelete = trip.fuel;
           trip.fuel = null;
           await queryRunner.manager.save(trip);
@@ -1319,16 +1357,16 @@ export class ReportService {
       }
 
       // 🚨 isDeducted 필드는 Report에서 제거되었으므로, Report 엔티티 업데이트에서 제거합니다.
-      // report.isDeducted = value.isDeducted; // 이 줄 제거
+      // report.isDeducted = body.isDeducted; // 이 줄 제거
 
       const saved = await queryRunner.manager.save(report);
 
       // ... (commitTransaction 및 DTO 반환 로직은 createReport와 유사하게 TripReport 데이터를 매핑하여 수정)
       await queryRunner.commitTransaction();
 
-      const schedule = await this.scheduleService.getSchedule(
-        saved.schedule.id,
-      );
+      const schedule = saved.schedule
+        ? await this.scheduleService.getSchedule(saved.schedule.id)
+        : null;
 
       const reportDto = plainToInstance(
         ReportDto,

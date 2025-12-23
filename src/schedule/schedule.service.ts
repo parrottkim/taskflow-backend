@@ -3,6 +3,7 @@ import {
   Inject,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { google, calendar_v3 } from 'googleapis';
 import { join } from 'path';
@@ -14,7 +15,7 @@ import { ScheduleDto, ScheduleGroupDto, ScheduleListDto } from './dto/schedule';
 import { ProjectService } from 'src/project/project.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ScheduleCategory } from 'src/entity/schedule/schedule-category.entity';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { User } from 'src/entity/user/user.entity';
 import { ScheduleCategoryDto } from './dto/schedule-category';
 import { Schedule } from 'src/entity/schedule/schedule.entity';
@@ -22,7 +23,9 @@ import { UpdateScheduleDto } from './dto/update-schedule';
 import { GetSchedulesDto } from './dto/get-schedules';
 import { MailService } from 'src/mail/mail.service';
 import * as dayjs from 'dayjs';
+import { Project } from 'src/entity/project/project.entity';
 import { ProjectClientService } from 'src/project/project-client.service';
+import { ProjectDto } from 'src/project/dto/project';
 
 @Injectable()
 export class ScheduleService {
@@ -30,6 +33,7 @@ export class ScheduleService {
   private readonly scheduleCalendarId: string;
 
   constructor(
+    private readonly dataSource: DataSource,
     @Inject(config.KEY)
     private readonly configService: ConfigType<typeof config>,
     @InjectRepository(Schedule)
@@ -37,6 +41,7 @@ export class ScheduleService {
     @InjectRepository(ScheduleCategory)
     private readonly scheduleCategoryRepository: Repository<ScheduleCategory>,
     private readonly projectService: ProjectService,
+    private readonly projectClientService: ProjectClientService,
     private readonly mailService: MailService,
   ) {
     const credentialsPath = this.configService.calendar.credentialsPath;
@@ -58,20 +63,6 @@ export class ScheduleService {
     return await this.scheduleCategoryRepository
       .createQueryBuilder('category')
       .orderBy('category.id', 'ASC')
-      .getMany();
-  }
-
-  async findTodaySchedules(today: Date, tomorrow: Date) {
-    return await this.scheduleRepository
-      .createQueryBuilder('schedule')
-      .leftJoinAndSelect('schedule.project', 'project')
-      .leftJoinAndSelect('schedule.category', 'category')
-      .leftJoinAndSelect('schedule.user', 'user')
-      .where('schedule.start <= :tomorrow AND schedule.end >= :today', {
-        today,
-        tomorrow,
-      })
-      .orderBy('schedule.start', 'ASC')
       .getMany();
   }
 
@@ -152,44 +143,6 @@ export class ScheduleService {
     return result;
   }
 
-  async getTodaySchedules() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // 자정으로 시간 초기화
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1); // 다음 날 자정
-
-    const schedules = await this.findTodaySchedules(today, tomorrow);
-
-    const result = await Promise.all(
-      schedules.map(async (schedule) => {
-        const project = await this.projectService.getProjectWithoutUser(
-          schedule.project.id,
-        );
-
-        const scheduleDto = plainToInstance(
-          ScheduleDto,
-          {
-            ...schedule,
-          },
-          { excludeExtraneousValues: true },
-        );
-
-        scheduleDto.projectId = project.id;
-        scheduleDto.projectCode = project.code;
-        scheduleDto.projectName = project.name;
-        scheduleDto.projectClientId = project.clients[0].id;
-        scheduleDto.projectClientName =
-          project.clients[project.clients.length - 1].name;
-        scheduleDto.start = schedule.start.toISOString().split('T')[0];
-        scheduleDto.end = schedule.end.toISOString().split('T')[0];
-
-        return scheduleDto;
-      }),
-    );
-
-    return result;
-  }
-
   async getSchedule(id: number) {
     const schedule = await this.findScheduleById(id);
     const project = await this.projectService.getProjectWithoutUser(
@@ -239,12 +192,12 @@ export class ScheduleService {
     return scheduleDto;
   }
 
-  async getScheduleWithUsers(user: User, value: GetSchedulesDto) {
-    const start = value.start
-      ? dayjs(value.start).startOf('day')
+  async getScheduleWithUsers(user: User, query: GetSchedulesDto) {
+    const start = query.start
+      ? dayjs(query.start).startOf('day')
       : dayjs().subtract(28, 'day').startOf('day');
-    const end = value.end
-      ? dayjs(value.end).endOf('day')
+    const end = query.end
+      ? dayjs(query.end).endOf('day')
       : dayjs().add(28, 'day').endOf('day');
 
     let queryBuilder = this.scheduleRepository
@@ -259,9 +212,9 @@ export class ScheduleService {
       .andWhere('user.id = :userId', { userId: user.id });
 
     // value.projectId가 있을 때만 필터링 조건을 추가합니다.
-    if (value.projectId) {
+    if (query.projectId) {
       queryBuilder = queryBuilder.andWhere('project.id = :projectId', {
-        projectId: value.projectId,
+        projectId: query.projectId,
       });
     }
 
@@ -346,29 +299,164 @@ export class ScheduleService {
     return scheduleListDto;
   }
 
-  async createSchedule(user: User, value: CreateScheduleDto) {
-    const project = await this.projectService.getProjectWithoutUser(
-      value.projectId,
-    );
-    const category = await this.findCategoryById(value.categoryId);
+  async createSchedule(user: User, body: CreateScheduleDto) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    const summary = `[${category.name}][${project.clients[project.clients.length - 1].name}][${user.username}] ${value.summary} (${dayjs(value.start).format('MM/DD')} - ${dayjs(value.end).format('MM/DD')})`;
-    const description =
-      `[URL] ${value.url}` +
-      (value.description ? `\n\n[설명]\n${value.description}` : '');
+    try {
+      const project = await queryRunner.manager.findOne(Project, {
+        where: { id: body.projectId },
+        relations: ['client'], // 클라이언트 정보가 필요하므로 relations를 포함해야 함
+      });
+      const category = await queryRunner.manager.findOne(ScheduleCategory, {
+        where: { id: body.categoryId },
+      });
 
-    const res = await this.calendarClient.events.insert({
-      calendarId: this.scheduleCalendarId,
-      requestBody: {
+      const summary = `[${category.name}][${project.client.name}][${user.username}] ${body.summary} (${dayjs(body.start).format('MM/DD')} - ${dayjs(body.end).format('MM/DD')})`;
+      const description =
+        `[URL] ${body.url}` + `\n\n[설명]\n${body.description ?? '설명 없음'}`;
+
+      const res = await this.calendarClient.events.insert({
+        calendarId: this.scheduleCalendarId,
+        requestBody: {
+          summary: summary,
+          description: description,
+          location: project.client.name,
+          colorId: category.color,
+          start: {
+            date: dayjs(body.start).format('YYYY-MM-DD'),
+          },
+          end: {
+            date: dayjs(body.end).add(1, 'day').format('YYYY-MM-DD'),
+          },
+          extendedProperties: {
+            shared: {
+              categoryId: category.id.toString(),
+              owner: user.email,
+            },
+          },
+        },
+      });
+
+      const eventId = res.data.id;
+
+      const saved = await queryRunner.manager.create(Schedule, {
+        eventId,
+        category,
+        project,
+        user,
+        summary: body.summary,
+        description: body.description,
+        url: body.url,
+        start: new Date(body.start),
+        end: new Date(body.end),
+      });
+
+      await queryRunner.manager.save(saved);
+
+      const ancestors = await this.projectClientService.findAncestors(
+        project.client.id,
+      );
+
+      await queryRunner.commitTransaction();
+
+      const scheduleDto = plainToInstance(
+        ScheduleDto,
+        {
+          ...saved,
+          projectId: project.id,
+          projectCode: project.code,
+          projectName: project.name,
+          projectClientId: ancestors[0].id,
+          projectClientName: project.client.name,
+        },
+        {
+          excludeExtraneousValues: true,
+        },
+      );
+
+      const projectDto = plainToInstance(
+        ProjectDto,
+        {
+          ...project,
+          clients: ancestors,
+        },
+        {
+          excludeExtraneousValues: true,
+        },
+      );
+
+      await this.mailService.sendScheduleMail(projectDto, scheduleDto);
+
+      return scheduleDto;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // DataSource를 DI 받았다고 가정 (this.dataSource)
+  async updateSchedule(user: User, id: number, body: UpdateScheduleDto) {
+    // ⬇️ 트랜잭션 시작
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1️⃣ 기존 스케줄 조회 (queryRunner.manager 사용)
+      // 기존 schedule 조회 로직을 queryRunner.manager.findOne을 사용하도록 수정하는 것이 일관적입니다.
+      // 하지만 기존 로직(this.findScheduleById)이 트랜잭션 외부에서 작동한다면,
+      // 조회만 외부에서 하고, 수정 및 저장만 트랜잭션 내에서 처리할 수도 있습니다.
+      // 여기서는 안전하게 트랜잭션 내에서 조회하도록 가정합니다.
+      const schedule = await queryRunner.manager.findOne(Schedule, {
+        where: { id },
+        relations: ['user', 'project', 'category'],
+      });
+
+      if (!schedule) {
+        await queryRunner.rollbackTransaction(); // 롤백
+        throw new NotFoundException('schedule_not_found');
+      }
+
+      // 2️⃣ 권한 체크
+      if (schedule.user.id !== user.id && !user.isAdmin) {
+        await queryRunner.rollbackTransaction(); // 롤백
+        throw new ForbiddenException('no_permission');
+      }
+
+      // 3️⃣ 새 프로젝트/카테고리 값 처리 (queryRunner.manager 사용)
+      let projectId = body.projectId ?? schedule.project.id;
+      let categoryId = body.categoryId ?? schedule.category.id;
+
+      // Project/Category 조회도 queryRunner.manager 사용
+      const project = await queryRunner.manager.findOne(Project, {
+        where: { id: body.projectId ?? schedule.project.id },
+        relations: ['client'],
+      });
+      const category = await queryRunner.manager.findOne(ScheduleCategory, {
+        where: { id: body.categoryId ?? schedule.category.id },
+      });
+      const summary = `[${category.name}][${project.client.name}][${user.username}] ${body.summary} (${dayjs(body.start).format('MM/DD')} - ${dayjs(body.end).format('MM/DD')})`;
+      const description =
+        `[URL] ${body.url}` + `\n\n[설명]\n${body.description ?? '설명 없음'}`;
+
+      const eventBody: calendar_v3.Schema$Event = {
+        // summary: summary ?? schedule.summary, // summary는 위에서 새로 만들었으므로
         summary: summary,
+        // description: description ?? schedule.description, // description도 위에서 새로 만들었으므로
         description: description,
-        location: project.clients[project.clients.length - 1].name,
+        location: project.client.name,
         colorId: category.color,
         start: {
-          date: dayjs(value.start).format('YYYY-MM-DD'),
+          date: dayjs(body.start ?? schedule.start).format('YYYY-MM-DD'),
         },
         end: {
-          date: dayjs(value.end).add(1, 'day').format('YYYY-MM-DD'),
+          date: dayjs(body.end ?? schedule.end)
+            .add(1, 'day')
+            .format('YYYY-MM-DD'),
         },
         extendedProperties: {
           shared: {
@@ -376,148 +464,91 @@ export class ScheduleService {
             owner: user.email,
           },
         },
-      },
-    });
+      };
 
-    const eventId = res.data.id;
+      let newEventId = schedule.eventId;
 
-    const schedule = this.scheduleRepository.create({
-      eventId,
-      category,
-      project,
-      user,
-      summary: value.summary,
-      description: value.description,
-      url: value.url,
-      start: new Date(value.start),
-      end: new Date(value.end),
-    });
-
-    const savedSchedule = await this.scheduleRepository.save(schedule);
-
-    const scheduleDto = plainToInstance(
-      ScheduleDto,
-      {
-        ...savedSchedule,
-        projectId: project.id,
-        projectCode: project.code,
-        projectName: project.name,
-        projectClientId: project.clients[0].id,
-        projectClientName: project.clients[project.clients.length - 1].name,
-      },
-      {
-        excludeExtraneousValues: true,
-      },
-    );
-
-    await this.mailService.sendScheduleMail(project, scheduleDto);
-
-    return scheduleDto;
-  }
-
-  async updateSchedule(user: User, id: number, value: UpdateScheduleDto) {
-    // 1️⃣ 기존 스케줄 조회
-    const schedule = await this.findScheduleById(id);
-
-    if (!schedule) {
-      throw new NotFoundException('schedule_not_found');
-    }
-
-    // 2️⃣ 권한 체크
-    if (schedule.user.id !== user.id && !user.isAdmin) {
-      throw new ForbiddenException('no_permission');
-    }
-
-    // 3️⃣ 새 프로젝트/카테고리 값 처리
-    let projectId = value.projectId ?? schedule.project.id;
-    let categoryId = value.categoryId ?? schedule.category.id;
-
-    // ProjectDto로 가져오기 (clients 포함)
-    const project = await this.projectService.getProjectWithoutUser(
-      value.projectId,
-    );
-    const category = await this.findCategoryById(categoryId);
-
-    const summary = `[${category.name}][${project.clients[project.clients.length - 1].name}][${user.username}] ${value.summary} (${dayjs(value.start).format('MM-DD')} - ${dayjs(value.end).format('MM-DD')})`;
-    const description =
-      `[URL] ${value.url}` +
-      (value.description ? `\n\n[설명]\n${value.description}` : '');
-
-    const eventBody: calendar_v3.Schema$Event = {
-      summary: summary ?? schedule.summary,
-      description: description ?? schedule.description,
-      location: project.clients[project.clients.length - 1].name,
-      colorId: category.color,
-      start: {
-        date:
-          dayjs(value.start).format('YYYY-MM-DD') ??
-          dayjs(schedule.start).format('YYYY-MM-DD'), // all-day 이벤트 가정
-      },
-      end: {
-        date:
-          dayjs(value.end).add(1, 'day').format('YYYY-MM-DD') ??
-          dayjs(schedule.end).add(1, 'day').format('YYYY-MM-DD'),
-      },
-      extendedProperties: {
-        shared: {
-          categoryId: category.id.toString(),
-          owner: user.email,
-        },
-      },
-    };
-
-    let newEventId = schedule.eventId;
-
-    // 4️⃣ Google Calendar 이벤트 업데이트 시도
-    try {
-      await this.calendarClient.events.update({
-        calendarId: this.scheduleCalendarId,
-        eventId: schedule.eventId,
-        requestBody: eventBody,
-      });
-    } catch (error: any) {
-      // 이벤트가 존재하지 않으면 새로 생성
-      if (error.code === 404) {
-        const res = await this.calendarClient.events.insert({
+      // 4️⃣ Google Calendar 이벤트 업데이트 시도
+      try {
+        await this.calendarClient.events.update({
           calendarId: this.scheduleCalendarId,
+          eventId: schedule.eventId,
           requestBody: eventBody,
         });
-        newEventId = res.data.id;
-      } else {
-        throw error;
+      } catch (error: any) {
+        // 이벤트가 존재하지 않으면 새로 생성
+        if (error.code === 404) {
+          const res = await this.calendarClient.events.insert({
+            calendarId: this.scheduleCalendarId,
+            requestBody: eventBody,
+          });
+          newEventId = res.data.id;
+        } else {
+          // 기타 오류 발생 시 트랜잭션 롤백 후 예외 던지기
+          await queryRunner.rollbackTransaction();
+          throw error;
+        }
       }
+
+      // 5️⃣ DB 업데이트 (queryRunner.manager.save 사용)
+      const updatedSchedule = await queryRunner.manager.save(Schedule, {
+        // scheduleRepository 대신 queryRunner.manager 사용
+        id: schedule.id,
+        eventId: newEventId,
+        summary: body.summary ?? schedule.summary,
+        description: body.description ?? schedule.description,
+        url: body.url ?? schedule.url,
+        start: body.start ? new Date(body.start) : schedule.start,
+        end: body.end ? new Date(body.end) : schedule.end,
+        project: project,
+        category: category,
+        user: schedule.user,
+      });
+
+      // 6️⃣ DTO 반환 전 커밋
+      await queryRunner.commitTransaction(); // ⬇️ 커밋
+
+      const ancestors = await this.projectClientService.findAncestors(
+        project.client.id,
+      );
+
+      // DTO 생성 및 메일 발송 로직 (트랜잭션 외부에서도 가능하지만, 로직 흐름상 여기에 위치)
+      const scheduleDto = plainToInstance(
+        ScheduleDto,
+        {
+          ...updatedSchedule,
+          projectId: project.id,
+          projectCode: project.code,
+          projectName: project.name,
+          projectClientId: ancestors[0].id,
+          projectClientName: project.client.name,
+          category,
+        },
+        { excludeExtraneousValues: true },
+      );
+
+      const projectDto = plainToInstance(
+        ProjectDto,
+        {
+          ...project,
+          clients: ancestors,
+        },
+        {
+          excludeExtraneousValues: true,
+        },
+      );
+
+      await this.mailService.sendScheduleMail(projectDto, scheduleDto);
+
+      return scheduleDto;
+    } catch (err) {
+      // 오류 발생 시 롤백
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      // 연결 해제
+      await queryRunner.release();
     }
-
-    // 5️⃣ DB 업데이트
-    const updatedSchedule = await this.scheduleRepository.save({
-      id: schedule.id,
-      eventId: newEventId,
-      summary: value.summary ?? schedule.summary,
-      description: value.description ?? schedule.description,
-      url: value.url ?? schedule.url,
-      start: value.start ? new Date(value.start) : schedule.start,
-      end: value.end ? new Date(value.end) : schedule.end,
-      project,
-      category,
-      user: schedule.user,
-    });
-
-    // 6️⃣ DTO 반환 (project 안에 clients 포함)
-    const scheduleDto = plainToInstance(
-      ScheduleDto,
-      {
-        ...updatedSchedule,
-        projectId: project.id,
-        projectCode: project.code,
-        projectName: project.name,
-        projectClientId: project.clients[0].id,
-        projectClientName: project.clients[project.clients.length - 1].name,
-        category,
-      },
-      { excludeExtraneousValues: true },
-    );
-
-    return scheduleDto;
   }
 
   async deleteSchedule(id: number) {
@@ -538,7 +569,7 @@ export class ScheduleService {
       });
     } catch (error: any) {
       // 404 에러(이벤트가 이미 캘린더에서 삭제된 경우)는 무시하고 계속 진행
-      if (error.code !== 404) {
+      if (error.code !== 404 && error.code !== 410) {
         // 다른 유형의 에러는 throw
         console.error(`Google Calendar Event Deletion Error: ${error.message}`);
         throw error;

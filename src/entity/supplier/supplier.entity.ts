@@ -3,9 +3,11 @@ import {
   Entity,
   JoinTable,
   ManyToMany,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { SupplierKeyword } from './supplier-keyword.entity';
+import { ProcurementIssueItem } from '../issue/procurement/procurement-issue-item.entity';
 
 @Entity()
 export class Supplier {
@@ -37,4 +39,7 @@ export class Supplier {
     inverseJoinColumn: { name: 'keyword_id', referencedColumnName: 'id' },
   })
   keywords: SupplierKeyword[];
+
+  @OneToMany(() => ProcurementIssueItem, (procurement) => procurement.supplier)
+  procurements: ProcurementIssueItem[];
 }

@@ -1,44 +1,48 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
+import { ContractIssueItem } from 'src/entity/issue/contract/contract-issue-item.entity';
+import { ContractIssue } from 'src/entity/issue/contract/contract-issue.entity';
 import { IssueCategory } from 'src/entity/issue/issue-category.entity';
 import { Issue } from 'src/entity/issue/issue.entity';
-import { DataSource, Repository } from 'typeorm';
-import { IssueCategoryDto } from './dto/issue-category';
-import { ProjectClientService } from 'src/project/project-client.service';
-import { ProjectClientDto } from 'src/project/dto/project-client';
-import { LatestIssueDto, LatestIssueListDto } from './dto/latest-issue';
-import { GetLatestIssuesDto } from './dto/get-latest-issues';
-import { GetIssuesDto } from './dto/get-issues';
-import { IssueDto, IssueListDto } from './dto/issue';
-import { CreateIssueDto } from './dto/create-issue';
-import { ProjectService } from 'src/project/project.service';
-import { User } from 'src/entity/user/user.entity';
-import { UpdateIssueDto } from './dto/update-issue';
-import { extractImages } from 'src/common/utils/markdown.util';
-import { SftpService } from 'src/sftp/sftp.service';
+import { TransactionIssueItemCategory } from 'src/entity/issue/transaction/transaction-issue-category.entity';
+import { TransactionIssueItem } from 'src/entity/issue/transaction/transaction-issue-item.entity';
 import { IssueAttachment } from 'src/entity/issue/issue-attachment.entity';
-import { ContractIssue } from 'src/entity/issue/contract/contract-issue.entity';
-import { KickoffIssue } from 'src/entity/issue/kickoff/kickoff-issue.entity';
-import { ApprovalIssue } from 'src/entity/issue/approval/approval-issue.entity';
+import { Currency } from 'src/entity/currency/currency.entity';
+import { ProcurementIssueItem } from 'src/entity/issue/procurement/procurement-issue-item.entity';
 import { ProcurementIssue } from 'src/entity/issue/procurement/procurement-issue.entity';
 import { TransactionIssue } from 'src/entity/issue/transaction/transaction-issue.entity';
+import { KickoffIssue } from 'src/entity/issue/kickoff/kickoff-issue.entity';
 import { DeclarationIssue } from 'src/entity/issue/declaration/declaration-issue.entity';
 import { PaymentIssue } from 'src/entity/issue/payment/payment-issue.entity';
-import { SupplierService } from 'src/supplier/supplier.service';
-import { ProcurementIssueItem } from 'src/entity/issue/procurement/procurement-issue-item.entity';
-import { ContractIssueItem } from 'src/entity/issue/contract/contract-issue-item.entity';
-import { TransactionIssueItem } from 'src/entity/issue/transaction/transaction-issue-item.entity';
-import { TransactionIssueItemCategory } from 'src/entity/issue/transaction/transaction-issue-category.entity';
-import { TransactionIssueItemCategoryDto } from './dto/issue-details';
-import { UpdateProjectDto } from 'src/project/dto/update-project';
-import { Currency } from 'src/entity/issue/currency/currency.entity';
-import { Supplier } from 'src/entity/supplier/supplier.entity';
+import { Project } from 'src/entity/project/project.entity';
 import { MailService } from 'src/mail/mail.service';
+import { ProjectDto } from 'src/project/dto/project';
+import { ProjectClientDto } from 'src/project/dto/project-client';
+import { ProjectClientService } from 'src/project/project-client.service';
+import { DataSource, Repository } from 'typeorm';
+import { GetLatestIssuesDto } from './dto/get-latest-issues';
+import {
+  ContractIssueDto,
+  DeclarationIssueDto,
+  IssueDto,
+  IssueListDto,
+  KickoffIssueDto,
+  PaymentIssueDto,
+  ProcurementIssueDto,
+  TransactionIssueDto,
+} from './dto/issue';
+import { IssueCategoryDto } from './dto/issue-category';
+import { LatestIssueDto, LatestIssueListDto } from './dto/latest-issue';
+import { GetIssuesDto } from './dto/get-issues';
+import { UpdateIssueDto } from './dto/update-issue';
+import { CreateIssueDto } from './dto/create-issue';
+import { User } from 'src/entity/user/user.entity';
 
 @Injectable()
 export class IssueService {
@@ -46,154 +50,56 @@ export class IssueService {
     private readonly dataSource: DataSource,
     @InjectRepository(Issue)
     private readonly issueRepository: Repository<Issue>,
+    @InjectRepository(TransactionIssueItemCategory)
+    private readonly transactionCategoryRepository: Repository<TransactionIssueItemCategory>,
     @InjectRepository(IssueCategory)
     private readonly issueCategoryRepository: Repository<IssueCategory>,
-    @InjectRepository(TransactionIssueItemCategory)
-    private readonly transactionIssueItemCategoryRepository: Repository<TransactionIssueItemCategory>,
-    private readonly projectService: ProjectService,
     private readonly projectClientService: ProjectClientService,
-    private readonly sftpService: SftpService,
-    private readonly supplierService: SupplierService,
     private readonly mailService: MailService,
   ) {}
 
-  async findCategoryById(id: number) {
-    return await this.issueCategoryRepository
-      .createQueryBuilder('category')
-      .leftJoinAndSelect('category.charge', 'charge')
-      .where('category.id = :id', { id })
-      .getOne();
+  async getAllCategories() {
+    const categories = await this.issueCategoryRepository.find({
+      order: {
+        id: 'ASC',
+      },
+    });
+
+    const result = plainToInstance(IssueCategoryDto, categories, {
+      excludeExtraneousValues: true,
+    });
+    return result;
   }
 
-  async findAllCategories() {
-    return await this.issueCategoryRepository
-      .createQueryBuilder('category')
-      .leftJoinAndSelect('category.charge', 'charge')
-      .orderBy('category.id', 'ASC')
-      .getMany();
+  // Per-category creation logic is inlined in `createIssue` (no separate handlers)
+
+  async getAllTransactionCategories() {
+    return await this.transactionCategoryRepository.find();
   }
 
-  async findTransactionCategoryById(id: number) {
-    return await this.transactionIssueItemCategoryRepository
-      .createQueryBuilder('category')
-      .where('category.id = :id', { id })
-      .getOne();
+  async getTransactionCategory(id: number) {
+    const category = await this.transactionCategoryRepository.findOne({
+      where: { id },
+    });
+
+    if (!category) {
+      throw new NotFoundException('category_not_found');
+    }
+
+    return category;
   }
 
-  async findAllTransactionCategories() {
-    return await this.transactionIssueItemCategoryRepository
-      .createQueryBuilder('category')
-      .orderBy('category.id', 'ASC')
-      .getMany();
-  }
-
-  async findLatestIssues(value: GetLatestIssuesDto) {
-    return await this.issueRepository
+  async getLatestIssues(value: GetLatestIssuesDto) {
+    const [issues, total] = await this.issueRepository
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('category.charge', 'charge')
       .leftJoinAndSelect('issue.user', 'user')
       .leftJoinAndSelect('project.client', 'client')
       .orderBy('issue.createdAt', 'DESC')
       .skip((value.page - 1) * value.limit)
       .take(value.limit)
       .getManyAndCount();
-  }
-
-  async findIssueById(id: number) {
-    return await this.issueRepository
-      .createQueryBuilder('issue')
-      .leftJoinAndSelect('issue.project', 'project')
-      .leftJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('category.charge', 'charge')
-      .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
-      .leftJoinAndSelect('issue.contract', 'contract')
-      .leftJoinAndSelect('contract.items', 'contractItems')
-      .leftJoinAndSelect('contractItems.currency', 'contractCurrency')
-      .leftJoinAndSelect('issue.kickoff', 'kickoff')
-      .leftJoinAndSelect('issue.approval', 'approval')
-      .leftJoinAndSelect('issue.procurement', 'procurement')
-      .leftJoinAndSelect('procurement.items', 'procurementItems')
-      .leftJoinAndSelect('procurementItems.supplier', 'supplier')
-      .leftJoinAndSelect('supplier.keywords', 'keywords')
-      .leftJoinAndSelect('issue.transaction', 'transaction')
-      .leftJoinAndSelect('transaction.items', 'transactionItems')
-      .leftJoinAndSelect('transactionItems.currency', 'transactionCurrency')
-      .leftJoinAndSelect(
-        'transactionItems.category',
-        'transactionItemsCategory',
-      )
-      .leftJoinAndSelect('issue.declaration', 'declaration')
-      .leftJoinAndSelect('issue.payment', 'payment')
-      .leftJoinAndSelect('issue.attachments', 'attachment')
-      .where('issue.id = :id', { id })
-      .getOne();
-  }
-
-  async findIssues(value: GetIssuesDto) {
-    return await this.issueRepository
-      .createQueryBuilder('issue')
-      .leftJoinAndSelect('issue.project', 'project')
-      .leftJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('category.charge', 'charge')
-      .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
-      .leftJoinAndSelect('issue.contract', 'contract')
-      .leftJoinAndSelect('contract.items', 'contractItems')
-      .leftJoinAndSelect('contractItems.currency', 'contractCurrency')
-      .leftJoinAndSelect('issue.kickoff', 'kickoff')
-      .leftJoinAndSelect('issue.approval', 'approval')
-      .leftJoinAndSelect('issue.procurement', 'procurement')
-      .leftJoinAndSelect('procurement.items', 'procurementItems')
-      .leftJoinAndSelect('procurementItems.supplier', 'supplier')
-      .leftJoinAndSelect('supplier.keywords', 'keywords')
-      .leftJoinAndSelect('issue.transaction', 'transaction')
-      .leftJoinAndSelect('transaction.items', 'transactionItems')
-      .leftJoinAndSelect('transactionItems.currency', 'transactionCurrency')
-      .leftJoinAndSelect(
-        'transactionItems.category',
-        'transactionItemsCategory',
-      )
-      .leftJoinAndSelect('issue.declaration', 'declaration')
-      .leftJoinAndSelect('issue.payment', 'payment')
-      .leftJoinAndSelect('issue.attachments', 'attachment')
-      .orderBy('issue.createdAt', 'DESC')
-      .where('project.id = :id', { id: value.projectId })
-      .skip((value.page - 1) * value.limit)
-      .take(value.limit)
-      .getManyAndCount();
-  }
-
-  async getAllCategories() {
-    const categories = await this.findAllCategories();
-
-    const result = plainToInstance(IssueCategoryDto, categories, {
-      excludeExtraneousValues: true,
-    });
-
-    return result;
-  }
-
-  async getAllTransactionCategories() {
-    const categories = await this.findAllTransactionCategories();
-
-    const result = plainToInstance(
-      TransactionIssueItemCategoryDto,
-      categories,
-      {
-        excludeExtraneousValues: true,
-      },
-    );
-
-    return result;
-  }
-
-  async getLatestIssues(value: GetLatestIssuesDto) {
-    const [issues, total] = await this.findLatestIssues(value);
 
     const items = await Promise.all(
       issues.map(async (issue) => {
@@ -225,206 +131,448 @@ export class IssueService {
     return latestIssueListDto;
   }
 
-  async getIssueWithoutUser(id: number) {
-    const issue = await this.findIssueById(id);
+  async getContractIssue(id: number) {
+    const issue = await this.issueRepository
+      .createQueryBuilder('issue')
+      .leftJoinAndSelect('issue.project', 'project')
+      .leftJoinAndSelect('issue.category', 'category')
+      .leftJoinAndSelect('issue.user', 'user')
+      .leftJoinAndSelect('user.position', 'position')
+      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .innerJoinAndSelect('issue.contract', 'contract')
+      .leftJoinAndSelect('issue.contractItems', 'contractItems')
+      .leftJoinAndSelect('issue.transactionItems', 'transactionItems')
+      .leftJoinAndSelect('contract.currency', 'currency')
+      .leftJoinAndSelect(
+        'transactionItems.category',
+        'transactionItemsCategory',
+      )
+      .where('project.id = :id', { id })
+      .getOne();
 
-    if (!issue) {
-      throw new NotFoundException('issue_not_found');
-    }
+    if (!issue) return null;
 
-    const issueDto = plainToInstance(IssueDto, issue, {
-      excludeExtraneousValues: true,
-    });
-
-    return issueDto;
-  }
-
-  async getIssueWithUser(user: User, id: number) {
-    const issue = await this.findIssueById(id);
-
-    if (!issue) {
-      throw new NotFoundException('issue_not_found');
-    }
-
-    if (issue.user.id !== user.id && !user.isAdmin) {
-      throw new ForbiddenException('no_permission');
-    }
-
-    const issueDto = plainToInstance(IssueDto, issue, {
-      excludeExtraneousValues: true,
-    });
-
-    return issueDto;
-  }
-
-  async getIssues(value: GetIssuesDto) {
-    const [issues, total] = await this.findIssues(value);
-
-    const issueListDto = plainToInstance(
-      IssueListDto,
-      {
-        items: issues,
-        page: value.page,
-        total: total,
-      },
+    const issueDto = plainToInstance(
+      ContractIssueDto,
+      { ...issue, currency: issue.contract.currency },
       {
         excludeExtraneousValues: true,
       },
     );
 
-    return issueListDto;
+    return issueDto;
+  }
+
+  async getKickoffIssue(id: number) {
+    const issue = await this.issueRepository
+      .createQueryBuilder('issue')
+      .leftJoinAndSelect('issue.project', 'project')
+      .leftJoinAndSelect('issue.category', 'category')
+      .leftJoinAndSelect('issue.user', 'user')
+      .leftJoinAndSelect('user.position', 'position')
+      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .innerJoinAndSelect('issue.kickoff', 'kickoff')
+      .where('project.id = :id', { id })
+      .getOne();
+
+    if (!issue) return null;
+
+    const issueDto = plainToInstance(
+      KickoffIssueDto,
+      { ...issue, kickoffDate: issue.kickoff.kickoffDate },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
+
+    return issueDto;
+  }
+
+  async getTransactionIssue(id: number) {
+    const issue = await this.issueRepository
+      .createQueryBuilder('issue')
+      .leftJoinAndSelect('issue.project', 'project')
+      .leftJoinAndSelect('issue.category', 'category')
+      .leftJoinAndSelect('issue.user', 'user')
+      .leftJoinAndSelect('user.position', 'position')
+      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .innerJoinAndSelect('issue.transaction', 'transaction')
+      .leftJoinAndSelect('issue.contractItems', 'contractItems')
+      .leftJoinAndSelect('issue.transactionItems', 'transactionItems')
+      .leftJoinAndSelect('transaction.currency', 'currency')
+      .leftJoinAndSelect(
+        'transactionItems.category',
+        'transactionItemsCategory',
+      )
+      .where('project.id = :id', { id })
+      .getOne();
+
+    if (!issue) return null;
+
+    const issueDto = plainToInstance(
+      TransactionIssueDto,
+      { ...issue, currency: issue.transaction.currency },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
+
+    return issueDto;
+  }
+
+  async getPaymentIssue(id: number) {
+    const issue = await this.issueRepository
+      .createQueryBuilder('issue')
+      .leftJoinAndSelect('issue.project', 'project')
+      .leftJoinAndSelect('issue.category', 'category')
+      .leftJoinAndSelect('issue.user', 'user')
+      .leftJoinAndSelect('user.position', 'position')
+      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .innerJoinAndSelect('issue.payment', 'payment')
+      .where('project.id = :id', { id })
+      .getOne();
+
+    if (!issue) return null;
+
+    const issueDto = plainToInstance(PaymentIssueDto, issue, {
+      excludeExtraneousValues: true,
+    });
+
+    return issueDto;
+  }
+
+  async getDeclarationIssues(value: GetIssuesDto) {
+    const [issues, total] = await this.issueRepository
+      .createQueryBuilder('issue')
+      .leftJoinAndSelect('issue.project', 'project')
+      .leftJoinAndSelect('issue.category', 'category')
+      .leftJoinAndSelect('issue.user', 'user')
+      .leftJoinAndSelect('user.position', 'position')
+      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .innerJoinAndSelect('issue.declaration', 'declaration')
+      .where('project.id = :id', { id: value.projectId })
+      .skip((value.page - 1) * value.limit)
+      .take(value.limit)
+      .getManyAndCount();
+
+    const items = plainToInstance(DeclarationIssueDto, issues, {
+      excludeExtraneousValues: true,
+    });
+
+    return plainToInstance(
+      IssueListDto,
+      {
+        items: items,
+        page: value.page,
+        total,
+      },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
+  }
+
+  async getProcurementIssues(value: GetIssuesDto) {
+    const [issues, total] = await this.issueRepository
+      .createQueryBuilder('issue')
+      .leftJoinAndSelect('issue.project', 'project')
+      .leftJoinAndSelect('issue.category', 'category')
+      .leftJoinAndSelect('issue.user', 'user')
+      .leftJoinAndSelect('user.position', 'position')
+      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .innerJoinAndSelect('issue.procurement', 'procurement')
+      .leftJoinAndSelect('procurement.items', 'items')
+      .leftJoinAndSelect('items.supplier', 'supplier')
+      .where('project.id = :id', { id: value.projectId })
+      .skip((value.page - 1) * value.limit)
+      .take(value.limit)
+      .getManyAndCount();
+
+    const items = issues.map((issue) => {
+      return plainToInstance(
+        ProcurementIssueDto,
+        { ...issue, procurementItems: issue.procurement?.items || [] },
+        {
+          excludeExtraneousValues: true,
+        },
+      );
+    });
+
+    return plainToInstance(
+      IssueListDto,
+      {
+        items: items,
+        page: value.page,
+        total,
+      },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
+  }
+
+  async getIssue(id: number) {
+    const issue = await this.issueRepository
+      .createQueryBuilder('issue')
+      .leftJoinAndSelect('issue.project', 'project')
+      .leftJoinAndSelect('issue.category', 'category')
+      .leftJoinAndSelect('issue.user', 'user')
+      .leftJoinAndSelect('user.position', 'position')
+      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .leftJoinAndSelect('issue.contract', 'contract')
+      .leftJoinAndSelect('issue.transaction', 'transaction')
+      .leftJoinAndSelect('issue.kickoff', 'kickoff')
+      .leftJoinAndSelect('issue.payment', 'payment')
+      .leftJoinAndSelect('issue.contractItems', 'contractItems')
+      .leftJoinAndSelect('issue.transactionItems', 'transactionItems')
+      .leftJoinAndSelect('issue.procurement', 'procurement')
+      .leftJoinAndSelect('procurement.items', 'procurementItems')
+      .leftJoinAndSelect('procurementItems.supplier', 'supplier')
+      .leftJoinAndSelect('contract.currency', 'contractCurrency')
+      .leftJoinAndSelect('transaction.currency', 'transactionCurrency')
+      .leftJoinAndSelect(
+        'transactionItems.category',
+        'transactionItemsCategory',
+      )
+      .where('issue.id = :id', { id })
+      .getOne();
+
+    if (!issue) throw new NotFoundException('issue_not_found');
+
+    const dtoMap = {
+      1: ContractIssueDto,
+      2: KickoffIssueDto,
+      3: DeclarationIssueDto,
+      4: ProcurementIssueDto,
+      5: TransactionIssueDto,
+      6: PaymentIssueDto,
+    } as Record<number, any>;
+
+    const DtoClass = dtoMap[issue.category?.id] ?? IssueDto;
+
+    return plainToInstance(DtoClass, issue, {
+      excludeExtraneousValues: true,
+    });
   }
 
   async sendMail(id: number) {
-    const issue = await this.findIssueById(id);
-    const project = await this.projectService.getProjectWithoutUser(
-      issue.project.id,
+    const issue = await this.issueRepository
+      .createQueryBuilder('issue')
+      .leftJoinAndSelect('issue.project', 'project')
+      .leftJoinAndSelect('issue.category', 'category')
+      .leftJoinAndSelect('issue.user', 'user')
+      .leftJoinAndSelect('user.position', 'position')
+      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .where('issue.id = :id', { id })
+      .orderBy('issue.updatedAt', 'DESC')
+      .getOne();
+
+    const ancestors = await this.projectClientService.findAncestors(
+      issue.project.client.id,
     );
 
+    const projectDto = plainToInstance(
+      ProjectDto,
+      {
+        ...issue.project,
+        clients: ancestors,
+      },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
     const issueDto = plainToInstance(IssueDto, issue, {
       excludeExtraneousValues: true,
     });
 
-    await this.mailService.sendIssueMail(project, issueDto);
+    await this.mailService.sendIssueMail(projectDto, issueDto);
   }
 
-  async createIssue(user: User, value: CreateIssueDto) {
+  async createIssue(user: any, value: CreateIssueDto) {
     const queryRunner = this.dataSource.createQueryRunner();
-
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const project = await this.projectService.findProjectById(
-        value.projectId,
-      );
-      const category = await this.findCategoryById(value.categoryId);
-
-      const issue = queryRunner.manager.create(Issue, {
-        content: value.content,
-        project: project,
-        category: category,
-        user: user,
+      const project = await queryRunner.manager.findOne(Project, {
+        where: { id: value.projectId },
+        relations: ['contract', 'kickoff', 'transaction', 'payment'],
       });
+      if (!project) throw new NotFoundException('project_not_found');
 
-      // 카테고리별 상세 처리
-      switch (value.categoryId) {
-        case 1:
-          if (value.contract) {
-            const contractItems = await Promise.all(
-              value.contract.items.map(async (item) => {
-                const currency = await queryRunner.manager.findOne(Currency, {
-                  where: { id: item.currencyId },
-                });
+      const category = await queryRunner.manager.findOne(IssueCategory, {
+        where: { id: value.categoryId },
+      });
+      if (!category) throw new NotFoundException('category_not_found');
 
-                return queryRunner.manager.create(ContractIssueItem, {
-                  currency: currency,
-                  item: item.item,
-                  price: item.price,
-                });
-              }),
-            );
+      // 각 카테고리별 기존 Issue 체크 (soft-deleted 제외)
+      const existingIssue = await queryRunner.manager
+        .createQueryBuilder(Issue, 'issue')
+        .leftJoinAndSelect('issue.contract', 'contract')
+        .leftJoinAndSelect('issue.kickoff', 'kickoff')
+        .leftJoinAndSelect('issue.transaction', 'transaction')
+        .leftJoinAndSelect('issue.payment', 'payment')
+        .where('issue.project_id = :projectId', { projectId: project.id })
+        .andWhere('issue.deleted_at IS NULL')
+        .getOne();
 
-            issue.contract = queryRunner.manager.create(ContractIssue, {
-              items: contractItems,
-            });
-          }
-          break;
-        case 2:
-          issue.kickoff = queryRunner.manager.create(KickoffIssue, {
-            kickoffDate: value.kickoff.kickoffDate,
-          });
-          break;
-        case 3:
-          issue.approval = queryRunner.manager.create(ApprovalIssue, {});
-          break;
-        case 4:
-          if (value.procurement) {
-            const procurementItems = await Promise.all(
-              value.procurement.items.map(async (item) => {
-                const supplier = item.supplierId
-                  ? await queryRunner.manager.findOne(Supplier, {
-                      where: { id: item.supplierId },
-                    })
-                  : null;
+      if (value.categoryId === 1 && existingIssue?.contract)
+        throw new ConflictException('contract_issue_exists');
+      if (value.categoryId === 2 && existingIssue?.kickoff)
+        throw new ConflictException('kickoff_issue_exists');
+      if (value.categoryId === 5 && existingIssue?.transaction)
+        throw new ConflictException('transaction_issue_exists');
+      if (value.categoryId === 6 && existingIssue?.payment)
+        throw new ConflictException('payment_issue_exists');
 
-                return queryRunner.manager.create(ProcurementIssueItem, {
-                  item: item.item,
-                  spec: item.spec,
-                  quantity: item.quantity,
-                  unitPrice: item.unitPrice,
-                  totalAmount: item.totalAmount,
-                  isOnlinePurchase: item.isOnlinePurchase,
-                  purchaseUrl: item.purchaseUrl,
-                  supplier: supplier,
-                });
-              }),
-            );
-
-            issue.procurement = queryRunner.manager.create(ProcurementIssue, {
-              items: procurementItems,
-            });
-          }
-          break;
-        case 5:
-          if (value.transaction) {
-            const transactionItems = await Promise.all(
-              value.transaction.items.map(async (item) => {
-                const category = await queryRunner.manager.findOne(
-                  TransactionIssueItemCategory,
-                  {
-                    where: { id: item.categoryId },
-                  },
-                );
-                const currency = await queryRunner.manager.findOne(Currency, {
-                  where: { id: item.currencyId },
-                });
-
-                return queryRunner.manager.create(TransactionIssueItem, {
-                  category: category,
-                  currency: currency,
-                  price: item.price,
-                  note: item.note,
-                });
-              }),
-            );
-
-            issue.transaction = queryRunner.manager.create(TransactionIssue, {
-              items: transactionItems,
-            });
-          }
-          break;
-        case 6:
-          issue.declaration = queryRunner.manager.create(DeclarationIssue, {});
-          break;
-        case 7:
-          issue.payment = queryRunner.manager.create(PaymentIssue, {});
-          break;
-      }
-
-      // 프로젝트 업데이트
-      const updateDto: UpdateProjectDto = { categoryId: value.categoryId };
-      if (category.id === 1) {
-        updateDto.isPreexecuted = false;
-        updateDto.isContracted = true;
-      }
-      await this.projectService.updateProject(
-        project.user,
-        project.id,
-        updateDto,
-      );
-
-      // Issue 저장
+      // 1️⃣ Issue 생성
+      const issue = queryRunner.manager.create(Issue, {
+        project,
+        category,
+        user,
+        content: value.content ?? null,
+      });
       const saved = await queryRunner.manager.save(issue);
+
+      // 2️⃣ category별 OneToOne 엔티티 생성 (items 제외)
+      switch (value.categoryId) {
+        case 1: {
+          // CONTRACT
+          const contract = queryRunner.manager.create(ContractIssue, {
+            issue,
+            project,
+          });
+          if (value.currencyId) {
+            const currency = await queryRunner.manager.findOne(Currency, {
+              where: { id: value.currencyId },
+            });
+            if (currency) contract.currency = currency;
+          }
+          await queryRunner.manager.save(contract);
+          issue.contract = contract;
+          break;
+        }
+        case 2: {
+          // KICKOFF
+          const kickoff = queryRunner.manager.create(KickoffIssue, {
+            issue,
+            project,
+            kickoffDate: value.kickoffDate,
+          });
+          await queryRunner.manager.save(kickoff);
+          issue.kickoff = kickoff;
+          break;
+        }
+        case 3: {
+          // DECLARATION
+          const declaration = queryRunner.manager.create(DeclarationIssue, {
+            issue,
+            project,
+          });
+          await queryRunner.manager.save(declaration);
+          issue.declaration = declaration;
+          break;
+        }
+        case 4: {
+          // PROCUREMENT
+          const procurement = queryRunner.manager.create(ProcurementIssue, {
+            issue,
+            project,
+          });
+          procurement.items = value.procurementItems?.map((dto) =>
+            queryRunner.manager.create(ProcurementIssueItem, {
+              procurement,
+              ...dto,
+            }),
+          );
+          await queryRunner.manager.save(procurement);
+          issue.procurement = procurement;
+          break;
+        }
+        case 5: {
+          // TRANSACTION
+          const transaction = queryRunner.manager.create(TransactionIssue, {
+            issue,
+            project,
+          });
+          if (value.currencyId) {
+            const currency = await queryRunner.manager.findOne(Currency, {
+              where: { id: value.currencyId },
+            });
+            if (currency) transaction.currency = currency;
+          }
+          await queryRunner.manager.save(transaction);
+          issue.transaction = transaction;
+          break;
+        }
+        case 6: {
+          // PAYMENT
+          const payment = queryRunner.manager.create(PaymentIssue, {
+            issue,
+            project,
+          });
+          await queryRunner.manager.save(payment);
+          issue.payment = payment;
+          break;
+        }
+      }
+
+      // ContractItems
+      if (value.contractItems?.length) {
+        issue.contractItems = value.contractItems.map((dto) =>
+          queryRunner.manager.create(ContractIssueItem, { issue, ...dto }),
+        );
+      }
+
+      // TransactionItems
+      if (value.transactionItems?.length) {
+        issue.transactionItems = await Promise.all(
+          value.transactionItems.map(async (dto) => {
+            const category = await queryRunner.manager.findOne(
+              TransactionIssueItemCategory,
+              { where: { id: dto.categoryId } },
+            );
+            return queryRunner.manager.create(TransactionIssueItem, {
+              issue,
+              category,
+              ...dto,
+            });
+          }),
+        );
+      }
+
+      // 5️⃣ 프로젝트 latestCategory 업데이트
+      project.latestCategory = category;
+
+      await queryRunner.manager.update(
+        Project,
+        { id: project.id },
+        { latestCategory: category }, // contract는 건드리지 않음
+      );
 
       await queryRunner.commitTransaction();
 
-      const issueDto = plainToInstance(IssueDto, saved, {
+      // DTO 변환
+      const dtoMap = {
+        1: ContractIssueDto,
+        2: KickoffIssueDto,
+        3: DeclarationIssueDto,
+        4: ProcurementIssueDto,
+        5: TransactionIssueDto,
+        6: PaymentIssueDto,
+      } as Record<number, any>;
+
+      return plainToInstance(dtoMap[saved.category?.id] ?? IssueDto, saved, {
         excludeExtraneousValues: true,
       });
-      issueDto.attachments = [];
-
-      return issueDto;
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
@@ -433,33 +581,251 @@ export class IssueService {
     }
   }
 
-  async updateIssue(user: User, id: number, value: UpdateIssueDto) {
+  async updateIssue(user: any, id: number, value: UpdateIssueDto) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      let issue = await queryRunner.manager.findOne(Issue, {
+        where: { id },
+        relations: [
+          'category',
+          'user',
+          'attachments',
+          'contractItems',
+          'transactionItems',
+          'procurement',
+          'project',
+          'contract',
+          'transaction',
+        ],
+      });
+
+      if (!issue) throw new NotFoundException('issue_not_found');
+
+      if (issue.user.id !== user.id && !user.isAdmin) {
+        throw new ForbiddenException('no_permission');
+      }
+
+      // 1️⃣ content 업데이트
+      if (typeof value.content === 'string') issue.content = value.content;
+
+      // 2️⃣ attachments 업데이트
+      if (value.attachments) {
+        const old = issue.attachments ?? [];
+        const toRemove = old.filter(
+          (o) => !value.attachments.some((n) => n.id === o.id),
+        );
+        if (toRemove.length)
+          await queryRunner.manager.remove(IssueAttachment, toRemove);
+
+        const newOnes = value.attachments
+          .filter((n) => !old.some((o) => o.id === n.id))
+          .map((n) =>
+            queryRunner.manager.create(IssueAttachment, { ...n, issue }),
+          );
+
+        issue.attachments = [
+          ...old.filter((o) => !toRemove.includes(o)),
+          ...newOnes,
+        ];
+      }
+
+      // 3️⃣ category별 OneToOne 엔티티 확인 및 생성
+      switch (issue.category.id) {
+        case 1: // CONTRACT
+          if (!issue.contract)
+            issue.contract = await queryRunner.manager.save(
+              queryRunner.manager.create(ContractIssue, { issue }),
+            );
+          if (value.currencyId) {
+            const currency = await queryRunner.manager.findOne(Currency, {
+              where: { id: value.currencyId },
+            });
+            if (currency) {
+              issue.contract.currency = currency;
+              await queryRunner.manager.save(issue.contract);
+              if (issue.transaction) {
+                issue.transaction.currency = currency;
+                await queryRunner.manager.save(issue.transaction);
+              }
+            }
+          }
+          break;
+        case 2: // KICKOFF
+          if (!issue.kickoff)
+            issue.kickoff = await queryRunner.manager.save(
+              queryRunner.manager.create(KickoffIssue, { issue }),
+            );
+          if (value.kickoffDate) issue.kickoff.kickoffDate = value.kickoffDate;
+          break;
+        case 4: // PROCUREMENT
+          if (!issue.procurement)
+            issue.procurement = await queryRunner.manager.save(
+              queryRunner.manager.create(ProcurementIssue, { issue }),
+            );
+          if (value.procurementItems?.length) {
+            issue.procurement.items = value.procurementItems.map((dto) =>
+              queryRunner.manager.create(ProcurementIssueItem, {
+                procurement: issue.procurement,
+                ...dto,
+              }),
+            );
+          }
+          break;
+        case 5: // TRANSACTION
+          if (!issue.transaction)
+            issue.transaction = await queryRunner.manager.save(
+              queryRunner.manager.create(TransactionIssue, { issue }),
+            );
+          if (value.currencyId) {
+            const currency = await queryRunner.manager.findOne(Currency, {
+              where: { id: value.currencyId },
+            });
+            if (currency) {
+              issue.transaction.currency = currency;
+              await queryRunner.manager.save(issue.transaction);
+              if (issue.contract) {
+                issue.contract.currency = currency;
+                await queryRunner.manager.save(issue.contract);
+              }
+            }
+          }
+          break;
+        default:
+          break;
+      }
+
+      // 4️⃣ ContractItems 업데이트
+      if (value.contractItems?.length) {
+        issue.contractItems = await Promise.all(
+          value.contractItems.map(async (dto) => {
+            if (dto.id) {
+              const existing = issue.contractItems.find((i) => i.id === dto.id);
+              if (existing) {
+                existing.item = dto.item;
+                existing.price = dto.price;
+                return existing;
+              }
+            }
+            return queryRunner.manager.create(ContractIssueItem, {
+              issue,
+              item: dto.item,
+              price: dto.price,
+            });
+          }),
+        );
+      }
+
+      // 5️⃣ TransactionItems 업데이트
+      if (value.transactionItems?.length) {
+        issue.transactionItems = await Promise.all(
+          value.transactionItems.map(async (dto) => {
+            const category = await queryRunner.manager.findOne(
+              TransactionIssueItemCategory,
+              { where: { id: dto.categoryId } },
+            );
+            if (dto.id) {
+              const existing = issue.transactionItems.find(
+                (i) => i.id === dto.id,
+              );
+              if (existing) {
+                existing.category = category;
+                existing.ratio = dto.ratio;
+                existing.price = dto.price;
+                existing.isPaid = dto.isPaid;
+                existing.paidAt = dto.paidAt;
+                existing.note = dto.note;
+                return existing;
+              }
+            }
+            return queryRunner.manager.create(TransactionIssueItem, {
+              issue,
+              category,
+              ratio: dto.ratio,
+              price: dto.price,
+              isPaid: dto.isPaid,
+              paidAt: dto.paidAt,
+              note: dto.note,
+            });
+          }),
+        );
+      }
+
+      const saved = await queryRunner.manager.save(issue);
+      await queryRunner.commitTransaction();
+
+      const dtoMap = {
+        1: ContractIssueDto,
+        2: KickoffIssueDto,
+        3: DeclarationIssueDto,
+        4: ProcurementIssueDto,
+        5: TransactionIssueDto,
+        6: PaymentIssueDto,
+      } as Record<number, any>;
+
+      const DtoClass = dtoMap[saved.category?.id] ?? IssueDto;
+
+      const result = plainToInstance(DtoClass, saved, {
+        excludeExtraneousValues: true,
+      });
+      return result;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async deleteIssue(user: User, id: number) {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const issue = await queryRunner.manager
-        .createQueryBuilder(Issue, 'issue')
-        .leftJoinAndSelect('issue.user', 'user')
+      const issue = await this.issueRepository
+        .createQueryBuilder('issue')
+        .leftJoinAndSelect('issue.project', 'project')
         .leftJoinAndSelect('issue.category', 'category')
+        .leftJoinAndSelect('issue.user', 'user')
+        .leftJoinAndSelect('user.position', 'position')
+        .leftJoinAndSelect('user.department', 'department')
         .leftJoinAndSelect('issue.attachments', 'attachments')
         .leftJoinAndSelect('issue.contract', 'contract')
-        .leftJoinAndSelect('issue.kickoff', 'kickoff')
-        .leftJoinAndSelect('issue.approval', 'approval')
-        .leftJoinAndSelect('issue.procurement', 'procurement')
         .leftJoinAndSelect('issue.transaction', 'transaction')
-        .leftJoinAndSelect('issue.declaration', 'declaration')
+        .leftJoinAndSelect('issue.kickoff', 'kickoff')
         .leftJoinAndSelect('issue.payment', 'payment')
-        .leftJoinAndSelect('category.charge', 'charge')
-        .leftJoinAndSelect('contract.items', 'contractItems')
-        .leftJoinAndSelect('contractItems.currency', 'contractCurrency')
+        .leftJoinAndSelect('issue.contractItems', 'contractItems')
+        .leftJoinAndSelect('issue.transactionItems', 'transactionItems')
+        .leftJoinAndSelect('issue.procurement', 'procurement')
         .leftJoinAndSelect('procurement.items', 'procurementItems')
-        .leftJoinAndSelect('transaction.items', 'transactionItems')
-        .leftJoinAndSelect('transactionItems.currency', 'transactionCurrency')
+        .leftJoinAndSelect('procurementItems.supplier', 'supplier')
+        .leftJoinAndSelect('contract.currency', 'contractCurrency')
+        .leftJoinAndSelect('transaction.currency', 'transactionCurrency')
+        .leftJoinAndSelect(
+          'transactionItems.category',
+          'transactionItemsCategory',
+        )
         .where('issue.id = :id', { id })
         .getOne();
+
+      const dtoMap = {
+        1: ContractIssueDto,
+        2: KickoffIssueDto,
+        3: DeclarationIssueDto,
+        4: ProcurementIssueDto,
+        5: TransactionIssueDto,
+        6: PaymentIssueDto,
+      } as Record<number, any>;
+
+      const DtoClass = dtoMap[issue.category?.id] ?? IssueDto;
+
+      const issueDto = plainToInstance(DtoClass, issue, {
+        excludeExtraneousValues: true,
+      });
 
       if (!issue) {
         throw new NotFoundException('issue_not_found');
@@ -467,214 +833,6 @@ export class IssueService {
 
       if (issue.user.id !== user.id && !user.isAdmin) {
         throw new ForbiddenException('no_permission');
-      }
-
-      // --- content 처리 ---
-      if (typeof value.content === 'string') {
-        const oldUrls = extractImages(issue.content);
-        const newUrls = extractImages(value.content);
-        const removedUrls = oldUrls.filter((url) => !newUrls.includes(url));
-
-        for (const url of removedUrls) {
-          try {
-            await this.sftpService.deleteFileByUrl(url);
-          } catch (e) {
-            console.warn(`삭제 실패: ${url}`, e);
-          }
-        }
-
-        issue.content = value.content;
-      }
-
-      // --- attachments 처리 ---
-      if (value.attachments) {
-        const oldAttachments = issue.attachments || [];
-        const toRemove = oldAttachments.filter(
-          (oldAtt) =>
-            !value.attachments.some((newAtt) => newAtt.id === oldAtt.id),
-        );
-
-        for (const att of toRemove) {
-          try {
-            await this.sftpService.deleteFileByPath(att.path);
-          } catch (e) {
-            console.warn(`SFTP 삭제 실패: ${att.path}`, e);
-          }
-        }
-
-        if (toRemove.length > 0) {
-          await queryRunner.manager.remove(IssueAttachment, toRemove);
-        }
-
-        const remainingAttachments = oldAttachments.filter(
-          (att) => !toRemove.includes(att),
-        );
-        const newAttachments = value.attachments
-          .filter((att) => !issue.attachments?.some((old) => old.id === att.id))
-          .map((att) =>
-            queryRunner.manager.create(IssueAttachment, {
-              filename: att.filename,
-              path: att.path,
-              size: att.size,
-              issue: issue,
-            }),
-          );
-
-        issue.attachments = [...remainingAttachments, ...newAttachments];
-      }
-
-      // --- contract items 처리 ---
-      if (value.contract) {
-        issue.contract ??= queryRunner.manager.create(ContractIssue, {
-          issue,
-        });
-        issue.contract.items = await Promise.all(
-          value.contract.items.map(async (dto) => {
-            const currency = await queryRunner.manager.findOne(Currency, {
-              where: { id: dto.currencyId },
-            });
-
-            if (dto.id) {
-              const existing = issue.contract.items.find(
-                (i) => i.id === dto.id,
-              );
-              if (existing) {
-                existing.item = dto.item;
-                existing.currency = currency;
-                existing.price = dto.price;
-                return existing;
-              }
-            }
-            return queryRunner.manager.create(ContractIssueItem, {
-              item: dto.item,
-              currency,
-              price: dto.price,
-              contract: issue.contract,
-            });
-          }),
-        );
-      }
-
-      if (value.kickoff) {
-        issue.kickoff ??= queryRunner.manager.create(KickoffIssue, {
-          issue,
-        });
-        issue.kickoff.kickoffDate =
-          value.kickoff.kickoffDate ?? issue.kickoff.kickoffDate;
-      }
-
-      // --- procurement items 처리 ---
-      if (value.procurement) {
-        issue.procurement ??= queryRunner.manager.create(ProcurementIssue, {
-          issue,
-        });
-        issue.procurement.items = await Promise.all(
-          value.procurement.items.map(async (dto) => {
-            const supplier = dto.supplierId
-              ? await this.supplierService.findSupplierById(dto.supplierId)
-              : null;
-
-            if (dto.id) {
-              const existing = issue.procurement.items.find(
-                (i) => i.id === dto.id,
-              );
-              if (existing) {
-                existing.item = dto.item;
-                existing.spec = dto.spec;
-                existing.quantity = dto.quantity;
-                existing.unitPrice = dto.unitPrice;
-                existing.totalAmount = dto.totalAmount;
-                existing.isOnlinePurchase = dto.isOnlinePurchase;
-                existing.purchaseUrl = dto.purchaseUrl;
-                existing.supplier = supplier;
-                return existing;
-              }
-            }
-
-            return queryRunner.manager.create(ProcurementIssueItem, {
-              item: dto.item,
-              spec: dto.spec,
-              quantity: dto.quantity,
-              unitPrice: dto.unitPrice,
-              totalAmount: dto.totalAmount,
-              isOnlinePurchase: dto.isOnlinePurchase,
-              purchaseUrl: dto.purchaseUrl,
-              supplier,
-              procurement: issue.procurement,
-            });
-          }),
-        );
-      }
-
-      // --- transaction items 처리 ---
-      if (value.transaction) {
-        issue.transaction ??= queryRunner.manager.create(TransactionIssue, {
-          issue,
-        });
-        issue.transaction.items = await Promise.all(
-          value.transaction.items.map(async (dto) => {
-            const category = await queryRunner.manager.findOne(
-              TransactionIssueItemCategory,
-              {
-                where: { id: dto.categoryId },
-              },
-            );
-            const currency = await queryRunner.manager.findOne(Currency, {
-              where: { id: dto.currencyId },
-            });
-
-            if (dto.id) {
-              const existing = issue.transaction.items.find(
-                (i) => i.id === dto.id,
-              );
-              if (existing) {
-                existing.category = category;
-                existing.currency = currency;
-                existing.price = dto.price;
-                existing.note = dto.note;
-                return existing;
-              }
-            }
-
-            return queryRunner.manager.create(TransactionIssueItem, {
-              category,
-              currency,
-              price: dto.price,
-              note: dto.note,
-              transaction: issue.transaction,
-            });
-          }),
-        );
-      }
-
-      const saved = await queryRunner.manager.save(issue);
-
-      await queryRunner.commitTransaction();
-
-      const issueDto = plainToInstance(IssueDto, saved, {
-        excludeExtraneousValues: true,
-      });
-
-      return issueDto;
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      throw err;
-    } finally {
-      await queryRunner.release();
-    }
-  }
-
-  async deleteIssue(id: number) {
-    const queryRunner = this.dataSource.createQueryRunner();
-
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const issue = await this.findIssueById(id);
-
-      if (!issue) {
-        throw new NotFoundException('issue_not_found');
       }
 
       const projectId = issue.project.id;
@@ -691,39 +849,23 @@ export class IssueService {
 
       const latestCategory = latestIssue ? latestIssue.category : null;
 
-      const project = await this.projectService.findProjectById(projectId);
+      const project = await queryRunner.manager.findOne(Project, {
+        where: { id: projectId },
+      });
 
-      const updateDto: UpdateProjectDto = {
-        categoryId: latestCategory ? latestCategory.id : null,
-      };
-
-      await this.projectService.updateProject(
-        project.user,
-        projectId,
-        updateDto,
-      );
+      if (project) {
+        project.latestCategory = latestCategory ?? null;
+        await queryRunner.manager.save(project);
+      }
 
       await queryRunner.commitTransaction();
 
-      return { success: true };
+      return issueDto;
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
       await queryRunner.release();
     }
-  }
-
-  async restoreIssue(id: number) {
-    await this.issueRepository.restore(id);
-    const issue = await this.findIssueById(id);
-
-    if (!issue) {
-      throw new NotFoundException('issue_not_found');
-    }
-
-    return plainToInstance(IssueDto, issue, {
-      excludeExtraneousValues: true,
-    });
   }
 }

@@ -3,7 +3,7 @@ import { CurrencyService } from './currency.service';
 import { CurrencyController } from './currency.controller';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Currency } from 'src/entity/issue/currency/currency.entity';
+import { Currency } from 'src/entity/currency/currency.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Currency]), HttpModule],

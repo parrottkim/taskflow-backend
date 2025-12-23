@@ -76,11 +76,27 @@ export class ProjectClientService {
       .getMany();
   }
 
+  // ... (생략)
+
   async findAllClients() {
     const roots = await this.findRootClients();
     const rootIds = roots.map((r) => r.id);
 
     if (!rootIds.length) return [];
+
+    // 1. 모든 클라이언트의 최대 깊이를 찾습니다.
+    const maxDepthResult = await this.projectClientRepository
+      .createQueryBuilder('client')
+      .select('MAX(closure.depth)', 'maxDepth')
+      .innerJoin(
+        ProjectClientClosure,
+        'closure',
+        'client.id = closure.descendant',
+      )
+      .where('closure.ancestor IN (:...rootIds)', { rootIds })
+      .getRawOne();
+
+    const maxDepth = maxDepthResult?.maxDepth || 0; // 최대 깊이
 
     return await this.projectClientRepository
       .createQueryBuilder('client')
@@ -101,8 +117,16 @@ export class ProjectClientService {
       .where('closure.ancestor IN (:...rootIds)', { rootIds })
       .groupBy('client.id')
       .addGroupBy('parent.ancestor')
+      // 2. 깊이(depth)를 기준으로 정렬합니다. (가장 얕은 것부터)
       .orderBy('depth', 'ASC')
       .addOrderBy('parent.ancestor', 'ASC')
+      // 3. 가장 깊은 depth (최종 자손)인 경우 name으로 정렬합니다.
+      //    (최대 깊이 maxDepth와 같을 때 name으로 정렬, 아닐 때는 id로 정렬)
+      .addOrderBy(
+        `CASE WHEN MIN(closure.depth) = ${maxDepth} THEN client.name END`,
+        'ASC',
+      )
+      // 4. 나머지 경우에는 id로 정렬합니다. (혹은 최대 깊이가 아닌 경우 id로 정렬)
       .addOrderBy('client.id', 'ASC')
       .getRawMany();
   }

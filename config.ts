@@ -45,5 +45,8 @@ export default registerAs('config', () => {
     frontend: {
       url: process.env.FRONTEND_URL,
     },
+    redis: {
+      url: process.env.REDIS_URL,
+    },
   };
 });

@@ -1,4 +1,11 @@
-import { Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Project } from 'src/entity/project/project.entity';
+import {
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { Issue } from '../issue.entity';
 
 @Entity()
@@ -9,4 +16,8 @@ export class DeclarationIssue {
   @OneToOne(() => Issue, (issue) => issue.declaration)
   @JoinColumn()
   issue: Issue;
+
+  @ManyToOne(() => Project, (project) => project.declarations)
+  @JoinColumn()
+  project: Project;
 }

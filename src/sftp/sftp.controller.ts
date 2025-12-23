@@ -15,14 +15,12 @@ import {
   MaxFileSizeValidator,
   ParseFilePipe,
   UploadedFile,
-  ParseIntPipe,
 } from '@nestjs/common';
 import { SftpService } from './sftp.service';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
 import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
 import { UploadInlineImageDto } from './dto/upload-inline-image';
-import { AttachmentDto } from './dto/attachment';
 
 @Controller('files')
 export class SftpController {

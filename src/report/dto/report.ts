@@ -23,7 +23,7 @@ export class ReportDto {
   @ApiProperty({ type: ScheduleDto })
   @Type(() => ScheduleDto)
   @Expose()
-  schedule: ScheduleDto;
+  schedule: ScheduleDto | null;
 
   @ApiProperty({ type: UserDto })
   @Type(() => UserDto)
