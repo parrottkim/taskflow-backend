@@ -48,18 +48,6 @@ export class Issue {
   })
   attachments: IssueAttachment[];
 
-  @OneToMany(() => ContractIssueItem, (item) => item.issue, {
-    cascade: true,
-    onDelete: 'CASCADE',
-  })
-  contractItems: ContractIssueItem[];
-
-  @OneToMany(() => TransactionIssueItem, (item) => item.issue, {
-    cascade: true,
-    onDelete: 'CASCADE',
-  })
-  transactionItems: TransactionIssueItem[];
-
   @CreateDateColumn()
   createdAt: Date;
 

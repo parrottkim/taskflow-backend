@@ -146,8 +146,8 @@ export class CreateTransactionIssueItemDto {
 
   @ApiProperty()
   @IsOptional()
-  @IsDate()
-  paidAt?: Date | null;
+  @IsString()
+  paidAt?: string;
 }
 
 // 공통 Issue 생성 DTO
