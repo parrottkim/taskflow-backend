@@ -357,7 +357,39 @@ export class IssueService {
 
     const DtoClass = dtoMap[issue.category?.id] ?? IssueDto;
 
-    return plainToInstance(DtoClass, issue, {
+    let payload: any = issue;
+
+    switch (issue.category.id) {
+      case 1:
+        payload = {
+          ...issue,
+          currency: issue.contract?.currency ?? null,
+        };
+        break;
+
+      case 2:
+        payload = {
+          ...issue,
+          kickoffDate: issue.kickoff?.kickoffDate ?? null,
+        };
+        break;
+
+      case 4:
+        payload = {
+          ...issue,
+          procurementItems: issue.procurement?.items ?? [],
+        };
+        break;
+
+      case 5:
+        payload = {
+          ...issue,
+          currency: issue.transaction?.currency ?? null,
+        };
+        break;
+    }
+
+    return plainToInstance(DtoClass, payload, {
       excludeExtraneousValues: true,
     });
   }
