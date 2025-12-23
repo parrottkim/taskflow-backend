@@ -135,17 +135,22 @@ export class CreateTripReportDto {
   fuel?: CreateFuelExpenseDto;
 
   @ApiProperty({ description: '공제 여부' })
+  @IsOptional()
   @IsBoolean()
-  @IsNotEmpty()
-  isDeducted: boolean;
+  isDeducted?: boolean;
 }
 
 // ⭐️ Report 생성 DTO (공통 필드만 포함)
 export class CreateReportDto {
   @ApiProperty({ description: '연결할 스케줄 ID' })
   @IsNumber()
+  @IsOptional()
+  scheduleId?: number;
+
+  @ApiProperty({ description: '연결할 프로젝트 ID' })
+  @IsNumber()
   @IsNotEmpty()
-  scheduleId: number;
+  projectId: number;
 
   @ApiProperty({
     description: '보고서 상세 내용 (원격 대응 시 필수, 출장 명령서 공통)',

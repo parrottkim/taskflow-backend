@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 import { UserDto } from 'src/user/dto/user';
 import { ProjectClientDto } from './project-client';
-import { IssueCategoryDto } from 'src/issue/dto/issue-category';
+import { IssueCategoryDto } from '../../issue/dto/issue-category';
 
 export class ProjectDto {
   @ApiProperty()

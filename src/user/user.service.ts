@@ -144,12 +144,12 @@ export class UserService {
     return plainToInstance(UserDto, user);
   }
 
-  async getUsers(value: GetUsersDto) {
-    const [users, total] = await this.findUsers(value);
+  async getUsers(query: GetUsersDto) {
+    const [users, total] = await this.findUsers(query);
 
     const userListDto = plainToInstance(UserListDto, {
       items: users,
-      page: value.page,
+      page: query.page,
       total: total,
     });
 

@@ -7,11 +7,13 @@ import { ScheduleCategory } from 'src/entity/schedule/schedule-category.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProjectModule } from 'src/project/project.module';
 import { MailModule } from 'src/mail/mail.module';
+import { ProjectClientModule } from 'src/project/project-client.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Schedule, ScheduleCategory]),
     ProjectModule,
+    ProjectClientModule,
     UserModule,
     MailModule,
   ],

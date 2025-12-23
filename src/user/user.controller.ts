@@ -78,7 +78,7 @@ export class UserController {
     type: UserListDto,
   })
   @Get()
-  getUsers(@Query() value: GetUsersDto) {
-    return this.userService.getUsers(value);
+  getUsers(@Query() query: GetUsersDto) {
+    return this.userService.getUsers(query);
   }
 }

@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Expose, Type } from 'class-transformer';
+import { Expose, Transform } from 'class-transformer';
 import { IsInt, IsNotEmpty, IsString } from 'class-validator';
-import { IssueCategoryChargeDto } from './issue-category-charge';
 
 export class IssueCategoryDto {
   @ApiProperty()
@@ -16,9 +15,24 @@ export class IssueCategoryDto {
   @Expose()
   name: string;
 
-  @ApiProperty()
-  @ApiProperty({ type: IssueCategoryChargeDto })
-  @Type(() => IssueCategoryChargeDto)
+  @Transform(({ obj }) => {
+    switch (obj.id) {
+      case 1:
+        return 'contract';
+      case 2:
+        return 'kickoff';
+      case 3:
+        return 'declaration';
+      case 4:
+        return 'procurement';
+      case 5:
+        return 'transaction';
+      case 6:
+        return 'payment';
+      default:
+        return 'unknown';
+    }
+  })
   @Expose()
-  charge: IssueCategoryChargeDto;
+  type: string;
 }

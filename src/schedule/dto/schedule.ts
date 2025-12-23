@@ -50,62 +50,7 @@ export class ScheduleDto {
   projectClientName: string;
 
   @ApiProperty()
-  @Transform(({ obj }) => {
-    switch (obj.category.id) {
-      case 1:
-        return plainToInstance(
-          ScheduleCategoryDto,
-          {
-            type: 'domestic',
-            id: obj.category.id,
-            name: obj.category.name,
-            color: obj.category.color,
-          },
-          {
-            excludeExtraneousValues: true,
-          },
-        );
-      case 2:
-        return plainToInstance(
-          ScheduleCategoryDto,
-          {
-            type: 'overseas',
-            id: obj.category.id,
-            name: obj.category.name,
-            color: obj.category.color,
-          },
-          {
-            excludeExtraneousValues: true,
-          },
-        );
-      case 3:
-        return plainToInstance(
-          ScheduleCategoryDto,
-          {
-            type: 'center',
-            id: obj.category.id,
-            name: obj.category.name,
-            color: obj.category.color,
-          },
-          {
-            excludeExtraneousValues: true,
-          },
-        );
-      case 4:
-        return plainToInstance(
-          ScheduleCategoryDto,
-          {
-            type: 'remote',
-            id: obj.category.id,
-            name: obj.category.name,
-            color: obj.category.color,
-          },
-          {
-            excludeExtraneousValues: true,
-          },
-        );
-    }
-  })
+  @Type(() => ScheduleCategoryDto)
   @Expose()
   category: ScheduleCategoryDto;
 

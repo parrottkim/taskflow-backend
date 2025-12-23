@@ -83,21 +83,21 @@ export class SupplierService {
     return supplierDto;
   }
 
-  async getSuppliers(value: GetSuppliersDto) {
-    const [suppliers, total] = await this.findSuppliers(value);
+  async getSuppliers(query: GetSuppliersDto) {
+    const [suppliers, total] = await this.findSuppliers(query);
 
     const supplierListDto = plainToInstance(SupplierListDto, {
       items: suppliers,
-      page: value.page,
+      page: query.page,
       total: total,
     });
 
     return supplierListDto;
   }
 
-  async createSupplier(value: CreateSupplierDto) {
+  async createSupplier(body: CreateSupplierDto) {
     const existingSupplier = await this.supplierRepository.findOne({
-      where: { name: value.name },
+      where: { name: body.name },
     });
 
     if (existingSupplier) {
@@ -105,18 +105,18 @@ export class SupplierService {
     }
 
     const supplier = this.supplierRepository.create({
-      name: value.name,
-      number: value.number,
-      address: value.address,
-      phone: value.phone,
-      email: value.email,
-      logo: value.logo,
+      name: body.name,
+      number: body.number,
+      address: body.address,
+      phone: body.phone,
+      email: body.email,
+      logo: body.logo,
     });
 
-    if (value.keywords?.length) {
+    if (body.keywords?.length) {
       supplier.keywords = [];
 
-      for (const name of value.keywords) {
+      for (const name of body.keywords) {
         let keyword = await this.supplierKeywordRepository.findOne({
           where: { name },
         });
@@ -139,19 +139,19 @@ export class SupplierService {
     return supplierDto;
   }
 
-  async updateSupplier(id: number, value: UpdateSupplierDto) {
+  async updateSupplier(id: number, body: UpdateSupplierDto) {
     const supplier = await this.findSupplierById(id);
 
-    supplier.name = value.name ?? supplier.name;
-    supplier.number = value.number ?? supplier.number;
-    supplier.address = value.address ?? supplier.address;
-    supplier.phone = value.phone ?? supplier.phone;
-    supplier.email = value.email ?? supplier.email;
-    supplier.logo = value.logo ?? supplier.logo;
+    supplier.name = body.name ?? supplier.name;
+    supplier.number = body.number ?? supplier.number;
+    supplier.address = body.address ?? supplier.address;
+    supplier.phone = body.phone ?? supplier.phone;
+    supplier.email = body.email ?? supplier.email;
+    supplier.logo = body.logo ?? supplier.logo;
 
-    if (value.keywords) {
+    if (body.keywords) {
       supplier.keywords = [];
-      for (const name of value.keywords) {
+      for (const name of body.keywords) {
         let keyword = await this.supplierKeywordRepository.findOne({
           where: { name },
         });

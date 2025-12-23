@@ -1,13 +1,7 @@
-import {
-  Column,
-  Entity,
-  ManyToOne,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
-import { ProcurementIssue } from './procurement-issue.entity';
+import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
 import { Supplier } from 'src/entity/supplier/supplier.entity';
+import { ProcurementIssue } from './procurement-issue.entity';
 
 @Entity()
 export class ProcurementIssueItem {

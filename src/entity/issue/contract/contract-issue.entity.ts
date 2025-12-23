@@ -3,10 +3,11 @@ import {
   PrimaryGeneratedColumn,
   OneToOne,
   JoinColumn,
-  OneToMany,
+  ManyToOne,
 } from 'typeorm';
-import { Issue } from '../issue.entity';
-import { ContractIssueItem } from './contract-issue-item.entity';
+import { Issue } from 'src/entity/issue/issue.entity';
+import { Project } from 'src/entity/project/project.entity';
+import { Currency } from 'src/entity/currency/currency.entity';
 
 @Entity()
 export class ContractIssue {
@@ -17,9 +18,10 @@ export class ContractIssue {
   @JoinColumn()
   issue: Issue;
 
-  @OneToMany(() => ContractIssueItem, (item) => item.contract, {
-    cascade: true,
-    orphanedRowAction: 'delete',
-  })
-  items: ContractIssueItem[];
+  @OneToOne(() => Project, (project) => project.contract)
+  @JoinColumn()
+  project: Project;
+
+  @ManyToOne(() => Currency)
+  currency: Currency;
 }

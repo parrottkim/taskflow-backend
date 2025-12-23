@@ -1,12 +1,5 @@
-import {
-  Column,
-  Entity,
-  ManyToOne,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Issue } from './issue.entity';
-import { IssueCategoryCharge } from './issue-category-charge.entity';
 
 @Entity()
 export class IssueCategory {
@@ -18,7 +11,4 @@ export class IssueCategory {
 
   @OneToMany(() => Issue, (issue) => issue.category)
   issues: Issue[];
-
-  @ManyToOne(() => IssueCategoryCharge, (charge) => charge.categories)
-  charge: IssueCategoryCharge;
 }

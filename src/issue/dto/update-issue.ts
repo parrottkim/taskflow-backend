@@ -1,87 +1,78 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, OmitType, PartialType } from '@nestjs/swagger';
+import { IsOptional, IsNumber, IsString } from 'class-validator';
+import { ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
-  IsArray,
-  IsInt,
-  IsOptional,
-  IsString,
-  ValidateNested,
-} from 'class-validator';
-import {
-  UpdateContractIssueDetailsDto,
-  UpdateKickoffIssueDetailsDto,
-  UpdateApprovalIssueDetailsDto,
-  UpdateProcurementIssueDetailsDto,
-  UpdateTransactionIssueDetailsDto,
-  UpdateDeclarationIssueDetailsDto,
-  UpdatePaymentIssueDetailsDto,
-} from './update-issue-details';
+  CreateContractIssueItemDto,
+  CreateProcurementIssueDto,
+  CreateProcurementIssueItemDto,
+  CreateTransactionIssueItemDto,
+  CreateIssueDto,
+} from './create-issue';
 import { IssueAttachmentDto } from './issue-attachment';
 
-export class UpdateIssueDto {
+export class UpdateContractIssueItemDto extends PartialType(
+  CreateContractIssueItemDto,
+) {
   @ApiProperty()
-  @IsInt()
   @IsOptional()
-  projectId?: number;
+  @IsNumber()
+  id?: number;
+}
 
+// Procurement
+export class UpdateProcurementIssueDto extends PartialType(
+  CreateProcurementIssueDto,
+) {
   @ApiProperty()
-  @Type()
-  @ApiProperty()
-  @IsInt()
   @IsOptional()
-  categoryId?: number;
+  @IsNumber()
+  id?: number;
+}
 
+export class UpdateProcurementIssueItemDto extends PartialType(
+  CreateProcurementIssueItemDto,
+) {
   @ApiProperty()
-  @IsString()
   @IsOptional()
-  content?: string;
+  @IsNumber()
+  id?: number;
+}
 
+export class UpdateTransactionIssueItemDto extends PartialType(
+  CreateTransactionIssueItemDto,
+) {
   @ApiProperty()
   @IsOptional()
-  @ValidateNested()
-  @Type(() => UpdateContractIssueDetailsDto)
-  contract?: UpdateContractIssueDetailsDto;
+  @IsNumber()
+  id?: number;
+}
 
+// 공통 Issue 수정 DTO
+export class UpdateIssueDto extends OmitType(PartialType(CreateIssueDto), [
+  'contractItems',
+  'transactionItems',
+]) {
   @ApiProperty()
   @IsOptional()
-  @ValidateNested()
-  @Type(() => UpdateKickoffIssueDetailsDto)
-  kickoff?: UpdateKickoffIssueDetailsDto;
+  @IsNumber()
+  id?: number;
 
-  @ApiProperty()
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => UpdateApprovalIssueDetailsDto)
-  approval?: UpdateApprovalIssueDetailsDto;
-
-  @ApiProperty()
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => UpdateProcurementIssueDetailsDto)
-  procurement?: UpdateProcurementIssueDetailsDto;
-
-  @ApiProperty()
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => UpdateTransactionIssueDetailsDto)
-  transaction?: UpdateTransactionIssueDetailsDto;
-
-  @ApiProperty()
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => UpdateDeclarationIssueDetailsDto)
-  declaration?: UpdateDeclarationIssueDetailsDto;
-
-  @ApiProperty()
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => UpdatePaymentIssueDetailsDto)
-  payment?: UpdatePaymentIssueDetailsDto;
-
-  @ApiProperty()
-  @IsOptional()
-  @IsArray()
+  @ApiProperty({ required: false, type: [IssueAttachmentDto] })
   @ValidateNested({ each: true })
   @Type(() => IssueAttachmentDto)
+  @IsOptional()
   attachments?: IssueAttachmentDto[];
+
+  @ApiProperty({ required: false, type: [UpdateContractIssueItemDto] })
+  @ValidateNested({ each: true })
+  @Type(() => UpdateContractIssueItemDto)
+  @IsOptional()
+  contractItems?: UpdateContractIssueItemDto[];
+
+  @ApiProperty({ required: false, type: [UpdateTransactionIssueItemDto] })
+  @ValidateNested({ each: true })
+  @Type(() => UpdateTransactionIssueItemDto)
+  @IsOptional()
+  transactionItems?: UpdateTransactionIssueItemDto[];
 }

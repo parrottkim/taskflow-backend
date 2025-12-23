@@ -40,22 +40,6 @@ export class ScheduleController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '오늘 일정 가져오기' })
-  @ApiHeader({
-    name: 'Authorization',
-    description: 'Refresh Token',
-  })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Successful response',
-    type: [ScheduleDto],
-  })
-  @Get('today')
-  async getTodaySchedules() {
-    return await this.scheduleService.getTodaySchedules();
-  }
-
-  @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '일정 가져오기' })
   @ApiHeader({
     name: 'Authorization',
@@ -83,8 +67,8 @@ export class ScheduleController {
     type: ScheduleListDto,
   })
   @Get()
-  async getSchedules(@Request() req, @Query() value: GetSchedulesDto) {
-    return await this.scheduleService.getScheduleWithUsers(req.user, value);
+  async getSchedules(@Request() req, @Query() query: GetSchedulesDto) {
+    return await this.scheduleService.getScheduleWithUsers(req.user, query);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -99,8 +83,8 @@ export class ScheduleController {
     type: ScheduleDto,
   })
   @Post()
-  async createSchedule(@Request() req, @Body() value: CreateScheduleDto) {
-    return await this.scheduleService.createSchedule(req.user, value);
+  async createSchedule(@Request() req, @Body() body: CreateScheduleDto) {
+    return await this.scheduleService.createSchedule(req.user, body);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -118,9 +102,9 @@ export class ScheduleController {
   async updateSchedule(
     @Request() req,
     @Param('id', ParseIntPipe) id: number,
-    @Body() value: UpdateScheduleDto,
+    @Body() body: UpdateScheduleDto,
   ) {
-    return await this.scheduleService.updateSchedule(req.user, id, value);
+    return await this.scheduleService.updateSchedule(req.user, id, body);
   }
 
   @UseGuards(JwtAccessAuthGuard)

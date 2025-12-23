@@ -1,12 +1,15 @@
 import {
+  Column,
   Entity,
   JoinColumn,
+  ManyToOne,
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { Issue } from '../issue.entity';
 import { ProcurementIssueItem } from './procurement-issue-item.entity';
+import { Issue } from 'src/entity/issue/issue.entity';
+import { Project } from 'src/entity/project/project.entity';
 
 @Entity()
 export class ProcurementIssue {
@@ -16,6 +19,10 @@ export class ProcurementIssue {
   @OneToOne(() => Issue, (issue) => issue.procurement)
   @JoinColumn()
   issue: Issue;
+
+  @ManyToOne(() => Project, (project) => project.procurements)
+  @JoinColumn()
+  project: Project;
 
   @OneToMany(() => ProcurementIssueItem, (item) => item.procurement, {
     cascade: true,

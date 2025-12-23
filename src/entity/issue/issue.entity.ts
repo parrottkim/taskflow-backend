@@ -1,32 +1,37 @@
 import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
   Entity,
+  PrimaryGeneratedColumn,
   ManyToOne,
+  JoinColumn,
+  Column,
   OneToMany,
   OneToOne,
-  PrimaryGeneratedColumn,
+  CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
-import { Project } from '../project/project.entity';
 import { User } from '../user/user.entity';
-import { ApprovalIssue } from './approval/approval-issue.entity';
-import { ContractIssue } from './contract/contract-issue.entity';
-import { DeclarationIssue } from './declaration/declaration-issue.entity';
+import { ContractIssueItem } from './contract/contract-issue-item.entity';
 import { IssueAttachment } from './issue-attachment.entity';
 import { IssueCategory } from './issue-category.entity';
-import { KickoffIssue } from './kickoff/kickoff-issue.entity';
-import { PaymentIssue } from './payment/payment-issue.entity';
+import { TransactionIssueItem } from './transaction/transaction-issue-item.entity';
 import { ProcurementIssue } from './procurement/procurement-issue.entity';
+import { KickoffIssue } from './kickoff/kickoff-issue.entity';
+import { ContractIssue } from './contract/contract-issue.entity';
 import { TransactionIssue } from './transaction/transaction-issue.entity';
+import { PaymentIssue } from './payment/payment-issue.entity';
+import { Currency } from '../currency/currency.entity';
+import { DeclarationIssue } from './declaration/declaration-issue.entity';
+import { Project } from '../project/project.entity';
 
 @Entity()
 export class Issue {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Project, (project) => project.issues)
+  @ManyToOne(() => Project, (project) => project.issues, {
+    onDelete: 'CASCADE',
+  })
   project: Project;
 
   @ManyToOne(() => IssueCategory, (category) => category.issues)
@@ -35,14 +40,25 @@ export class Issue {
   @ManyToOne(() => User, (user) => user.issues)
   user: User;
 
-  @Column({ type: 'text' }) // 마크다운 본문은 text 타입
+  @Column({ type: 'text' })
   content: string;
 
   @OneToMany(() => IssueAttachment, (attachment) => attachment.issue, {
-    cascade: true,
-    orphanedRowAction: 'delete',
+    eager: false,
   })
   attachments: IssueAttachment[];
+
+  @OneToMany(() => ContractIssueItem, (item) => item.issue, {
+    cascade: true,
+    onDelete: 'CASCADE',
+  })
+  contractItems: ContractIssueItem[];
+
+  @OneToMany(() => TransactionIssueItem, (item) => item.issue, {
+    cascade: true,
+    onDelete: 'CASCADE',
+  })
+  transactionItems: TransactionIssueItem[];
 
   @CreateDateColumn()
   createdAt: Date;
@@ -51,40 +67,23 @@ export class Issue {
   updatedAt: Date;
 
   @DeleteDateColumn()
-  deletedAt!: Date | null;
+  deletedAt?: Date;
 
-  @OneToOne(() => ContractIssue, (contract) => contract.issue, {
-    cascade: true,
-  })
-  contract?: ContractIssue;
-
-  @OneToOne(() => KickoffIssue, (kickoff) => kickoff.issue, {
-    cascade: true,
-  })
+  @OneToOne(() => KickoffIssue, (detail) => detail.issue)
   kickoff?: KickoffIssue;
 
-  @OneToOne(() => ApprovalIssue, (approval) => approval.issue, {
-    cascade: true,
-  })
-  approval?: ApprovalIssue;
+  @OneToOne(() => ContractIssue, (contract) => contract.issue)
+  contract?: ContractIssue;
 
-  @OneToOne(() => ProcurementIssue, (procurement) => procurement.issue, {
-    cascade: true,
-  })
-  procurement?: ProcurementIssue;
-
-  @OneToOne(() => TransactionIssue, (transaction) => transaction.issue, {
-    cascade: true,
-  })
+  @OneToOne(() => TransactionIssue, (transaction) => transaction.issue)
   transaction?: TransactionIssue;
 
-  @OneToOne(() => DeclarationIssue, (declaration) => declaration.issue, {
-    cascade: true,
-  })
+  @OneToOne(() => PaymentIssue, (payment) => payment.issue)
+  payment?: PaymentIssue;
+
+  @OneToOne(() => DeclarationIssue, (declaration) => declaration.issue)
   declaration?: DeclarationIssue;
 
-  @OneToOne(() => PaymentIssue, (payment) => payment.issue, {
-    cascade: true,
-  })
-  payment?: PaymentIssue;
+  @OneToOne(() => ProcurementIssue, (procurement) => procurement.issue)
+  procurement?: ProcurementIssue;
 }

@@ -1,18 +1,22 @@
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
-import { ContractIssue } from './contract-issue.entity';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
-import { Currency } from '../currency/currency.entity';
+import { Issue } from '../issue.entity';
 
 @Entity()
 export class ContractIssueItem {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => ContractIssue, (issue) => issue.items)
-  contract: ContractIssue;
-
-  @ManyToOne(() => Currency, (currency) => currency.contracts)
-  currency: Currency;
+  @ManyToOne(() => Issue, (issue) => issue.contractItems, {
+    onDelete: 'CASCADE',
+  })
+  issue: Issue;
 
   @Column()
   item: string;

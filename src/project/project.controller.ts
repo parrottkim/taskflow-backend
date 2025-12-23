@@ -16,13 +16,10 @@ import { ApiTags, ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
 import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
 import { ProjectService } from './project.service';
 import { ProjectDto, ProjectListDto } from './dto/project';
-import { ProjectStatsListDto } from './dto/project-stats';
 import { GetProjectsDto } from './dto/get-projects';
-import { GetProjectStatsDto } from './dto/get-project-stats';
-import { ProjectSummaryDto } from './dto/project-summary';
-import { GetProjectSummaryDto } from './dto/get-project-summary';
 import { CreateProjectDto } from './dto/create-project';
 import { UpdateProjectDto } from './dto/update-project';
+import { ProjectItemCountDto } from './dto/project-item-count';
 
 @ApiTags('Project (프로젝트)')
 @Controller('project')
@@ -30,29 +27,16 @@ export class ProjectController {
   constructor(private readonly projectService: ProjectService) {}
 
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '프로젝트 현황 조회' })
+  @ApiOperation({ summary: '프로젝트 항목 개수' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
-    type: ProjectStatsListDto,
+    type: ProjectItemCountDto,
   })
-  @Get('stats')
-  getProjectStats(@Query() value: GetProjectStatsDto) {
-    return this.projectService.getProjectStats(value);
-  }
-
-  @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '프로젝트 요약' })
-  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Successful response',
-    type: ProjectSummaryDto,
-  })
-  @Get('summary')
-  getProjectSummary(@Query() value: GetProjectSummaryDto) {
-    return this.projectService.getProjectSummary(value);
+  @Get(':id/count')
+  getProjectItemCount(@Param('id', ParseIntPipe) id: number) {
+    return this.projectService.getProjectItemCount(id);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -65,7 +49,7 @@ export class ProjectController {
   })
   @Get(':id/edit')
   getProjectForEdit(@Request() req, @Param('id', ParseIntPipe) id: number) {
-    return this.projectService.getProjectWithUser(req.user, id);
+    return this.projectService.getProjectForEdit(req.user, id);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -90,8 +74,8 @@ export class ProjectController {
     type: ProjectListDto,
   })
   @Get()
-  getProjects(@Request() req, @Query() value: GetProjectsDto) {
-    return this.projectService.getProjects(req.user, value);
+  getProjects(@Request() req, @Query() query: GetProjectsDto) {
+    return this.projectService.getProjects(req.user, query);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -103,8 +87,8 @@ export class ProjectController {
     type: ProjectDto,
   })
   @Post()
-  createProject(@Request() req, @Body() value: CreateProjectDto) {
-    return this.projectService.createProject(req.user, value);
+  createProject(@Request() req, @Body() body: CreateProjectDto) {
+    return this.projectService.createProject(req.user, body);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -119,9 +103,9 @@ export class ProjectController {
   updateProject(
     @Request() req,
     @Param('id', ParseIntPipe) id: number,
-    @Body() value: UpdateProjectDto,
+    @Body() body: UpdateProjectDto,
   ) {
-    return this.projectService.updateProject(req.user, id, value);
+    return this.projectService.updateProject(req.user, id, body);
   }
 
   @UseGuards(JwtAccessAuthGuard)

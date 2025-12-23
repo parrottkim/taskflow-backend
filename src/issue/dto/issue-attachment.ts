@@ -1,35 +1,29 @@
-import { ApiProperty } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsString, IsDate } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IssueCategoryDto } from './issue-category';
 
 export class IssueAttachmentDto {
-  @ApiProperty()
-  @IsInt()
-  @IsNotEmpty()
   @Expose()
+  @ApiProperty()
   id: number;
 
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
   @Expose()
+  @ApiProperty()
   filename: string;
 
-  @ApiProperty()
-  @IsInt()
-  @IsNotEmpty()
   @Expose()
-  size: number;
-
   @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  @Expose()
   path: string;
 
-  @ApiProperty()
-  @Type(() => Date)
-  @IsDate()
   @Expose()
+  @ApiProperty()
+  size: number;
+
+  @Expose()
+  @ApiProperty()
+  mimeType: string;
+
+  @Expose()
+  @ApiProperty()
   createdAt: Date;
 }
