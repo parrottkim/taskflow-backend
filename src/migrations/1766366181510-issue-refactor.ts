@@ -34,20 +34,16 @@ export class IssueRefactor1766366181510 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "contract_issue_item" ADD "issue_id" integer`,
     );
-    await queryRunner.query(`
-      ALTER TABLE "transaction_issue_item"
-      ALTER COLUMN "is_paid" DROP NOT NULL
-    `);
-    await queryRunner.query(`
-      ALTER TABLE "transaction_issue_item"
-      ALTER COLUMN "note" DROP NOT NULL
-    `);
     await queryRunner.query(
       `ALTER TABLE "transaction_issue_item" ADD "ratio" numeric(5,2) NOT NULL DEFAULT 0`,
     );
     await queryRunner.query(
-      `ALTER TABLE "transaction_issue_item" ADD "is_paid" boolean NOT NULL DEFAULT false`,
+      `ALTER TABLE "transaction_issue_item" ADD "is_paid" boolean DEFAULT false`,
     );
+    await queryRunner.query(`
+      ALTER TABLE "transaction_issue_item"
+      ALTER COLUMN "note" DROP NOT NULL
+    `);
     await queryRunner.query(
       `ALTER TABLE "transaction_issue_item" ADD "paid_at" TIMESTAMP`,
     );
