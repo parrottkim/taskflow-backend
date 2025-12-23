@@ -1,23 +1,23 @@
 import {
   Column,
+  CreateDateColumn,
+  DeleteDateColumn,
   Entity,
-  JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { TransactionIssueItemCategory } from './transaction-issue-category.entity';
 import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
-import { Issue } from '../issue.entity';
+import { Project } from 'src/entity/project/project.entity';
 
 @Entity()
 export class TransactionIssueItem {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Issue, (issue) => issue.transactionItems, {
-    onDelete: 'CASCADE',
-  })
-  issue: Issue;
+  @ManyToOne(() => Project)
+  project: Project;
 
   @ManyToOne(() => TransactionIssueItemCategory, (category) => category.items)
   category: TransactionIssueItemCategory;
@@ -44,4 +44,13 @@ export class TransactionIssueItem {
 
   @Column({ nullable: true })
   note: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt?: Date;
 }
