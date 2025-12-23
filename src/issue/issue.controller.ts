@@ -73,6 +73,32 @@ export class IssueController {
     description: 'Successful response',
     type: LatestIssueDto,
   })
+  @Get('contract/item/:id')
+  getContractItems(@Param('id', ParseIntPipe) id: number) {
+    return this.issueService.getContractItems(id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '계약 이슈 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: LatestIssueDto,
+  })
+  @Get('transaction/item/:id')
+  getTransactionItems(@Param('id', ParseIntPipe) id: number) {
+    return this.issueService.getTransactionItems(id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '계약 이슈 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: LatestIssueDto,
+  })
   @Get('contract/:id')
   getContractIssue(@Param('id', ParseIntPipe) id: number) {
     return this.issueService.getContractIssue(id);

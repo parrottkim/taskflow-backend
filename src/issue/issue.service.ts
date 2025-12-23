@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
-import { ContractIssueItem } from 'src/entity/issue/contract/contract-issue-item.entity';
 import { ContractIssue } from 'src/entity/issue/contract/contract-issue.entity';
 import { IssueCategory } from 'src/entity/issue/issue-category.entity';
 import { Issue } from 'src/entity/issue/issue.entity';
@@ -29,6 +28,7 @@ import { DataSource, Repository } from 'typeorm';
 import { GetLatestIssuesDto } from './dto/get-latest-issues';
 import {
   ContractIssueDto,
+  ContractIssueItemDto,
   DeclarationIssueDto,
   IssueDto,
   IssueListDto,
@@ -36,6 +36,7 @@ import {
   PaymentIssueDto,
   ProcurementIssueDto,
   TransactionIssueDto,
+  TransactionIssueItemDto,
 } from './dto/issue';
 import { IssueCategoryDto } from './dto/issue-category';
 import { LatestIssueDto, LatestIssueListDto } from './dto/latest-issue';
@@ -43,6 +44,8 @@ import { GetIssuesDto } from './dto/get-issues';
 import { UpdateIssueDto } from './dto/update-issue';
 import { CreateIssueDto } from './dto/create-issue';
 import { User } from 'src/entity/user/user.entity';
+import { ContractIssueItem } from 'src/entity/issue/contract/contract-issue-item.entity';
+import * as dayjs from 'dayjs';
 
 @Injectable()
 export class IssueService {
@@ -50,6 +53,10 @@ export class IssueService {
     private readonly dataSource: DataSource,
     @InjectRepository(Issue)
     private readonly issueRepository: Repository<Issue>,
+    @InjectRepository(ContractIssueItem)
+    private readonly contractIssueItemRepository: Repository<ContractIssueItem>,
+    @InjectRepository(TransactionIssueItem)
+    private readonly transactionIssueItemRepository: Repository<TransactionIssueItem>,
     @InjectRepository(TransactionIssueItemCategory)
     private readonly transactionCategoryRepository: Repository<TransactionIssueItemCategory>,
     @InjectRepository(IssueCategory)
@@ -57,6 +64,68 @@ export class IssueService {
     private readonly projectClientService: ProjectClientService,
     private readonly mailService: MailService,
   ) {}
+
+  private async mapIssueToDto(issue: Issue) {
+    if (!issue) return null;
+
+    const contractItems = await this.contractIssueItemRepository.find({
+      where: { project: { id: issue.project.id } },
+      relations: ['project'],
+    });
+
+    const transactionItems = await this.transactionIssueItemRepository.find({
+      where: { project: { id: issue.project.id } },
+      relations: ['project', 'category'],
+    });
+
+    const dtoMap = {
+      1: ContractIssueDto,
+      2: KickoffIssueDto,
+      3: DeclarationIssueDto,
+      4: ProcurementIssueDto,
+      5: TransactionIssueDto,
+      6: PaymentIssueDto,
+    } as Record<number, any>;
+
+    const DtoClass = dtoMap[issue.category?.id] ?? IssueDto;
+
+    let payload: any = issue;
+
+    switch (issue.category?.id) {
+      case 1: // CONTRACT
+        payload = {
+          ...issue,
+          currency: issue.contract?.currency ?? null,
+          contractItems,
+          transactionItems,
+        };
+        break;
+      case 2: // KICKOFF
+        payload = {
+          ...issue,
+          kickoffDate: issue.kickoff?.kickoffDate ?? null,
+        };
+        break;
+      case 4: // PROCUREMENT
+        payload = {
+          ...issue,
+          procurementItems: issue.procurement?.items ?? [],
+        };
+        break;
+      case 5: // TRANSACTION
+        payload = {
+          ...issue,
+          currency: issue.transaction?.currency ?? null,
+          contractItems,
+          transactionItems,
+        };
+        break;
+    }
+
+    return plainToInstance(DtoClass, payload, {
+      excludeExtraneousValues: true,
+    });
+  }
 
   async getAllCategories() {
     const categories = await this.issueCategoryRepository.find({
@@ -131,6 +200,33 @@ export class IssueService {
     return latestIssueListDto;
   }
 
+  async getContractItems(id: number) {
+    const items = await this.contractIssueItemRepository
+      .createQueryBuilder('item')
+      .leftJoinAndSelect('item.project', 'project')
+      .where('project.id = :id', { id })
+      .orderBy('item.createdAt', 'ASC')
+      .getMany();
+
+    return plainToInstance(ContractIssueItemDto, items, {
+      excludeExtraneousValues: true,
+    });
+  }
+
+  async getTransactionItems(id: number) {
+    const items = await this.transactionIssueItemRepository
+      .createQueryBuilder('item')
+      .leftJoinAndSelect('item.project', 'project')
+      .leftJoinAndSelect('item.category', 'category')
+      .where('project.id = :id', { id })
+      .orderBy('item.createdAt', 'ASC')
+      .getMany();
+
+    return plainToInstance(TransactionIssueItemDto, items, {
+      excludeExtraneousValues: true,
+    });
+  }
+
   async getContractIssue(id: number) {
     const issue = await this.issueRepository
       .createQueryBuilder('issue')
@@ -141,13 +237,7 @@ export class IssueService {
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('issue.attachments', 'attachments')
       .innerJoinAndSelect('issue.contract', 'contract')
-      .leftJoinAndSelect('issue.contractItems', 'contractItems')
-      .leftJoinAndSelect('issue.transactionItems', 'transactionItems')
       .leftJoinAndSelect('contract.currency', 'currency')
-      .leftJoinAndSelect(
-        'transactionItems.category',
-        'transactionItemsCategory',
-      )
       .where('project.id = :id', { id })
       .getOne();
 
@@ -200,13 +290,7 @@ export class IssueService {
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('issue.attachments', 'attachments')
       .innerJoinAndSelect('issue.transaction', 'transaction')
-      .leftJoinAndSelect('issue.contractItems', 'contractItems')
-      .leftJoinAndSelect('issue.transactionItems', 'transactionItems')
       .leftJoinAndSelect('transaction.currency', 'currency')
-      .leftJoinAndSelect(
-        'transactionItems.category',
-        'transactionItemsCategory',
-      )
       .where('project.id = :id', { id })
       .getOne();
 
@@ -330,68 +414,15 @@ export class IssueService {
       .leftJoinAndSelect('issue.transaction', 'transaction')
       .leftJoinAndSelect('issue.kickoff', 'kickoff')
       .leftJoinAndSelect('issue.payment', 'payment')
-      .leftJoinAndSelect('issue.contractItems', 'contractItems')
-      .leftJoinAndSelect('issue.transactionItems', 'transactionItems')
       .leftJoinAndSelect('issue.procurement', 'procurement')
       .leftJoinAndSelect('procurement.items', 'procurementItems')
       .leftJoinAndSelect('procurementItems.supplier', 'supplier')
       .leftJoinAndSelect('contract.currency', 'contractCurrency')
       .leftJoinAndSelect('transaction.currency', 'transactionCurrency')
-      .leftJoinAndSelect(
-        'transactionItems.category',
-        'transactionItemsCategory',
-      )
       .where('issue.id = :id', { id })
       .getOne();
 
-    if (!issue) throw new NotFoundException('issue_not_found');
-
-    const dtoMap = {
-      1: ContractIssueDto,
-      2: KickoffIssueDto,
-      3: DeclarationIssueDto,
-      4: ProcurementIssueDto,
-      5: TransactionIssueDto,
-      6: PaymentIssueDto,
-    } as Record<number, any>;
-
-    const DtoClass = dtoMap[issue.category?.id] ?? IssueDto;
-
-    let payload: any = issue;
-
-    switch (issue.category.id) {
-      case 1:
-        payload = {
-          ...issue,
-          currency: issue.contract?.currency ?? null,
-        };
-        break;
-
-      case 2:
-        payload = {
-          ...issue,
-          kickoffDate: issue.kickoff?.kickoffDate ?? null,
-        };
-        break;
-
-      case 4:
-        payload = {
-          ...issue,
-          procurementItems: issue.procurement?.items ?? [],
-        };
-        break;
-
-      case 5:
-        payload = {
-          ...issue,
-          currency: issue.transaction?.currency ?? null,
-        };
-        break;
-    }
-
-    return plainToInstance(DtoClass, payload, {
-      excludeExtraneousValues: true,
-    });
+    return await this.mapIssueToDto(issue);
   }
 
   async sendMail(id: number) {
@@ -559,26 +590,39 @@ export class IssueService {
 
       // ContractItems
       if (value.contractItems?.length) {
-        issue.contractItems = value.contractItems.map((dto) =>
-          queryRunner.manager.create(ContractIssueItem, { issue, ...dto }),
+        const items = value.contractItems.map((dto) =>
+          queryRunner.manager.create(ContractIssueItem, {
+            project,
+            item: dto.item,
+            price: dto.price,
+          }),
         );
+
+        await queryRunner.manager.save(ContractIssueItem, items);
       }
 
       // TransactionItems
       if (value.transactionItems?.length) {
-        issue.transactionItems = await Promise.all(
+        const items = await Promise.all(
           value.transactionItems.map(async (dto) => {
             const category = await queryRunner.manager.findOne(
               TransactionIssueItemCategory,
               { where: { id: dto.categoryId } },
             );
+
             return queryRunner.manager.create(TransactionIssueItem, {
-              issue,
+              project,
               category,
-              ...dto,
+              price: dto.price,
+              ratio: dto.ratio,
+              isPaid: dto.isPaid ?? false,
+              paidAt: dto.paidAt ?? null,
+              note: dto.note ?? null,
             });
           }),
         );
+
+        await queryRunner.manager.save(TransactionIssueItem, items);
       }
 
       // 5️⃣ 프로젝트 latestCategory 업데이트
@@ -592,19 +636,7 @@ export class IssueService {
 
       await queryRunner.commitTransaction();
 
-      // DTO 변환
-      const dtoMap = {
-        1: ContractIssueDto,
-        2: KickoffIssueDto,
-        3: DeclarationIssueDto,
-        4: ProcurementIssueDto,
-        5: TransactionIssueDto,
-        6: PaymentIssueDto,
-      } as Record<number, any>;
-
-      return plainToInstance(dtoMap[saved.category?.id] ?? IssueDto, saved, {
-        excludeExtraneousValues: true,
-      });
+      return await this.mapIssueToDto(issue);
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
@@ -625,8 +657,6 @@ export class IssueService {
           'category',
           'user',
           'attachments',
-          'contractItems',
-          'transactionItems',
           'procurement',
           'project',
           'contract',
@@ -729,80 +759,103 @@ export class IssueService {
           break;
       }
 
-      // 4️⃣ ContractItems 업데이트
-      if (value.contractItems?.length) {
-        issue.contractItems = await Promise.all(
-          value.contractItems.map(async (dto) => {
-            if (dto.id) {
-              const existing = issue.contractItems.find((i) => i.id === dto.id);
-              if (existing) {
-                existing.item = dto.item;
-                existing.price = dto.price;
-                return existing;
-              }
-            }
-            return queryRunner.manager.create(ContractIssueItem, {
-              issue,
-              item: dto.item,
-              price: dto.price,
-            });
-          }),
+      if (value.contractItems) {
+        const existingItems = await queryRunner.manager.find(
+          ContractIssueItem,
+          {
+            where: { project: { id: issue.project.id } },
+          },
         );
+
+        const itemsToRemove = existingItems.filter(
+          (existing) =>
+            !value.contractItems.some((dto) => dto.id === existing.id),
+        );
+
+        if (itemsToRemove.length) {
+          await queryRunner.manager.remove(ContractIssueItem, itemsToRemove);
+        }
+
+        const items = value.contractItems.map((dto) => {
+          if (dto.id) {
+            const existing = existingItems.find((e) => e.id === dto.id);
+            if (existing) {
+              existing.item = dto.item;
+              existing.price = dto.price;
+              return existing;
+            }
+          }
+
+          return queryRunner.manager.create(ContractIssueItem, {
+            project: issue.project,
+            item: dto.item,
+            price: dto.price,
+          });
+        });
+
+        await queryRunner.manager.save(ContractIssueItem, items);
       }
 
       // 5️⃣ TransactionItems 업데이트
-      if (value.transactionItems?.length) {
-        issue.transactionItems = await Promise.all(
+      if (value.transactionItems) {
+        const existingItems = await queryRunner.manager.find(
+          TransactionIssueItem,
+          {
+            where: { project: { id: issue.project.id } },
+          },
+        );
+
+        const itemsToRemove = existingItems.filter(
+          (existing) =>
+            !value.transactionItems.some((dto) => dto.id === existing.id),
+        );
+
+        if (itemsToRemove.length) {
+          await queryRunner.manager.remove(TransactionIssueItem, itemsToRemove);
+        }
+
+        const items = await Promise.all(
           value.transactionItems.map(async (dto) => {
             const category = await queryRunner.manager.findOne(
               TransactionIssueItemCategory,
               { where: { id: dto.categoryId } },
             );
+
             if (dto.id) {
-              const existing = issue.transactionItems.find(
-                (i) => i.id === dto.id,
-              );
+              const existing = existingItems.find((e) => e.id === dto.id);
               if (existing) {
                 existing.category = category;
-                existing.ratio = dto.ratio;
                 existing.price = dto.price;
+                existing.ratio = dto.ratio;
                 existing.isPaid = dto.isPaid;
-                existing.paidAt = dto.paidAt;
+                existing.paidAt = dto.paidAt
+                  ? dayjs(dto.paidAt).toDate()
+                  : null;
                 existing.note = dto.note;
                 return existing;
               }
             }
+
+            // 새로 생성
             return queryRunner.manager.create(TransactionIssueItem, {
-              issue,
+              project: issue.project,
               category,
-              ratio: dto.ratio,
               price: dto.price,
-              isPaid: dto.isPaid,
-              paidAt: dto.paidAt,
-              note: dto.note,
+              ratio: dto.ratio,
+              isPaid: dto.isPaid ?? false,
+              paidAt: dto.paidAt ?? null,
+              note: dto.note ?? null,
             });
           }),
         );
+
+        await queryRunner.manager.save(TransactionIssueItem, items);
       }
 
       const saved = await queryRunner.manager.save(issue);
       await queryRunner.commitTransaction();
 
-      const dtoMap = {
-        1: ContractIssueDto,
-        2: KickoffIssueDto,
-        3: DeclarationIssueDto,
-        4: ProcurementIssueDto,
-        5: TransactionIssueDto,
-        6: PaymentIssueDto,
-      } as Record<number, any>;
-
-      const DtoClass = dtoMap[saved.category?.id] ?? IssueDto;
-
-      const result = plainToInstance(DtoClass, saved, {
-        excludeExtraneousValues: true,
-      });
-      return result;
+      return await this.mapIssueToDto(saved);
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
@@ -830,34 +883,15 @@ export class IssueService {
         .leftJoinAndSelect('issue.transaction', 'transaction')
         .leftJoinAndSelect('issue.kickoff', 'kickoff')
         .leftJoinAndSelect('issue.payment', 'payment')
-        .leftJoinAndSelect('issue.contractItems', 'contractItems')
-        .leftJoinAndSelect('issue.transactionItems', 'transactionItems')
         .leftJoinAndSelect('issue.procurement', 'procurement')
         .leftJoinAndSelect('procurement.items', 'procurementItems')
         .leftJoinAndSelect('procurementItems.supplier', 'supplier')
         .leftJoinAndSelect('contract.currency', 'contractCurrency')
         .leftJoinAndSelect('transaction.currency', 'transactionCurrency')
-        .leftJoinAndSelect(
-          'transactionItems.category',
-          'transactionItemsCategory',
-        )
         .where('issue.id = :id', { id })
         .getOne();
 
-      const dtoMap = {
-        1: ContractIssueDto,
-        2: KickoffIssueDto,
-        3: DeclarationIssueDto,
-        4: ProcurementIssueDto,
-        5: TransactionIssueDto,
-        6: PaymentIssueDto,
-      } as Record<number, any>;
-
-      const DtoClass = dtoMap[issue.category?.id] ?? IssueDto;
-
-      const issueDto = plainToInstance(DtoClass, issue, {
-        excludeExtraneousValues: true,
-      });
+      const issueDto = await this.mapIssueToDto(issue);
 
       if (!issue) {
         throw new NotFoundException('issue_not_found');
