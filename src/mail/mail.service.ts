@@ -9,8 +9,8 @@ import { ProjectDto } from 'src/project/dto/project';
 import { ReportDto } from 'src/report/dto/report';
 import { ReportAttachmentDto } from 'src/report/dto/report-attachment';
 import { ScheduleDto } from 'src/schedule/dto/schedule';
-import { UserDto } from 'src/user/dto/user';
 import { UserService } from 'src/user/user.service';
+import * as dayjs from 'dayjs';
 
 @Injectable()
 export class MailService {
@@ -88,85 +88,15 @@ export class MailService {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>비밀번호 재설정</title>
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            background-color: #f0f2f5;
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-          }
-
-          .container {
-            max-width: 600px;
-            margin: 40px auto;
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-          }
-
-          .content {
-            padding: 40px 30px;
-            text-align: center;
-          }
-
-          .logo {
-            width: 50px;
-            height: 50px;
-            margin-bottom: 25px;
-          }
-
-          h1 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #111827;
-            margin-bottom: 20px;
-          }
-
-          p {
-            font-size: 16px;
-            color: #4b5563;
-            line-height: 1.6;
-            margin-bottom: 35px;
-          }
-
-          .highlight {
-            color: #e11d48;
-            font-weight: bold;
-          }
-
-          .btn {
-            display: inline-block;
-            padding: 14px 28px;
-            font-size: 16px;
-            color: #ffffff;
-            background-color: #78909C;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: opacity 0.3s;
-          }
-
-          .btn:hover {
-            opacity: 0.85;
-          }
-
-          .note {
-            font-size: 14px;
-            color: #6b7280;
-            line-height: 1.5;
-            margin-top: 30px;
-          }
-        </style>
       </head>
-      <body>
-        <div class="container">
-          <div class="content">
-            <img src="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고" class="logo">
-            <h1>비밀번호 재설정 요청</h1>
-            <p> 요청하신 계정의 비밀번호를 재설정하려면 아래 버튼을 클릭해 주세요. <br> 링크는 보안을 위해 <span class="highlight">10분 동안만 유효</span>합니다. </p>
-            <a href="${resetLink}" target="_blank" class="btn">비밀번호 재설정</a>
-            <p class="note"> 본인이 요청하지 않은 경우, 이 이메일을 무시하셔도 됩니다. </p>
+      <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Helvetica Neue', Arial, sans-serif;">
+        <div style="max-width:600px;margin:40px auto;background-color:#fff;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.1);overflow:hidden;">
+          <div style="padding:40px 30px;text-align:center;">
+            <img src="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고" style="width:50px;height:50px;margin-bottom:25px;">
+            <h1 style="font-size:24px;font-weight:700;color:#111827;margin-bottom:20px;">비밀번호 재설정 요청</h1>
+            <p style="font-size:16px;color:#4b5563;line-height:1.6;margin-bottom:35px;"> 요청하신 계정의 비밀번호를 재설정하려면 아래 버튼을 클릭해 주세요. <br> 링크는 보안을 위해 <span style="color:#e11d48;font-weight:bold;">10분 동안만 유효</span>합니다. </p>
+            <a href="${resetLink}" target="_blank" style="display:inline-block;padding:14px 28px;font-size:16px;color:#ffffff;background-color:#78909C;border-radius:8px;text-decoration:none;font-weight:600;">비밀번호 재설정</a>
+            <p style="font-size:14px;color:#6b7280;line-height:1.5;margin-top:30px;"> 본인이 요청하지 않은 경우, 이 이메일을 무시하셔도 됩니다. </p>
           </div>
         </div>
       </body>
@@ -192,165 +122,46 @@ export class MailService {
       <head>
         <meta charset="UTF-8">
         <title>새 일정 등록</title>
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            background-color: #f0f2f5;
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-          }
-
-          .container {
-            max-width: 600px;
-            margin: 40px auto;
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            padding: 40px 30px;
-          }
-
-          /* 💡 컨테이너에 패딩 추가 */
-          .logo {
-            width: 50px;
-            height: 50px;
-            margin-bottom: 25px;
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-          }
-
-          h1 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #111827;
-            margin-bottom: 20px;
-            text-align: center;
-          }
-
-          /* 💡 새로운 스타일 추가 */
-          .title {
-            font-size: 20px;
-            font-weight: 600;
-            color: #78909C;
-            margin-bottom: 30px;
-            text-align: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #e5e7eb;
-          }
-
-          .grid {
-            display: block;
-            /* 이메일 클라이언트 호환성을 위해 flex/grid 대신 block 사용 권장 */
-            margin-bottom: 30px;
-          }
-
-          .box {
-            width: 100%;
-            padding: 15px;
-            box-sizing: border-box;
-            margin-top: 20px;
-            border: 1px solid #f0f2f5;
-            border-radius: 8px;
-            background-color: #f9fafb;
-            text-align: left;
-          }
-
-          .box strong {
-            display: block;
-            font-size: 16px;
-            color: #111827;
-            margin-bottom: 10px;
-          }
-
-          /* 테이블 스타일 */
-          .box table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-          }
-
-          .box th,
-          .box td {
-            padding: 5px 0;
-            text-align: left;
-            vertical-align: top;
-          }
-
-          .box th {
-            width: 30%;
-            color: #4b5563;
-            font-weight: 600;
-            padding-right: 10px;
-          }
-
-          .box td {
-            width: 70%;
-            color: #111827;
-            line-height: 1.4;
-          }
-
-          .btn {
-            display: inline-block;
-            padding: 14px 28px;
-            font-size: 16px;
-            color: #ffffff;
-            background-color: #78909C;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: opacity 0.3s;
-            width: 100%;
-            text-align: center;
-            box-sizing: border-box;
-            margin-top: 20px;
-          }
-
-          .btn:hover {
-            opacity: 0.85;
-          }
-        </style>
       </head>
-      <body>
-        <div class="container">
-            
-          <img class="logo" src="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고">
-          <h1>🗓️ 새로운 일정 등록</h1>
-          <div class="title">${summary}</div>
-          <div class="grid">
-            <div class="box">
-              <strong>일정 정보</strong>
+      <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Helvetica Neue', Arial, sans-serif;">
+        <div style="max-width:600px;margin:40px auto;background-color:#fff;border-radius:10px;box-shadow:0 6px 18px rgba(0, 0, 0, 0.1);overflow:hidden;padding:40px 30px;">
+          <img style="width:50px;height:50px;margin-bottom:25px;display:block;margin-left:auto;margin-right:auto;" src="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고">
+          <h1 style="font-size:24px;font-weight:700;color:#111827;margin-bottom:20px;text-align:center;">🗓️ 새로운 일정 등록</h1>
+          <div style="font-size:20px;font-weight:600;color:#78909C;margin-bottom:30px;text-align:center;padding:10px 0;border-bottom:1px solid #e5e7eb;">${summary}</div>
+          <div style="display:block;margin-bottom:30px;">
+            <div style="width:100%;padding:15px;box-sizing:border-box;margin-top:20px;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">
+              <strong style="display:block;font-size:16px;color:#111827;margin-bottom:10px;">일정 정보</strong>
               <br>
-              <table>
+              <table style="width:100%;border-collapse:collapse;font-size:14px;">
                 <tr>
-                  <th>기간</th>
-                  <td>${start} ~ ${end}</td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">기간</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${start} ~ ${end}</td>
                 </tr>
                 <tr>
-                  <th>카테고리</th>
-                  <td>${categoryName}</td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">카테고리</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${categoryName}</td>
                 </tr>
                 <tr>
-                  <th>고객사</th>
-                  <td>${clientName}</td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">고객사</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${clientName}</td>
                 </tr>
                 <tr>
-                  <th>프로젝트</th>
-                  <td>${projectName}</td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">프로젝트</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${projectName}</td>
                 </tr>
                 <tr>
-                  <th>작성자</th>
-                  <td> ${username} (<a href="mailto:${userEmail}" style="color: #78909C; text-decoration: none;">${userEmail}</a>) </td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">작성자</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${username} (<a href="mailto:${userEmail}" style="color:#78909C;text-decoration:none;">${userEmail}</a>)</td>
                 </tr>
               </table>
             </div>
-            <div class="box">
-              <strong>상세 내용</strong>
+            <div style="width:100%;padding:15px;box-sizing:border-box;margin-top:20px;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">
+              <strong style="display:block;font-size:16px;color:#111827;margin-bottom:10px;">상세 내용</strong>
               <br>
-              <br> ${description.replace(/\n/g, ' <br>')}
+              <br>${description.replace(/\n/g, '<br>')}
             </div>
           </div>
-          <a href="${url}" class="btn" target="_blank">프로젝트 바로가기</a>
+          <a href="${url}" style="display:inline-block;padding:14px 28px;font-size:16px;color:#ffffff;background-color:#78909C;border-radius:8px;text-decoration:none;font-weight:600;transition:opacity 0.3s;width:100%;text-align:center;box-sizing:border-box;margin-top:20px;" target="_blank">프로젝트 바로가기</a>
         </div>
       </body>
     </html>
@@ -372,7 +183,7 @@ export class MailService {
   ) {
     const managerDisplay =
       managerName && managerEmail
-        ? `${managerName} (<a href="mailto:${managerEmail}" style="color: #78909C; text-decoration: none;">${managerEmail}</a>)`
+        ? `${managerName} (<a href="mailto:${managerEmail}" style="color:#78909C;text-decoration:none;">${managerEmail}</a>)`
         : 'PM 없음';
 
     const processedContent = content.replace(/\n/g, '<br>');
@@ -385,8 +196,8 @@ export class MailService {
         .map(
           (att) => `
         <tr>
-          <td>
-            <a href="${frontendUrl}/download?path=${att.path}&filename=${att.filename}" target="_blank" style="color: #78909C; text-decoration: none;">
+          <td style="padding:3px 0;border-bottom:1px dotted #e5e7eb;">
+            <a href="${frontendUrl}/download?path=${att.path}&filename=${att.filename}" target="_blank" style="color:#78909C;text-decoration:none;">
               ${att.filename}
             </a>
           </td>
@@ -396,10 +207,10 @@ export class MailService {
         .join('');
 
       attachmentsHtml = `
-        <div class="box">
-          <strong>첨부 파일 (${attachments.length}개)</strong>
+        <div style="width:100%;padding:15px;box-sizing:border-box;margin-top:20px;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">
+          <strong style="display:block;font-size:16px;color:#111827;margin-bottom:10px;">첨부 파일 (${attachments.length}개)</strong>
           <br>
-          <table class="attachment-list">
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
             ${listItems}
           </table>
         </div>
@@ -411,163 +222,44 @@ export class MailService {
       <head>
         <meta charset="UTF-8">
         <title>업무 내용 공유</title>
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            background-color: #f0f2f5;
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-          }
-
-          .container {
-            max-width: 600px;
-            margin: 40px auto;
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            padding: 40px 30px;
-          }
-
-          /* 💡 컨테이너에 패딩 추가 */
-          .logo {
-            width: 50px;
-            height: 50px;
-            margin-bottom: 25px;
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-          }
-
-          h1 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #111827;
-            margin-bottom: 20px;
-            text-align: center;
-          }
-
-          /* 💡 새로운 스타일 추가 */
-          .title {
-            font-size: 20px;
-            font-weight: 600;
-            color: #78909C;
-            margin-bottom: 30px;
-            text-align: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #e5e7eb;
-          }
-
-          .grid {
-            display: block;
-            /* 이메일 클라이언트 호환성을 위해 flex/grid 대신 block 사용 권장 */
-            margin-bottom: 30px;
-          }
-
-          .box {
-            width: 100%;
-            padding: 15px;
-            box-sizing: border-box;
-            margin-top: 20px;
-            border: 1px solid #f0f2f5;
-            border-radius: 8px;
-            background-color: #f9fafb;
-            text-align: left;
-          }
-
-          .box strong {
-            display: block;
-            font-size: 16px;
-            color: #111827;
-            margin-bottom: 10px;
-          }
-
-          /* 테이블 스타일 */
-          .box table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-          }
-
-          .box th,
-          .box td {
-            padding: 5px 0;
-            text-align: left;
-            vertical-align: top;
-          }
-
-          .box th {
-            width: 30%;
-            color: #4b5563;
-            font-weight: 600;
-            padding-right: 10px;
-          }
-
-          .box td {
-            width: 70%;
-            color: #111827;
-            line-height: 1.4;
-          }
-
-          .btn {
-            display: inline-block;
-            padding: 14px 28px;
-            font-size: 16px;
-            color: #ffffff;
-            background-color: #78909C;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: opacity 0.3s;
-            width: 100%;
-            text-align: center;
-            box-sizing: border-box;
-            margin-top: 20px;
-          }
-
-          .btn:hover {
-            opacity: 0.85;
-          }
-        </style>
       </head>
-      <body>
-        <div class="container">
-            
-          <img class="logo" src="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고">
-          <h1>💻️ 업무 내용 공유</h1>
-          <div class="grid">
-            <div class="box">
-              <strong>프로젝트 정보</strong>
+      <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Helvetica Neue', Arial, sans-serif;">
+        <div style="max-width:600px;margin:40px auto;background-color:#fff;border-radius:10px;box-shadow:0 6px 18px rgba(0, 0, 0, 0.1);overflow:hidden;padding:40px 30px;">
+          <img style="width:50px;height:50px;margin-bottom:25px;display:block;margin-left:auto;margin-right:auto;" src="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고">
+          <h1 style="font-size:24px;font-weight:700;color:#111827;margin-bottom:20px;text-align:center;">💻️ 업무 내용 공유</h1>
+          <div style="display:block;margin-bottom:30px;">
+            <div style="width:100%;padding:15px;box-sizing:border-box;margin-top:20px;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">
+              <strong style="display:block;font-size:16px;color:#111827;margin-bottom:10px;">프로젝트 정보</strong>
               <br>
-              <table>
+              <table style="width:100%;border-collapse:collapse;font-size:14px;">
                 <tr>
-                  <th>카테고리</th>
-                  <td>${categoryName}</td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">카테고리</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${categoryName}</td>
                 </tr>
                 <tr>
-                  <th>고객사</th>
-                  <td>${clientName}</td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">고객사</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${clientName}</td>
                 </tr>
                 <tr>
-                  <th>프로젝트 코드</th>
-                  <td>${projectCode}</td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">프로젝트 코드</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${projectCode}</td>
                 </tr>
                 <tr>
-                  <th>프로젝트 명</th>
-                  <td>${projectName}</td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">프로젝트 명</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${projectName}</td>
                 </tr>
                 <tr>
-                  <th>작성자</th>
-                  <td> ${username} (<a href="mailto:${userEmail}" style="color: #78909C; text-decoration: none;">${userEmail}</a>) </td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">작성자</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${username} (<a href="mailto:${userEmail}" style="color:#78909C;text-decoration:none;">${userEmail}</a>)</td>
                 </tr>
                 <tr>
-                  <th>PM</th>
-                  <td> ${managerDisplay} </td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">PM</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${managerDisplay}</td>
                 </tr>
               </table>
             </div>
-            <div class="box">
-              <strong>업무 내용</strong>
+            <div style="width:100%;padding:15px;box-sizing:border-box;margin-top:20px;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">
+              <strong style="display:block;font-size:16px;color:#111827;margin-bottom:10px;">업무 내용</strong>
               <br>
               ${processedContent}
             </div>
@@ -575,7 +267,7 @@ export class MailService {
 
           ${attachmentsHtml}
 
-          <a href="${url}" class="btn" target="_blank">프로젝트 바로가기</a>
+          <a href="${url}" style="display:inline-block;padding:14px 28px;font-size:16px;color:#ffffff;background-color:#78909C;border-radius:8px;text-decoration:none;font-weight:600;transition:opacity 0.3s;width:100%;text-align:center;box-sizing:border-box;margin-top:20px;" target="_blank">프로젝트 바로가기</a>
         </div>
       </body>
     </html>`;
@@ -596,7 +288,7 @@ export class MailService {
   ) {
     const managerDisplay =
       managerName && managerEmail
-        ? `${managerName} (<a href="mailto:${managerEmail}" style="color: #78909C; text-decoration: none;">${managerEmail}</a>)`
+        ? `${managerName} (<a href="mailto:${managerEmail}" style="color:#78909C;text-decoration:none;">${managerEmail}</a>)`
         : 'PM 없음';
 
     const processedContent = content.replace(/\n/g, '<br>');
@@ -609,8 +301,8 @@ export class MailService {
         .map(
           (att) => `
         <tr>
-          <td>
-            <a href="${frontendUrl}/download?path=${att.path}&filename=${att.filename}" target="_blank" style="color: #78909C; text-decoration: none;">
+          <td style="padding:3px 0;border-bottom:1px dotted #e5e7eb;">
+            <a href="${frontendUrl}/download?path=${att.path}&filename=${att.filename}" target="_blank" style="color:#78909C;text-decoration:none;">
               ${att.filename}
             </a>
           </td>
@@ -619,190 +311,62 @@ export class MailService {
         )
         .join('');
 
-      // 첨부파일 박스 전체 HTML 구조
       attachmentsHtml = `
-        <div class="box">
-          <strong>첨부 파일 (${attachments.length}개)</strong>
+        <div style="width:100%;padding:15px;box-sizing:border-box;margin-top:20px;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">
+          <strong style="display:block;font-size:16px;color:#111827;margin-bottom:10px;">첨부 파일 (${attachments.length}개)</strong>
           <br>
-          <table class="attachment-list">
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
             ${listItems}
           </table>
         </div>
       `;
     }
 
-    // 4. 최종 HTML 템플릿 반환
     return `<!DOCTYPE html>
     <html lang="ko">
       <head>
         <meta charset="UTF-8">
         <title>실무 결과 공유</title>
-        <style>
-          /* (기존 CSS 스타일은 유지) */
-          body {
-            margin: 0;
-            padding: 0;
-            background-color: #f0f2f5;
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-          }
-
-          .container {
-            max-width: 600px;
-            margin: 40px auto;
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            padding: 40px 30px;
-          }
-
-          .logo {
-            width: 50px;
-            height: 50px;
-            margin-bottom: 25px;
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-          }
-
-          h1 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #111827;
-            margin-bottom: 20px;
-            text-align: center;
-          }
-
-          .title {
-            font-size: 20px;
-            font-weight: 600;
-            color: #78909C;
-            margin-bottom: 30px;
-            text-align: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #e5e7eb;
-          }
-
-          .grid {
-            display: block;
-            margin-bottom: 30px;
-          }
-
-          .box {
-            width: 100%;
-            padding: 15px;
-            box-sizing: border-box;
-            margin-top: 20px;
-            border: 1px solid #f0f2f5;
-            border-radius: 8px;
-            background-color: #f9fafb;
-            text-align: left;
-          }
-
-          .box strong {
-            display: block;
-            font-size: 16px;
-            color: #111827;
-            margin-bottom: 10px;
-          }
-
-          /* 테이블 스타일 */
-          .box table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-          }
-
-          .box th,
-          .box td {
-            padding: 5px 0;
-            text-align: left;
-            vertical-align: top;
-          }
-          
-          /* 💡 첨부 파일 목록 스타일 추가 */
-          .attachment-list td {
-            padding: 3px 0;
-            border-bottom: 1px dotted #e5e7eb; /* 파일 구분선 */
-          }
-          .attachment-list tr:last-child td {
-            border-bottom: none;
-          }
-          
-          .box th {
-            width: 30%;
-            color: #4b5563;
-            font-weight: 600;
-            padding-right: 10px;
-          }
-
-          .box td {
-            width: 70%;
-            color: #111827;
-            line-height: 1.4;
-          }
-
-          .btn {
-            display: inline-block;
-            padding: 14px 28px;
-            font-size: 16px;
-            color: #ffffff;
-            background-color: #78909C;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: opacity 0.3s;
-            width: 100%;
-            text-align: center;
-            box-sizing: border-box;
-            margin-top: 20px;
-          }
-
-          .btn:hover {
-            opacity: 0.85;
-          }
-        </style>
       </head>
-      <body>
-        <div class="container">
-            
-          <img class="logo" src="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고">
-          <h1>✈️️ 실무 결과 공유</h1>
-          <div class="grid">
-            <div class="box">
-              <strong>프로젝트 정보</strong>
+      <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Helvetica Neue', Arial, sans-serif;">
+        <div style="max-width:600px;margin:40px auto;background-color:#fff;border-radius:10px;box-shadow:0 6px 18px rgba(0, 0, 0, 0.1);overflow:hidden;padding:40px 30px;">
+          <img style="width:50px;height:50px;margin-bottom:25px;display:block;margin-left:auto;margin-right:auto;" src="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고">
+          <h1 style="font-size:24px;font-weight:700;color:#111827;margin-bottom:20px;text-align:center;">✈️️ 실무 결과 공유</h1>
+          <div style="display:block;margin-bottom:30px;">
+            <div style="width:100%;padding:15px;box-sizing:border-box;margin-top:20px;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">
+              <strong style="display:block;font-size:16px;color:#111827;margin-bottom:10px;">프로젝트 정보</strong>
               <br>
-              <table>
+              <table style="width:100%;border-collapse:collapse;font-size:14px;">
                 <tr>
-                  <th>카테고리</th>
-                  <td>${categoryName}</td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">카테고리</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${categoryName}</td>
                 </tr>
                 <tr>
-                  <th>고객사</th>
-                  <td>${clientName}</td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">고객사</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${clientName}</td>
                 </tr>
                 <tr>
-                  <th>프로젝트 코드</th>
-                  <td>${projectCode}</td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">프로젝트 코드</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${projectCode}</td>
                 </tr>
                 <tr>
-                  <th>프로젝트 명</th>
-                  <td>${projectName}</td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">프로젝트 명</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${projectName}</td>
                 </tr>
                 <tr>
-                  <th>작성자</th>
-                  <td> ${username} (<a href="mailto:${userEmail}" style="color: #78909C; text-decoration: none;">${userEmail}</a>) </td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">작성자</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${username} (<a href="mailto:${userEmail}" style="color:#78909C;text-decoration:none;">${userEmail}</a>)</td>
                 </tr>
                 <tr>
-                  <th>PM</th>
-                  <td> ${managerDisplay} </td>
+                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">PM</th>
+                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${managerDisplay}</td>
                 </tr>
               </table>
             </div>
-            <div class="box">
-              <strong>실무 내용</strong>
+            <div style="width:100%;padding:15px;box-sizing:border-box;margin-top:20px;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">
+              <strong style="display:block;font-size:16px;color:#111827;margin-bottom:10px;">실무 내용</strong>
               <br>
-              <div style="margin-top: 10px; line-height: 1.6; color: #111827;">
+              <div style="margin-top:10px;line-height:1.6;color:#111827;">
                 ${processedContent}
               </div>
             </div>
@@ -810,7 +374,7 @@ export class MailService {
             ${attachmentsHtml}
 
           </div>
-          <a href="${url}" class="btn" target="_blank">프로젝트 바로가기</a>
+          <a href="${url}" style="display:inline-block;padding:14px 28px;font-size:16px;color:#ffffff;background-color:#78909C;border-radius:8px;text-decoration:none;font-weight:600;transition:opacity 0.3s;width:100%;text-align:center;box-sizing:border-box;margin-top:20px;" target="_blank">프로젝트 바로가기</a>
         </div>
       </body>
     </html>`;
@@ -852,8 +416,8 @@ export class MailService {
     const subject = `🗓️ [${schedule.category.name}][${project.clients[project.clients.length - 1].name}][${schedule.user.username}] ${schedule.summary}`;
     const html = this.getScheduleMailHtml(
       schedule.summary,
-      schedule.start,
-      schedule.end,
+      dayjs(schedule.start).format('YYYY-MM-DD'),
+      dayjs(schedule.end).format('YYYY-MM-DD'),
       schedule.category.name,
       client,
       project.name,
@@ -942,7 +506,7 @@ export class MailService {
       project.name,
       report.user.username,
       report.user.email,
-      report.content,
+      content,
       url,
       report.attachments,
       project.manager?.username,

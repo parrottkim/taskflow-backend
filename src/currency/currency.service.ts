@@ -10,7 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
 import config from 'config';
 import { firstValueFrom } from 'rxjs';
-import { Currency } from 'src/entity/issue/currency/currency.entity';
+import { Currency } from 'src/entity/currency/currency.entity';
 import { Repository } from 'typeorm';
 import { CurrencyDto } from './dto/currency';
 

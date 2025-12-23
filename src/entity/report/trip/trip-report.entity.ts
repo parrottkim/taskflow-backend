@@ -43,6 +43,6 @@ export class TripReport {
   @OneToOne(() => TripFuelExpense, (fuel) => fuel.trip)
   fuel?: TripFuelExpense;
 
-  @Column()
-  isDeducted?: boolean;
+  @Column({ default: false })
+  isDeducted: boolean;
 }

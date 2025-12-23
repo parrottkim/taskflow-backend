@@ -3,7 +3,6 @@ import {
   Get,
   HttpStatus,
   Post,
-  Query,
   UseGuards,
   Request,
   Patch,
@@ -11,17 +10,17 @@ import {
   Param,
   ParseIntPipe,
   Body,
+  Query,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IssueService } from './issue.service';
 import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
 import { CreateIssueDto } from './dto/create-issue';
+import { IssueCategoryDto } from './dto/issue-category';
+import { IssueDto } from './dto/issue';
+import { LatestIssueDto } from './dto/latest-issue';
 import { GetLatestIssuesDto } from './dto/get-latest-issues';
 import { GetIssuesDto } from './dto/get-issues';
-import { LatestIssueDto } from './dto/latest-issue';
-import { IssueDto } from './dto/issue';
-import { IssueCategoryDto } from './dto/issue-category';
-import { TransactionIssueItemCategoryDto } from './dto/issue-details';
 import { UpdateIssueDto } from './dto/update-issue';
 @ApiTags('Issue (이슈)')
 @Controller('issue')
@@ -47,7 +46,6 @@ export class IssueController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
-    type: [TransactionIssueItemCategoryDto],
   })
   @Get('transaction/categories')
   async getAllTransactionCategories() {
@@ -68,7 +66,81 @@ export class IssueController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '이슈 목록 조회' })
+  @ApiOperation({ summary: '계약 이슈 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: LatestIssueDto,
+  })
+  @Get('contract/:id')
+  getContractIssue(@Param('id', ParseIntPipe) id: number) {
+    return this.issueService.getContractIssue(id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '킥어프 이슈 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: LatestIssueDto,
+  })
+  @Get('kickoff/:id')
+  getKickoffIssue(@Param('id', ParseIntPipe) id: number) {
+    return this.issueService.getKickoffIssue(id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '거래명세/인보이스 이슈 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: LatestIssueDto,
+  })
+  @Get('transaction/:id')
+  getTransactionIssue(@Param('id', ParseIntPipe) id: number) {
+    return this.issueService.getTransactionIssue(id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '지급 청구 이슈 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: LatestIssueDto,
+  })
+  @Get('payment/:id')
+  getPaymentIssue(@Param('id', ParseIntPipe) id: number) {
+    return this.issueService.getPaymentIssue(id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '사양 승인 이슈 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: LatestIssueDto,
+  })
+  @Get('declaration')
+  getDeclarationIssues(@Query() query: GetIssuesDto) {
+    return this.issueService.getDeclarationIssues(query);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '구매 조달 이슈 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Successful response' })
+  @Get('procurement')
+  getProcurementIssues(@Query() query: GetIssuesDto) {
+    return this.issueService.getProcurementIssues(query);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '이슈 조회 (ID)' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -76,21 +148,8 @@ export class IssueController {
     type: IssueDto,
   })
   @Get(':id')
-  getIssue(@Request() req, @Param('id', ParseIntPipe) id: number) {
-    return this.issueService.getIssueWithUser(req.user, id);
-  }
-
-  @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '이슈 목록 조회' })
-  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Successful response',
-    type: LatestIssueDto,
-  })
-  @Get()
-  getIssues(@Query() value: GetIssuesDto) {
-    return this.issueService.getIssues(value);
+  getIssue(@Param('id', ParseIntPipe) id: number) {
+    return this.issueService.getIssue(id);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -108,51 +167,30 @@ export class IssueController {
   @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '이슈 등록' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Successful response',
-    type: IssueDto,
-  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Successful response' })
   @Post()
-  createIssue(@Request() req, @Body() value: CreateIssueDto) {
-    return this.issueService.createIssue(req.user, value);
+  async createIssue(@Request() req, @Body() body: CreateIssueDto) {
+    return this.issueService.createIssue(req.user, body);
   }
 
   @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '이슈 수정' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Successful response',
-    type: IssueDto,
-  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Successful response' })
   @Patch(':id')
-  updateIssue(
+  async updateIssue(
     @Request() req,
     @Param('id', ParseIntPipe) id: number,
-    @Body() value: UpdateIssueDto,
+    @Body() body: UpdateIssueDto,
   ) {
-    return this.issueService.updateIssue(req.user, id, value);
+    return this.issueService.updateIssue(req.user, id, body);
   }
 
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '이슈 수정' })
+  @ApiOperation({ summary: '이슈 삭제' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @Delete(':id')
-  async deleteIssue(@Param('id', ParseIntPipe) id: number) {
-    return this.issueService.deleteIssue(id);
-  }
-
-  @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '이슈 수정' })
-  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Successful response',
-    type: IssueDto,
-  })
-  @Patch(':id/restore')
-  async restoreIssue(@Param('id', ParseIntPipe) id: number) {
-    return this.issueService.restoreIssue(id);
+  async deleteIssue(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    return this.issueService.deleteIssue(req.user, id);
   }
 }

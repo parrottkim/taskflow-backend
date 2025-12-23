@@ -22,6 +22,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 import { IssueModule } from './issue/issue.module';
 import { IssueAttachmentModule } from './issue/issue-attachment.module';
 import { ReportAttachmentModule } from './report/report-attachment.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -57,13 +58,19 @@ import { ReportAttachmentModule } from './report/report-attachment.module';
         };
       },
     }),
-    RedisModule.forRoot({
-      type: 'single',
-      url: 'redis://redis:6379',
+    RedisModule.forRootAsync({
+      inject: [config.KEY],
+      useFactory: (configService: ConfigType<typeof config>) => {
+        return {
+          type: 'single',
+          url: configService.redis.url,
+        };
+      },
     }),
     AuthModule,
     BookmarkModule,
     CurrencyModule,
+    DashboardModule,
     ScheduleModule,
     IssueModule,
     IssueAttachmentModule,

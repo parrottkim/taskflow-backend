@@ -109,8 +109,8 @@ export class ReportController {
     type: ReportListDto,
   })
   @Get()
-  getReports(@Query() value: GetReportDto) {
-    return this.reportService.getReports(value);
+  getReports(@Query() query: GetReportDto) {
+    return this.reportService.getReports(query);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -134,8 +134,8 @@ export class ReportController {
     type: ReportDto,
   })
   @Post()
-  async createReport(@Request() req, @Body() value: CreateReportDto) {
-    return this.reportService.createReport(req.user, value);
+  async createReport(@Request() req, @Body() body: CreateReportDto) {
+    return this.reportService.createReport(req.user, body);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -150,9 +150,9 @@ export class ReportController {
   updateReport(
     @Request() req,
     @Param('id', ParseIntPipe) id: number,
-    @Body() value: UpdateReportDto,
+    @Body() body: UpdateReportDto,
   ) {
-    return this.reportService.updateReport(req.user, id, value);
+    return this.reportService.updateReport(req.user, id, body);
   }
 
   @UseGuards(JwtAccessAuthGuard)

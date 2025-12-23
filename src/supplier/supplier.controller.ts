@@ -32,8 +32,8 @@ export class SupplierController {
     type: SupplierListDto,
   })
   @Get()
-  async getSuppliers(@Query() value: GetSuppliersDto) {
-    return this.supplierService.getSuppliers(value);
+  async getSuppliers(@Query() query: GetSuppliersDto) {
+    return this.supplierService.getSuppliers(query);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -45,8 +45,8 @@ export class SupplierController {
     type: SupplierDto,
   })
   @Post()
-  async createSupplier(@Body() value: CreateSupplierDto) {
-    return this.supplierService.createSupplier(value);
+  async createSupplier(@Body() body: CreateSupplierDto) {
+    return this.supplierService.createSupplier(body);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -60,9 +60,9 @@ export class SupplierController {
   @Patch(':id')
   async updateSupplier(
     @Param('id', ParseIntPipe) id: number,
-    @Body() value: UpdateSupplierDto,
+    @Body() body: UpdateSupplierDto,
   ) {
-    return this.supplierService.updateSupplier(id, value);
+    return this.supplierService.updateSupplier(id, body);
   }
 
   @UseGuards(JwtAccessAuthGuard)

@@ -8,138 +8,31 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
 import { Project } from 'src/entity/project/project.entity';
 import { Brackets, DataSource, Repository } from 'typeorm';
-import { ProjectDto, ProjectListDto } from './dto/project';
 import { ProjectClientService } from './project-client.service';
 import { ProjectClientDto } from './dto/project-client';
-import { UserService } from 'src/user/user.service';
-import { ProjectStatsDto, ProjectStatsListDto } from './dto/project-stats';
-import * as moment from 'moment';
 import { GetProjectsDto } from './dto/get-projects';
-import { GetProjectStatsDto } from './dto/get-project-stats';
-import { GetProjectSummaryDto } from './dto/get-project-summary';
-import { ProjectSummaryDto } from './dto/project-summary';
 import { User } from 'src/entity/user/user.entity';
 import { CreateProjectDto } from './dto/create-project';
 import { UpdateProjectDto } from './dto/update-project';
 import { IssueCategory } from 'src/entity/issue/issue-category.entity';
 import { ProjectClient } from 'src/entity/project/project-client.entity';
+import { ProjectDto, ProjectListDto } from './dto/project';
+import { ProjectItemCountDto } from './dto/project-item-count';
+import { Report } from 'src/entity/report/report.entity';
+import { Issue } from 'src/entity/issue/issue.entity';
 
 @Injectable()
 export class ProjectService {
   constructor(
     private readonly dataSource: DataSource,
-    private readonly userService: UserService,
     @InjectRepository(Project)
     private readonly projectRepository: Repository<Project>,
     private readonly projectClientService: ProjectClientService,
+    @InjectRepository(Issue)
+    private readonly issueRepository: Repository<Issue>,
+    @InjectRepository(Report)
+    private readonly reportRepository: Repository<Report>,
   ) {}
-
-  async findProjectWithManagerId(id: number, start?: string, end?: string) {
-    let queryBuilder = await this.projectRepository
-      .createQueryBuilder('project')
-      .leftJoinAndSelect('project.manager', 'manager')
-      .leftJoinAndSelect('project.latestCategory', 'latestCategory')
-      .leftJoinAndSelect('latestCategory.charge', 'charge')
-      .leftJoinAndSelect('manager.position', 'position')
-      .leftJoinAndSelect('manager.department', 'department')
-      .leftJoinAndSelect('project.client', 'client')
-      .where('manager.id = :id', { id });
-
-    if (start) {
-      queryBuilder.andWhere('project.createdAt >= :start', {
-        start: `${moment(start).format('YYYY-MM-DD')} 00:00:00`,
-      });
-    }
-    if (end) {
-      queryBuilder.andWhere('project.createdAt <= :end', {
-        end: `${moment(end).format('YYYY-MM-DD')} 23:59:59`,
-      });
-    }
-
-    return queryBuilder.getManyAndCount();
-  }
-
-  async findAllProjectCount(value: GetProjectSummaryDto) {
-    let queryBuilder = await this.projectRepository
-      .createQueryBuilder('project')
-      .leftJoin('project.issues', 'issue');
-
-    if (value.start) {
-      queryBuilder.andWhere('project.createdAt >= :start', {
-        start: `${moment(value.start).format('YYYY-MM-DD')} 00:00:00`,
-      });
-    }
-    if (value.end) {
-      queryBuilder.andWhere('project.createdAt <= :end', {
-        end: `${moment(value.end).format('YYYY-MM-DD')} 23:59:59`,
-      });
-    }
-
-    return queryBuilder.getCount();
-  }
-
-  async findClosedProjectCount(value: GetProjectSummaryDto) {
-    let queryBuilder = await this.projectRepository
-      .createQueryBuilder('project')
-      .where('project.isClosed = true');
-
-    if (value.start) {
-      queryBuilder.andWhere('project.createdAt >= :start', {
-        start: `${moment(value.start).format('YYYY-MM-DD')} 00:00:00`,
-      });
-    }
-    if (value.end) {
-      queryBuilder.andWhere('project.createdAt <= :end', {
-        end: `${moment(value.end).format('YYYY-MM-DD')} 23:59:59`,
-      });
-    }
-
-    return queryBuilder.getCount();
-  }
-
-  async findKickedOffProjectCount(value: GetProjectSummaryDto) {
-    let queryBuilder = await this.projectRepository
-      .createQueryBuilder('project')
-      .innerJoin('project.issues', 'issue')
-      .innerJoin('issue.category', 'category')
-      .where('category.id = :id', { id: 3 })
-      .andWhere('project.isClosed = false');
-
-    if (value.start) {
-      queryBuilder.andWhere('project.createdAt >= :start', {
-        start: `${moment(value.start).format('YYYY-MM-DD')} 00:00:00`,
-      });
-    }
-    if (value.end) {
-      queryBuilder.andWhere('project.createdAt <= :end', {
-        end: `${moment(value.end).format('YYYY-MM-DD')} 23:59:59`,
-      });
-    }
-
-    return queryBuilder.getCount();
-  }
-
-  async findActiveProjectCount(value: GetProjectSummaryDto) {
-    let queryBuilder = await this.projectRepository
-      .createQueryBuilder('project')
-      .innerJoin('project.issues', 'issue')
-      .innerJoin('issue.category', 'category')
-      .innerJoin('category.charge', 'charge')
-      .where('charge.id = :id', { id: 2 });
-
-    if (value.start) {
-      queryBuilder.andWhere('project.createdAt >= :start', {
-        start: `${moment(value.start).format('YYYY-MM-DD')} 00:00:00`,
-      });
-    }
-    if (value.end) {
-      queryBuilder.andWhere('project.createdAt <= :end', {
-        end: `${moment(value.end).format('YYYY-MM-DD')} 23:59:59`,
-      });
-    }
-
-    return queryBuilder.getCount();
-  }
 
   async findProjectById(id: number, user?: User) {
     const queryBuilder = this.projectRepository
@@ -147,7 +40,6 @@ export class ProjectService {
       .leftJoinAndSelect('project.user', 'user')
       .leftJoinAndSelect('project.manager', 'manager')
       .leftJoinAndSelect('project.latestCategory', 'latestCategory')
-      .leftJoinAndSelect('latestCategory.charge', 'charge')
       .leftJoinAndSelect('user.position', 'position')
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('project.client', 'client');
@@ -179,7 +71,6 @@ export class ProjectService {
       .leftJoinAndSelect('project.user', 'user')
       .leftJoinAndSelect('project.manager', 'manager')
       .leftJoinAndSelect('project.latestCategory', 'latestCategory')
-      .leftJoinAndSelect('latestCategory.charge', 'charge')
       .leftJoinAndSelect('user.position', 'position')
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('project.client', 'client')
@@ -199,7 +90,10 @@ export class ProjectService {
             .orWhere('project.name ILIKE :search', {
               search: `%${value.search}%`,
             })
-            .orWhere('user.username ILIKE :search', {
+            // .orWhere('user.username ILIKE :search', {
+            //   search: `%${value.search}%`,
+            // })
+            .orWhere('manager.username ILIKE :search', {
               search: `%${value.search}%`,
             })
             .orWhere('client.name ILIKE :search', {
@@ -281,62 +175,59 @@ export class ProjectService {
       .getManyAndCount();
   }
 
-  async getProjectStats(value: GetProjectStatsDto) {
-    // 사용자에 해당하는 프로젝트들을 가져오기
-    const users = await this.userService.getUsers({
-      page: value.page,
-      limit: value.limit,
-    });
+  async countContractsById(id: number) {
+    const [contractCount, transactionCount, kickoffCount, paymentCount] =
+      await Promise.all([
+        this.issueRepository
+          .createQueryBuilder('issue')
+          .leftJoinAndSelect('issue.project', 'project')
+          .innerJoinAndSelect('issue.contract', 'contract')
+          .where('project.id = :id', { id })
+          .getCount(),
+        this.issueRepository
+          .createQueryBuilder('issue')
+          .leftJoinAndSelect('issue.project', 'project')
+          .innerJoinAndSelect('issue.transaction', 'transaction')
+          .where('project.id = :id', { id })
+          .getCount(),
+        this.issueRepository
+          .createQueryBuilder('issue')
+          .leftJoinAndSelect('issue.project', 'project')
+          .innerJoinAndSelect('issue.kickoff', 'kickoff')
+          .where('project.id = :id', { id })
+          .getCount(),
+        this.issueRepository
+          .createQueryBuilder('issue')
+          .leftJoinAndSelect('issue.project', 'project')
+          .innerJoinAndSelect('issue.payment', 'payment')
+          .where('project.id = :id', { id })
+          .getCount(),
+      ]);
 
-    const items = await Promise.all(
-      users.items.map(async (user) => {
-        const [projects, total] = await this.findProjectWithManagerId(
-          user.id,
-          value.start,
-          value.end,
-        );
-
-        let valid = 0;
-
-        // 프로젝트에 대한 valid 카운트
-        await Promise.all(
-          projects.map(async (project) => {
-            // 최신 ISSUE가 존재하고, ID가 11이 아니면 valid 카운트 증가
-            if (project.isClosed) {
-              valid++;
-            }
-          }),
-        );
-
-        // 각 사용자의 projectStats DTO 생성
-        return plainToInstance(ProjectStatsDto, {
-          valid: valid,
-          total: total,
-          user: user,
-        });
-      }),
-    );
-
-    const projectStatsListDto = plainToInstance(ProjectStatsListDto, {
-      items: items,
-      page: value.page,
-      total: users.total,
-    });
-
-    return projectStatsListDto;
+    return contractCount + transactionCount + kickoffCount + paymentCount;
   }
 
-  async getProjectSummary(value: GetProjectSummaryDto) {
-    const total = await this.findAllProjectCount(value);
-    const closed = await this.findClosedProjectCount(value);
-    const kickedOff = await this.findKickedOffProjectCount(value);
-    const active = await this.findActiveProjectCount(value);
+  async countDeclarationsById(id: number) {
+    return await this.issueRepository
+      .createQueryBuilder('issue')
+      .leftJoinAndSelect('issue.project', 'project')
+      .innerJoinAndSelect('issue.declaration', 'declaration')
+      .where('project.id = :id', { id })
+      .getCount();
+  }
 
-    return plainToInstance(ProjectSummaryDto, {
-      total: total,
-      closed: closed,
-      kickedOff: kickedOff,
-      active: active,
+  async countProcurementsById(id: number) {
+    return await this.issueRepository
+      .createQueryBuilder('issue')
+      .leftJoinAndSelect('issue.project', 'project')
+      .innerJoinAndSelect('issue.procurement', 'procurement')
+      .where('project.id = :id', { id })
+      .getCount();
+  }
+
+  async countReportsById(id: number) {
+    return await this.reportRepository.count({
+      where: { project: { id } },
     });
   }
 
@@ -351,13 +242,17 @@ export class ProjectService {
       project.client.id,
     );
 
-    const projectDto = plainToInstance(ProjectDto, project, {
-      excludeExtraneousValues: true,
-    });
-    projectDto.clients = plainToInstance(ProjectClientDto, ancestors, {
-      excludeExtraneousValues: true,
-    });
-    projectDto.isBookmarked = project.bookmarks && project.bookmarks.length > 0;
+    const projectDto = plainToInstance(
+      ProjectDto,
+      {
+        ...project,
+        clients: ancestors,
+        isBookmarked: project.bookmarks && project.bookmarks.length > 0,
+      },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
 
     return projectDto;
   }
@@ -373,18 +268,22 @@ export class ProjectService {
       project.client.id,
     );
 
-    const projectDto = plainToInstance(ProjectDto, project, {
-      excludeExtraneousValues: true,
-    });
-    projectDto.clients = plainToInstance(ProjectClientDto, ancestors, {
-      excludeExtraneousValues: true,
-    });
-    projectDto.isBookmarked = project.bookmarks && project.bookmarks.length > 0;
+    const projectDto = plainToInstance(
+      ProjectDto,
+      {
+        ...project,
+        clients: ancestors,
+        isBookmarked: project.bookmarks && project.bookmarks.length > 0,
+      },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
 
     return projectDto;
   }
 
-  async getProjectWithUser(user: User, id: number) {
+  async getProjectForEdit(user: User, id: number) {
     const project = await this.findProjectById(id, user);
 
     if (!project) {
@@ -399,19 +298,23 @@ export class ProjectService {
       project.client.id,
     );
 
-    const projectDto = plainToInstance(ProjectDto, project, {
-      excludeExtraneousValues: true,
-    });
-    projectDto.clients = plainToInstance(ProjectClientDto, ancestors, {
-      excludeExtraneousValues: true,
-    });
-    projectDto.isBookmarked = project.bookmarks && project.bookmarks.length > 0;
+    const projectDto = plainToInstance(
+      ProjectDto,
+      {
+        ...project,
+        clients: ancestors,
+        isBookmarked: project.bookmarks && project.bookmarks.length > 0,
+      },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
 
     return projectDto;
   }
 
-  async getProjects(user: User, value: GetProjectsDto) {
-    const [projects, total] = await this.findProjects(user, value);
+  async getProjects(user: User, query: GetProjectsDto) {
+    const [projects, total] = await this.findProjects(user, query);
 
     const items = await Promise.all(
       projects.map(async (project) => {
@@ -419,17 +322,17 @@ export class ProjectService {
           project.client.id,
         );
 
-        const projectDto = plainToInstance(ProjectDto, project, {
-          excludeExtraneousValues: true,
-        });
-
-        projectDto.clients = ancestors.map((ancestor) =>
-          plainToInstance(ProjectClientDto, ancestor, {
+        const projectDto = plainToInstance(
+          ProjectDto,
+          {
+            ...project,
+            clients: ancestors,
+            isBookmarked: project.bookmarks && project.bookmarks.length > 0,
+          },
+          {
             excludeExtraneousValues: true,
-          }),
+          },
         );
-        projectDto.isBookmarked =
-          project.bookmarks && project.bookmarks.length > 0;
 
         return projectDto;
       }),
@@ -437,14 +340,30 @@ export class ProjectService {
 
     const projectListDto = plainToInstance(ProjectListDto, {
       items: items,
-      page: value.page,
+      page: query.page,
       total: total,
     });
 
     return projectListDto;
   }
 
-  async createProject(user: User, value: CreateProjectDto) {
+  async getProjectItemCount(id: number) {
+    const contracts = await this.countContractsById(id);
+    const declarations = await this.countDeclarationsById(id);
+    const procurements = await this.countProcurementsById(id);
+    const reports = await this.countReportsById(id);
+
+    const countDto = plainToInstance(ProjectItemCountDto, {
+      contracts,
+      declarations,
+      procurements,
+      reports,
+    });
+
+    return countDto;
+  }
+
+  async createProject(user: User, body: CreateProjectDto) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -452,7 +371,7 @@ export class ProjectService {
     try {
       // 프로젝트 코드 중복 체크
       const existingProject = await queryRunner.manager.findOne(Project, {
-        where: { code: value.projectCode },
+        where: { code: body.projectCode },
       });
       if (existingProject) {
         throw new ConflictException('project_exists');
@@ -460,23 +379,23 @@ export class ProjectService {
 
       // 연관 엔티티 조회
       const client = await queryRunner.manager.findOne(ProjectClient, {
-        where: { id: value.clientId },
+        where: { id: body.clientId },
       });
       if (!client) throw new NotFoundException('client_not_found');
 
       let manager: User | null = null;
-      if (value.managerId) {
+      if (body.managerId) {
         manager = await queryRunner.manager.findOne(User, {
-          where: { id: value.managerId },
+          where: { id: body.managerId },
         });
         if (!manager) throw new NotFoundException('manager_not_found');
       }
 
       // 프로젝트 생성
       const project = queryRunner.manager.create(Project, {
-        code: value.projectCode,
-        name: value.projectName,
-        isPreexecuted: value.isPreexecuted,
+        code: body.projectCode,
+        name: body.projectName,
+        isPreexecuted: body.isPreexecuted,
         user: user,
         manager: manager,
         client: client,
@@ -512,7 +431,7 @@ export class ProjectService {
     }
   }
 
-  async updateProject(user: User, id: number, value: UpdateProjectDto) {
+  async updateProject(user: User, id: number, body: UpdateProjectDto) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -524,7 +443,6 @@ export class ProjectService {
         .leftJoinAndSelect('project.user', 'user')
         .leftJoinAndSelect('project.manager', 'manager')
         .leftJoinAndSelect('project.latestCategory', 'latestCategory')
-        .leftJoinAndSelect('latestCategory.charge', 'charge')
         .leftJoinAndSelect('user.position', 'position')
         .leftJoinAndSelect('user.department', 'department')
         .leftJoinAndSelect('project.client', 'client')
@@ -544,41 +462,40 @@ export class ProjectService {
       }
 
       // 프로젝트 코드 중복 체크
-      if (value.projectCode && value.projectCode !== project.code) {
+      if (body.projectCode && body.projectCode !== project.code) {
         const existingProject = await queryRunner.manager.findOne(Project, {
-          where: { code: value.projectCode },
+          where: { code: body.projectCode },
         });
         if (existingProject) throw new ConflictException('project_exists');
-        project.code = value.projectCode;
+        project.code = body.projectCode;
       }
 
       // 이름, 상태 업데이트
-      project.name = value.projectName ?? project.name;
-      project.isPreexecuted = value.isPreexecuted ?? project.isPreexecuted;
-      project.isContracted = value.isContracted ?? project.isContracted;
-      project.isClosed = value.isClosed ?? project.isClosed;
-      project.closureMessage = value.closureMessage ?? project.closureMessage;
+      project.name = body.projectName ?? project.name;
+      project.isPreexecuted = body.isPreexecuted ?? project.isPreexecuted;
+      project.isContracted = body.isContracted ?? project.isContracted;
+      project.isClosed = body.isClosed ?? project.isClosed;
+      project.closureMessage = body.closureMessage ?? project.closureMessage;
 
       // 연관 엔티티 업데이트
-      if (value.managerId) {
+      if (body.managerId) {
         const manager = await queryRunner.manager.findOne(User, {
-          where: { id: value.managerId },
+          where: { id: body.managerId },
         });
         if (!manager) throw new NotFoundException('manager_not_found');
         project.manager = manager;
       }
 
-      if (value.clientId && value.clientId !== project.client.id) {
+      if (body.clientId && body.clientId !== project.client.id) {
         const client = await queryRunner.manager.findOne(ProjectClient, {
-          where: { id: value.clientId },
+          where: { id: body.clientId },
         });
         if (!client) throw new NotFoundException('client_not_found');
         project.client = client;
       }
 
       const category = await queryRunner.manager.findOne(IssueCategory, {
-        where: { id: value.categoryId },
-        relations: ['charge'],
+        where: { id: body.categoryId },
       });
       project.latestCategory = category;
 

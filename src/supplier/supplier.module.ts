@@ -4,12 +4,12 @@ import { SupplierService } from './supplier.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Supplier } from 'src/entity/supplier/supplier.entity';
 import { SupplierKeyword } from 'src/entity/supplier/supplier-keyword.entity';
-import { SftpService } from 'src/sftp/sftp.service';
+import { SftpModule } from 'src/sftp/sftp.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Supplier, SupplierKeyword])],
+  imports: [TypeOrmModule.forFeature([Supplier, SupplierKeyword]), SftpModule],
   controllers: [SupplierController],
-  providers: [SupplierService, SftpService],
+  providers: [SupplierService],
   exports: [SupplierService],
 })
 export class SupplierModule {}

@@ -4,12 +4,13 @@ import { Project } from 'src/entity/project/project.entity';
 import { ProjectService } from './project.service';
 import { ProjectController } from './project.controller';
 import { ProjectClientModule } from './project-client.module';
-import { UserModule } from 'src/user/user.module';
+import { IssueModule } from 'src/issue/issue.module';
+import { Report } from 'src/entity/report/report.entity';
+import { Issue } from 'src/entity/issue/issue.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Project]),
-    UserModule,
+    TypeOrmModule.forFeature([Project, Issue, Report]),
     ProjectClientModule,
   ],
   providers: [ProjectService],

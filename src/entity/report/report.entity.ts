@@ -14,15 +14,21 @@ import { Schedule } from '../schedule/schedule.entity';
 import { User } from '../user/user.entity';
 import { ReportAttachment } from './report-attachment.entity';
 import { TripReport } from './trip/trip-report.entity';
+import { Project } from '../project/project.entity';
 
 @Entity()
 export class Report {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @OneToOne(() => Schedule, (schedule) => schedule.report)
+  @OneToOne(() => Schedule, (schedule) => schedule.report, {
+    nullable: true,
+  })
   @JoinColumn()
   schedule: Schedule;
+
+  @ManyToOne(() => Project, (project) => project.reports)
+  project: Project;
 
   @ManyToOne(() => User, (user) => user.reports, { cascade: true })
   user: User;
