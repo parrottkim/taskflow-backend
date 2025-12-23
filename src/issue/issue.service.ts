@@ -759,42 +759,61 @@ export class IssueService {
           break;
       }
 
-      // 4️⃣ ContractItems 업데이트
-      if (value.contractItems?.length) {
-        const items = await Promise.all(
-          value.contractItems.map(async (dto) => {
-            if (dto.id) {
-              const existing = await queryRunner.manager.findOne(
-                ContractIssueItem,
-                {
-                  where: {
-                    id: dto.id,
-                    project: { id: issue.project.id },
-                  },
-                },
-              );
-
-              if (existing) {
-                existing.item = dto.item;
-                existing.price = dto.price;
-                return existing;
-              }
-            }
-
-            // 새로 생성
-            return queryRunner.manager.create(ContractIssueItem, {
-              project: issue.project,
-              item: dto.item,
-              price: dto.price,
-            });
-          }),
+      if (value.contractItems) {
+        const existingItems = await queryRunner.manager.find(
+          ContractIssueItem,
+          {
+            where: { project: { id: issue.project.id } },
+          },
         );
+
+        const itemsToRemove = existingItems.filter(
+          (existing) =>
+            !value.contractItems.some((dto) => dto.id === existing.id),
+        );
+
+        if (itemsToRemove.length) {
+          await queryRunner.manager.remove(ContractIssueItem, itemsToRemove);
+        }
+
+        const items = value.contractItems.map((dto) => {
+          if (dto.id) {
+            const existing = existingItems.find((e) => e.id === dto.id);
+            if (existing) {
+              existing.item = dto.item;
+              existing.price = dto.price;
+              return existing;
+            }
+          }
+
+          return queryRunner.manager.create(ContractIssueItem, {
+            project: issue.project,
+            item: dto.item,
+            price: dto.price,
+          });
+        });
 
         await queryRunner.manager.save(ContractIssueItem, items);
       }
 
       // 5️⃣ TransactionItems 업데이트
-      if (value.transactionItems?.length) {
+      if (value.transactionItems) {
+        const existingItems = await queryRunner.manager.find(
+          TransactionIssueItem,
+          {
+            where: { project: { id: issue.project.id } },
+          },
+        );
+
+        const itemsToRemove = existingItems.filter(
+          (existing) =>
+            !value.transactionItems.some((dto) => dto.id === existing.id),
+        );
+
+        if (itemsToRemove.length) {
+          await queryRunner.manager.remove(TransactionIssueItem, itemsToRemove);
+        }
+
         const items = await Promise.all(
           value.transactionItems.map(async (dto) => {
             const category = await queryRunner.manager.findOne(
@@ -803,16 +822,7 @@ export class IssueService {
             );
 
             if (dto.id) {
-              const existing = await queryRunner.manager.findOne(
-                TransactionIssueItem,
-                {
-                  where: {
-                    id: dto.id,
-                    project: { id: issue.project.id },
-                  },
-                },
-              );
-
+              const existing = existingItems.find((e) => e.id === dto.id);
               if (existing) {
                 existing.category = category;
                 existing.price = dto.price;
