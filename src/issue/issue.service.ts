@@ -46,6 +46,7 @@ import { CreateIssueDto } from './dto/create-issue';
 import { User } from 'src/entity/user/user.entity';
 import { ContractIssueItem } from 'src/entity/issue/contract/contract-issue-item.entity';
 import * as dayjs from 'dayjs';
+import { Supplier } from 'src/entity/supplier/supplier.entity';
 
 @Injectable()
 export class IssueService {
@@ -748,15 +749,64 @@ export class IssueService {
             queryRunner.manager.create(ProcurementIssue, { issue }),
           );
         }
-        if (value.procurementItems?.length) {
-          const items = value.procurementItems.map((dto) =>
-            queryRunner.manager.create(ProcurementIssueItem, {
-              procurement: issue.procurement,
-              ...dto,
+        if (value.procurementItems) {
+          const existingItems = issue.procurement.items ?? [];
+
+          // 삭제 처리
+          const toRemove = existingItems.filter(
+            (e) => !value.procurementItems.some((dto) => dto.id === e.id),
+          );
+          if (toRemove.length) {
+            await queryRunner.manager.remove(toRemove);
+          }
+
+          const items = await Promise.all(
+            value.procurementItems.map(async (dto) => {
+              if (dto.id) {
+                const existing = existingItems.find((e) => e.id === dto.id);
+                if (existing) {
+                  existing.item = dto.item;
+                  existing.spec = dto.spec;
+                  existing.quantity = dto.quantity;
+                  existing.unitPrice = dto.unitPrice;
+                  existing.totalAmount = dto.totalAmount;
+                  existing.isOnlinePurchase = dto.isOnlinePurchase;
+                  existing.purchaseUrl = dto.purchaseUrl;
+
+                  // ⭐ supplier 유지 / 변경 로직
+                  if (dto.supplierId !== undefined) {
+                    existing.supplier = dto.supplierId
+                      ? await queryRunner.manager.findOne(Supplier, {
+                          where: { id: dto.supplierId },
+                        })
+                      : null;
+                  }
+
+                  return existing;
+                }
+              }
+
+              // 신규 생성
+              return queryRunner.manager.create(ProcurementIssueItem, {
+                procurement: issue.procurement,
+                item: dto.item,
+                spec: dto.spec,
+                quantity: dto.quantity,
+                unitPrice: dto.unitPrice,
+                totalAmount: dto.totalAmount,
+                isOnlinePurchase: dto.isOnlinePurchase,
+                purchaseUrl: dto.purchaseUrl,
+                supplier: dto.supplierId
+                  ? await queryRunner.manager.findOne(Supplier, {
+                      where: { id: dto.supplierId },
+                    })
+                  : null,
+              });
             }),
           );
+
           issue.procurement.items = items;
-          await queryRunner.manager.save(issue.procurement); // cascade save
+          await queryRunner.manager.save(issue.procurement);
         }
       } else if (issue.category.id === 5) {
         // TRANSACTION
