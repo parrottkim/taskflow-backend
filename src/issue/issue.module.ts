@@ -21,6 +21,7 @@ import { MailModule } from 'src/mail/mail.module';
 import { ProjectClientModule } from 'src/project/project-client.module';
 import { PaymentIssue } from 'src/entity/issue/payment/payment-issue.entity';
 import { DeclarationIssue } from 'src/entity/issue/declaration/declaration-issue.entity';
+import { Supplier } from 'src/entity/supplier/supplier.entity';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { DeclarationIssue } from 'src/entity/issue/declaration/declaration-issue
       IssueCategory,
       IssueAttachment,
       Currency,
+      Supplier,
     ]),
     ProjectClientModule,
     MailModule,
