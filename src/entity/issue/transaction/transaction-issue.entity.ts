@@ -1,13 +1,6 @@
-import {
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  OneToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Issue } from 'src/entity/issue/issue.entity';
 import { Project } from 'src/entity/project/project.entity';
-import { Currency } from 'src/entity/currency/currency.entity';
 
 @Entity()
 export class TransactionIssue {
@@ -21,7 +14,4 @@ export class TransactionIssue {
   @OneToOne(() => Project, (project) => project.transaction)
   @JoinColumn()
   project: Project;
-
-  @ManyToOne(() => Currency)
-  currency: Currency;
 }

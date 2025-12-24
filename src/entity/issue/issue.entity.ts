@@ -57,6 +57,9 @@ export class Issue {
   @DeleteDateColumn()
   deletedAt?: Date;
 
+  @ManyToOne(() => Currency, (currency) => currency.issues)
+  currency: Currency;
+
   @OneToOne(() => KickoffIssue, (detail) => detail.issue)
   kickoff?: KickoffIssue;
 
