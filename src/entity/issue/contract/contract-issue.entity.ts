@@ -21,7 +21,4 @@ export class ContractIssue {
   @OneToOne(() => Project, (project) => project.contract)
   @JoinColumn()
   project: Project;
-
-  @ManyToOne(() => Currency)
-  currency: Currency;
 }

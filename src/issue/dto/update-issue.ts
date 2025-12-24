@@ -52,6 +52,7 @@ export class UpdateTransactionIssueItemDto extends PartialType(
 export class UpdateIssueDto extends OmitType(PartialType(CreateIssueDto), [
   'contractItems',
   'transactionItems',
+  'procurementItems',
 ]) {
   @ApiProperty()
   @IsOptional()
@@ -75,4 +76,10 @@ export class UpdateIssueDto extends OmitType(PartialType(CreateIssueDto), [
   @Type(() => UpdateTransactionIssueItemDto)
   @IsOptional()
   transactionItems?: UpdateTransactionIssueItemDto[];
+
+  @ApiProperty({ required: false, type: [UpdateProcurementIssueItemDto] })
+  @ValidateNested({ each: true })
+  @Type(() => UpdateProcurementIssueItemDto)
+  @IsOptional()
+  procurementItems?: UpdateProcurementIssueItemDto[];
 }
