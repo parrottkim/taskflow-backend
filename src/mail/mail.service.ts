@@ -274,7 +274,6 @@ export class MailService {
   }
 
   private getReportMailHtml(
-    categoryName: string,
     clientName: string,
     projectCode: string,
     projectName: string,
@@ -283,6 +282,7 @@ export class MailService {
     content: string,
     url: string,
     attachments: ReportAttachmentDto[],
+    categoryName?: string,
     managerName?: string,
     managerEmail?: string,
   ) {
@@ -290,6 +290,19 @@ export class MailService {
       managerName && managerEmail
         ? `${managerName} (<a href="mailto:${managerEmail}" style="color:#78909C;text-decoration:none;">${managerEmail}</a>)`
         : 'PM 없음';
+
+    const categoryRow = categoryName
+      ? `
+        <tr>
+          <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">
+            카테고리
+          </th>
+          <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">
+            ${categoryName}
+          </td>
+        </tr>
+      `
+      : '';
 
     const processedContent = content.replace(/\n/g, '<br>');
 
@@ -337,10 +350,7 @@ export class MailService {
               <strong style="display:block;font-size:16px;color:#111827;margin-bottom:10px;">프로젝트 정보</strong>
               <br>
               <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                <tr>
-                  <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">카테고리</th>
-                  <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${categoryName}</td>
-                </tr>
+                ${categoryRow}
                 <tr>
                   <th style="width:30%;padding:5px 10px 5px 0;text-align:left;vertical-align:top;color:#4b5563;font-weight:600;">고객사</th>
                   <td style="width:70%;padding:5px 0;text-align:left;vertical-align:top;color:#111827;line-height:1.4;">${clientName}</td>
@@ -498,9 +508,10 @@ export class MailService {
     const frontendUrl = this.configService.frontend.url; // 설정 구조에 따라 변경 필요
     const url = `${frontendUrl}/project/${project.id}?view=report&report=${report.id}`;
 
-    const subject = `✈️ [${report.schedule.category.name}][${project.clients[0].name}][${project.clients[project.clients.length - 1].name}] ${project.name}`;
+    const subject = report.schedule
+      ? `✈️ [${report.schedule.category.name}][${project.clients[0].name}][${project.clients[project.clients.length - 1].name}] ${project.name}`
+      : `✈️ [${project.clients[0].name}][${project.clients[project.clients.length - 1].name}] ${project.name}`;
     const html = this.getReportMailHtml(
-      report.schedule.category.name,
       client,
       project.code,
       project.name,
@@ -509,6 +520,7 @@ export class MailService {
       content,
       url,
       report.attachments,
+      report.schedule?.category?.name,
       project.manager?.username,
       project.manager?.email,
     );
