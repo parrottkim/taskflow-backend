@@ -421,6 +421,7 @@ export class IssueService {
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('project.client', 'client')
+      .leftJoinAndSelect('project.manager', 'manager')
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.user', 'user')
       .leftJoinAndSelect('user.position', 'position')
