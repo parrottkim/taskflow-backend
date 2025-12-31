@@ -420,6 +420,7 @@ export class IssueService {
     const issue = await this.issueRepository
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
+      .leftJoinAndSelect('project.client', 'client')
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.user', 'user')
       .leftJoinAndSelect('user.position', 'position')
