@@ -31,6 +31,13 @@ export class MailService {
     });
   }
 
+  private readonly allowedDomain = 'dan-tech.com';
+
+  private isAllowedEmail(email: string): boolean {
+    if (!email) return false;
+    return email.toLowerCase().endsWith(`@${this.allowedDomain}`);
+  }
+
   private encodeMessage(message: string): string {
     return Buffer.from(message)
       .toString('base64')
@@ -408,7 +415,10 @@ export class MailService {
 
   async sendScheduleMail(project: ProjectDto, schedule: ScheduleDto) {
     const users = await this.userService.getAllUsers();
-    const toRecipients = users
+    const allowedUsers = users.filter((u) => this.isAllowedEmail(u.email));
+    if (!allowedUsers.length) return null;
+
+    const toRecipients = allowedUsers
       .map((user) => {
         const name = `=?UTF-8?B?${Buffer.from(
           `${user.username} ${user.position.name}`,
@@ -449,7 +459,10 @@ export class MailService {
 
   async sendIssueMail(project: ProjectDto, issue: IssueDto) {
     const users = await this.userService.getAllUsers();
-    const toRecipients = users
+    const allowedUsers = users.filter((u) => this.isAllowedEmail(u.email));
+    if (!allowedUsers.length) return null;
+
+    const toRecipients = allowedUsers
       .map((user) => {
         const name = `=?UTF-8?B?${Buffer.from(
           `${user.username} ${user.position.name}`,
@@ -492,7 +505,10 @@ export class MailService {
 
   async sendReportMail(project: ProjectDto, report: ReportDto) {
     const users = await this.userService.getAllUsers();
-    const toRecipients = users
+    const allowedUsers = users.filter((u) => this.isAllowedEmail(u.email));
+    if (!allowedUsers.length) return null;
+
+    const toRecipients = allowedUsers
       .map((user) => {
         const name = `=?UTF-8?B?${Buffer.from(
           `${user.username} ${user.position.name}`,
