@@ -63,7 +63,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
       useFactory: (configService: ConfigType<typeof config>) => {
         return {
           type: 'single',
-          url: configService.redis.url,
+          url: configService.url.redis,
         };
       },
     }),

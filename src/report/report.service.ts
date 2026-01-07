@@ -1,6 +1,7 @@
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -47,6 +48,8 @@ import { MailService } from 'src/mail/mail.service';
 import { ProjectService } from 'src/project/project.service';
 import { Project } from 'src/entity/project/project.entity';
 import { Schedule } from 'src/entity/schedule/schedule.entity';
+import { ConfigType } from '@nestjs/config';
+import config from 'config';
 
 @Injectable()
 export class ReportService {
@@ -68,6 +71,8 @@ export class ReportService {
     private readonly currencyService: CurrencyService,
     private readonly sftpService: SftpService,
     private readonly mailService: MailService,
+    @Inject(config.KEY)
+    private configService: ConfigType<typeof config>,
   ) {}
 
   async findAllTripCategories() {
@@ -241,7 +246,7 @@ export class ReportService {
       // 1. 일수 (Days) 계산
       // 'day' 단위를 사용하여 두 날짜 사이의 차이를 구합니다.
       // 자정 기준으로 계산되므로, 2025-12-04 - 2025-12-02 = 2일이 나옵니다.
-      const durationDays = endDate.diff(startDate, 'day');
+      const durationDays = endDate.diff(startDate, 'day') + 1;
 
       // 2. 박수 (Nights) 계산
       // 박수는 일수보다 1 작습니다. (단, 0일 미만은 없으므로 Math.max(0, ...) 사용)
@@ -834,8 +839,10 @@ export class ReportService {
       // ⚠️ scale은 fitToPage와 충돌하므로 미지정 권장
       // form.append('scale', '1.0');  // ❌ 비추천
 
+      const url = this.configService.url.docConverter;
+
       const response = await axios.post(
-        `http://doc-converter:3000/forms/libreoffice/convert`,
+        `${url}/forms/libreoffice/convert`,
         form,
         {
           headers: {

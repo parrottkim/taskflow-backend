@@ -195,7 +195,7 @@ export class MailService {
 
     const processedContent = content.replace(/\n/g, '<br>');
 
-    const frontendUrl = this.configService.frontend.url;
+    const frontendUrl = this.configService.url.frontend;
 
     let attachmentsHtml = '';
     if (attachments.length > 0) {
@@ -313,7 +313,7 @@ export class MailService {
 
     const processedContent = content.replace(/\n/g, '<br>');
 
-    const frontendUrl = this.configService.frontend.url;
+    const frontendUrl = this.configService.url.frontend;
 
     let attachmentsHtml = '';
     if (attachments.length > 0) {
@@ -399,7 +399,7 @@ export class MailService {
 
   async sendResetPassword(email: string, resetToken: string) {
     const subject = 'Taskflow 비밀번호 재설정 요청 확인 및 안내';
-    const frontendUrl = this.configService.frontend.url;
+    const frontendUrl = this.configService.url.frontend;
     const resetLink = `${frontendUrl}/login/reset-password?token=${resetToken}`;
     const html = this.getResetPasswordHtml(resetLink);
 
@@ -430,7 +430,7 @@ export class MailService {
 
     const client = `${project.clients[0].name} ${project.clients[project.clients.length - 1].name}`;
 
-    const frontendUrl = this.configService.frontend.url; // 설정 구조에 따라 변경 필요
+    const frontendUrl = this.configService.url.frontend; // 설정 구조에 따라 변경 필요
     const url = `${frontendUrl}/project/${project.id}`;
 
     const subject = `🗓️ [${schedule.category.name}][${project.clients[project.clients.length - 1].name}][${schedule.user.username}] ${schedule.summary}`;
@@ -475,7 +475,7 @@ export class MailService {
     const client = `${project.clients[0].name} ${project.clients[project.clients.length - 1].name}`;
     const content = await marked(issue.content);
 
-    const frontendUrl = this.configService.frontend.url; // 설정 구조에 따라 변경 필요
+    const frontendUrl = this.configService.url.frontend; // 설정 구조에 따라 변경 필요
     const url = `${frontendUrl}/project/${project.id}?view=issue&issue=${issue.id}`;
 
     const subject = `💻️ [${issue.category.name}][${project.clients[0].name}][${project.clients[project.clients.length - 1].name}] ${project.name}`;
@@ -521,7 +521,7 @@ export class MailService {
     const client = `${project.clients[0].name} ${project.clients[project.clients.length - 1].name}`;
     const content = await marked(report.content);
 
-    const frontendUrl = this.configService.frontend.url; // 설정 구조에 따라 변경 필요
+    const frontendUrl = this.configService.url.frontend; // 설정 구조에 따라 변경 필요
     const url = `${frontendUrl}/project/${project.id}?view=report&report=${report.id}`;
 
     const subject = report.schedule
