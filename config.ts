@@ -42,11 +42,10 @@ export default registerAs('config', () => {
     exchange: {
       key: process.env.EXCHANGE_API_KEY,
     },
-    frontend: {
-      url: process.env.FRONTEND_URL,
-    },
-    redis: {
-      url: process.env.REDIS_URL,
+    url: {
+      frontend: process.env.FRONTEND_URL,
+      redis: process.env.REDIS_URL,
+      docConverter: process.env.DOC_CONVERTER_URL,
     },
   };
 });
