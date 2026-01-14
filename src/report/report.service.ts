@@ -222,9 +222,6 @@ export class ReportService {
       worksheet.pageSetup = {
         paperSize: 9,
         orientation: 'portrait',
-        fitToPage: true,
-        fitToHeight: 1,
-        fitToWidth: 1,
         horizontalCentered: true,
         verticalCentered: true,
         margins: {
