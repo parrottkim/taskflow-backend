@@ -824,6 +824,12 @@ export class ReportService {
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
 
+      // PDF 변환 시 여백 제거를 위한 파라미터 추가
+      // nativePdfFormat을 false로 설정하여 LibreOffice의 기본 PDF 엔진 사용
+      form.append('nativePdfFormat', 'false');
+      // singlePageSheets를 true로 설정하여 각 시트를 단일 페이지로 처리
+      form.append('singlePageSheets', 'true');
+
       const url = this.configService.url.docConverter;
 
       const response = await axios.post(
