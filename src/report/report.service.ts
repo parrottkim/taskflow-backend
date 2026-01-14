@@ -824,21 +824,6 @@ export class ReportService {
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
 
-      // 🟢 핵심: Gotenberg 출력 여백 강제 지정
-      form.append('marginTop', '0.5cm');
-      form.append('marginBottom', '0.5cm');
-      form.append('marginLeft', '0.5cm');
-      form.append('marginRight', '0.5cm');
-
-      // 🟢 A4 페이지 정보를 Excel 기준에 맞게 존중
-      form.append('preferCssPageSize', 'true');
-
-      // 🟢 필요하면 배경 유지
-      form.append('printBackground', 'true');
-
-      // ⚠️ scale은 fitToPage와 충돌하므로 미지정 권장
-      // form.append('scale', '1.0');  // ❌ 비추천
-
       const url = this.configService.url.docConverter;
 
       const response = await axios.post(
