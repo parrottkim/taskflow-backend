@@ -16,7 +16,7 @@ export class TransactionIssueItem {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Project)
+  @ManyToOne(() => Project, { onDelete: 'CASCADE' })
   project: Project;
 
   @ManyToOne(() => TransactionIssueItemCategory, (category) => category.items)
