@@ -11,6 +11,7 @@ import {
   TripRegulationRateDto,
   TripFuelExpenseDto,
 } from './trip-expense';
+import { TripCalculationsDto } from './trip-calculations';
 
 export class TripReportDto {
   @ApiProperty({ type: [TripActualExpenseDto] })
@@ -35,4 +36,10 @@ export class TripReportDto {
   @IsOptional()
   @Expose()
   isDeducted?: boolean;
+
+  @ApiProperty({ type: TripCalculationsDto, required: false })
+  @Type(() => TripCalculationsDto)
+  @IsOptional()
+  @Expose()
+  calculations?: TripCalculationsDto;
 }
