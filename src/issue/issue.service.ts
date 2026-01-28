@@ -720,6 +720,10 @@ export class IssueService {
           }
         }
 
+        if (toRemove.length) {
+          await queryRunner.manager.remove(IssueAttachment, toRemove);
+        }
+
         // 2️⃣ 관계만 재설정 (DB orphan 삭제는 자동)
         issue.attachments = body.attachments.map((dto) =>
           queryRunner.manager.create(IssueAttachment, {
