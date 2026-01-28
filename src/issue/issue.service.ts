@@ -47,6 +47,7 @@ import { User } from 'src/entity/user/user.entity';
 import { ContractIssueItem } from 'src/entity/issue/contract/contract-issue-item.entity';
 import * as dayjs from 'dayjs';
 import { Supplier } from 'src/entity/supplier/supplier.entity';
+import { SftpService } from 'src/sftp/sftp.service';
 
 @Injectable()
 export class IssueService {
@@ -64,6 +65,7 @@ export class IssueService {
     private readonly issueCategoryRepository: Repository<IssueCategory>,
     private readonly projectClientService: ProjectClientService,
     private readonly mailService: MailService,
+    private readonly sftpService: SftpService,
   ) {}
 
   private async mapIssueToDto(issue: Issue) {
@@ -654,7 +656,7 @@ export class IssueService {
     }
   }
 
-  async updateIssue(user: any, id: number, value: UpdateIssueDto) {
+  async updateIssue(user: any, id: number, body: UpdateIssueDto) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -682,9 +684,9 @@ export class IssueService {
         throw new ForbiddenException('no_permission');
       }
 
-      if (value.currencyId) {
+      if (body.currencyId) {
         const currency = await queryRunner.manager.findOne(Currency, {
-          where: { id: value.currencyId },
+          where: { id: body.currencyId },
         });
         if (currency) {
           // 현재 객체 업데이트
@@ -699,27 +701,35 @@ export class IssueService {
       }
 
       // 1️⃣ content 업데이트
-      if (typeof value.content === 'string') issue.content = value.content;
+      if (typeof body.content === 'string') issue.content = body.content;
 
       // 2️⃣ attachments 업데이트
-      if (value.attachments) {
-        const old = issue.attachments ?? [];
-        const toRemove = old.filter(
-          (o) => !value.attachments.some((n) => n.id === o.id),
+      if (body.attachments) {
+        const oldAttachments = issue.attachments ?? [];
+
+        const toRemove = oldAttachments.filter(
+          (old) => !body.attachments.some((dto) => dto.id === old.id),
         );
-        if (toRemove.length)
-          await queryRunner.manager.remove(IssueAttachment, toRemove);
 
-        const newOnes = value.attachments
-          .filter((n) => !old.some((o) => o.id === n.id))
-          .map((n) =>
-            queryRunner.manager.create(IssueAttachment, { ...n, issue }),
-          );
+        // 🔥 파일 시스템 삭제
+        for (const att of toRemove) {
+          try {
+            await this.sftpService.deleteFileByPath(att.path);
+          } catch (e) {
+            console.warn(`SFTP 삭제 실패: ${att.path}`, e);
+          }
+        }
 
-        issue.attachments = [
-          ...old.filter((o) => !toRemove.includes(o)),
-          ...newOnes,
-        ];
+        // 2️⃣ 관계만 재설정 (DB orphan 삭제는 자동)
+        issue.attachments = body.attachments.map((dto) =>
+          queryRunner.manager.create(IssueAttachment, {
+            id: dto.id,
+            filename: dto.filename,
+            path: dto.path,
+            size: dto.size,
+            issue,
+          }),
+        );
       }
 
       // 3️⃣ OneToOne 관계 생성 및 업데이트
@@ -730,9 +740,9 @@ export class IssueService {
             queryRunner.manager.create(ContractIssue, { issue }),
           );
         }
-        if (value.currencyId) {
+        if (body.currencyId) {
           const currency = await queryRunner.manager.findOne(Currency, {
-            where: { id: value.currencyId },
+            where: { id: body.currencyId },
           });
           if (currency) issue.currency = currency;
         }
@@ -743,7 +753,7 @@ export class IssueService {
             queryRunner.manager.create(KickoffIssue, { issue }),
           );
         }
-        if (value.kickoffDate) issue.kickoff.kickoffDate = value.kickoffDate;
+        if (body.kickoffDate) issue.kickoff.kickoffDate = body.kickoffDate;
       } else if (issue.category.id === 4) {
         // PROCUREMENT
         if (!issue.procurement) {
@@ -751,19 +761,19 @@ export class IssueService {
             queryRunner.manager.create(ProcurementIssue, { issue }),
           );
         }
-        if (value.procurementItems) {
+        if (body.procurementItems) {
           const existingItems = issue.procurement.items ?? [];
 
           // 삭제 처리
           const toRemove = existingItems.filter(
-            (e) => !value.procurementItems.some((dto) => dto.id === e.id),
+            (e) => !body.procurementItems.some((dto) => dto.id === e.id),
           );
           if (toRemove.length) {
             await queryRunner.manager.remove(toRemove);
           }
 
           const items = await Promise.all(
-            value.procurementItems.map(async (dto) => {
+            body.procurementItems.map(async (dto) => {
               if (dto.id) {
                 const existing = existingItems.find((e) => e.id === dto.id);
                 if (existing) {
@@ -820,7 +830,7 @@ export class IssueService {
       }
 
       // 4️⃣ contractItems (독립 컬렉션) 업데이트
-      if (value.contractItems) {
+      if (body.contractItems) {
         const existingItems = await queryRunner.manager.find(
           ContractIssueItem,
           {
@@ -829,11 +839,11 @@ export class IssueService {
         );
 
         const toRemove = existingItems.filter(
-          (e) => !value.contractItems.some((dto) => dto.id === e.id),
+          (e) => !body.contractItems.some((dto) => dto.id === e.id),
         );
         if (toRemove.length) await queryRunner.manager.remove(toRemove);
 
-        const items = value.contractItems.map((dto) => {
+        const items = body.contractItems.map((dto) => {
           if (dto.id) {
             const existing = existingItems.find((e) => e.id === dto.id);
             if (existing) {
@@ -853,7 +863,7 @@ export class IssueService {
       }
 
       // 5️⃣ transactionItems (독립 컬렉션) 업데이트
-      if (value.transactionItems) {
+      if (body.transactionItems) {
         const existingItems = await queryRunner.manager.find(
           TransactionIssueItem,
           {
@@ -862,12 +872,12 @@ export class IssueService {
         );
 
         const toRemove = existingItems.filter(
-          (e) => !value.transactionItems.some((dto) => dto.id === e.id),
+          (e) => !body.transactionItems.some((dto) => dto.id === e.id),
         );
         if (toRemove.length) await queryRunner.manager.remove(toRemove);
 
         const items = await Promise.all(
-          value.transactionItems.map(async (dto) => {
+          body.transactionItems.map(async (dto) => {
             const category = await queryRunner.manager.findOne(
               TransactionIssueItemCategory,
               { where: { id: dto.categoryId } },

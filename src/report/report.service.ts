@@ -1203,12 +1203,13 @@ export class ReportService {
 
       // --- attachments 처리 ---
       if (body.attachments) {
-        const oldAttachments = report.attachments || [];
+        const oldAttachments = report.attachments ?? [];
+
         const toRemove = oldAttachments.filter(
-          (oldAtt) =>
-            !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
+          (old) => !body.attachments.some((dto) => dto.id === old.id),
         );
 
+        // 🔥 파일 시스템 삭제
         for (const att of toRemove) {
           try {
             await this.sftpService.deleteFileByPath(att.path);
@@ -1217,27 +1218,16 @@ export class ReportService {
           }
         }
 
-        if (toRemove.length > 0) {
-          await queryRunner.manager.remove(ReportAttachment, toRemove);
-        }
-
-        const remainingAttachments = oldAttachments.filter(
-          (att) => !toRemove.includes(att),
+        // 2️⃣ 관계만 재설정 (DB orphan 삭제는 자동)
+        report.attachments = body.attachments.map((dto) =>
+          queryRunner.manager.create(ReportAttachment, {
+            id: dto.id,
+            filename: dto.filename,
+            path: dto.path,
+            size: dto.size,
+            report,
+          }),
         );
-        const newAttachments = body.attachments
-          .filter(
-            (att) => !report.attachments?.some((old) => old.id === att.id),
-          )
-          .map((att) =>
-            queryRunner.manager.create(ReportAttachment, {
-              filename: att.filename,
-              path: att.path,
-              size: att.size,
-              report: report,
-            }),
-          );
-
-        report.attachments = [...remainingAttachments, ...newAttachments];
       }
 
       let trip = report.trip;
