@@ -1406,6 +1406,10 @@ export class ReportService {
           }
         }
 
+        if (toRemove.length) {
+          await queryRunner.manager.remove(ReportAttachment, toRemove);
+        }
+
         // 2️⃣ 관계만 재설정 (DB orphan 삭제는 자동)
         report.attachments = body.attachments.map((dto) =>
           queryRunner.manager.create(ReportAttachment, {
