@@ -44,7 +44,8 @@ export class Issue {
   content: string;
 
   @OneToMany(() => IssueAttachment, (attachment) => attachment.issue, {
-    eager: false,
+    cascade: true,
+    orphanedRowAction: 'delete',
   })
   attachments: IssueAttachment[];
 
