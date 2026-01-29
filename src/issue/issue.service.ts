@@ -663,18 +663,22 @@ export class IssueService {
 
     try {
       // Issue 조회 (relations 포함)
-      let issue = await queryRunner.manager.findOne(Issue, {
+      const issue = await queryRunner.manager.findOne(Issue, {
         where: { id },
         relations: [
-          'project',
-          'category',
           'user',
+          'category',
           'attachments',
+          'contract',
+          'contract.items',
+          'kickoff',
+          'approval',
           'procurement',
           'procurement.items',
-          'contract',
-          'kickoff',
           'transaction',
+          'transaction.items',
+          'declaration',
+          'payment',
         ],
       });
 
