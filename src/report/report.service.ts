@@ -41,7 +41,6 @@ import { TripStep } from 'src/entity/report/trip/trip-step.entity';
 import { TripCategoryDto } from './dto/trip/trip-category';
 import { TripStepDto } from './dto/trip/trip-step';
 import { TripRegulationDto } from './dto/trip/trip-regulation';
-import { TripCalculationsDto } from './dto/trip/trip-calculations';
 import { ReportAttachment } from 'src/entity/report/report-attachment.entity';
 import { extractImages } from 'src/common/utils/markdown.util';
 import { SftpService } from 'src/sftp/sftp.service';
@@ -372,92 +371,94 @@ export class ReportService {
 
         worksheet.getCell('H25').value = localTransportationCost;
 
-        const ulsanAccommodationExpenses = report.trip.expenses.filter(
+        const ulsanAccomodationExpenses = report.trip.expenses.filter(
           (expense) => expense.step.id == 7,
         );
-        const ulsanAccommodationRate = report.trip.rates.find(
+        const ulsanAccomodationRate = report.trip.rates.find(
           (rate) => rate.step.id == 7,
         ) ?? { rate: 0, days: 0 };
-        const totalUlsanAccommodationRate =
-          ulsanAccommodationRate.rate * ulsanAccommodationRate.days;
-        const totalUlsanAccomadationExpenses =
-          ulsanAccommodationExpenses.reduce((sum, expense) => {
+        const totalUlsanAccomodationRate =
+          ulsanAccomodationRate.rate * ulsanAccomodationRate.days;
+        const totalUlsanAccomadationExpenses = ulsanAccomodationExpenses.reduce(
+          (sum, expense) => {
             return sum + expense.price;
-          }, 0);
-        const ulsanAccommodationDetails = ulsanAccommodationExpenses
+          },
+          0,
+        );
+        const ulsanAccomodationDetails = ulsanAccomodationExpenses
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
-        worksheet.getCell('E26').value = ulsanAccommodationRate.rate;
-        worksheet.getCell('F26').value = ulsanAccommodationRate.days;
-        worksheet.getCell('G26').value = totalUlsanAccommodationRate;
+        worksheet.getCell('E26').value = ulsanAccomodationRate.rate;
+        worksheet.getCell('F26').value = ulsanAccomodationRate.days;
+        worksheet.getCell('G26').value = totalUlsanAccomodationRate;
         worksheet.getCell('H26').value = totalUlsanAccomadationExpenses;
-        worksheet.getCell('I26').value = ulsanAccommodationDetails;
+        worksheet.getCell('I26').value = ulsanAccomodationDetails;
 
-        const notUlsanAccommodationExpenses = report.trip.expenses.filter(
+        const notUlsanAccomodationExpenses = report.trip.expenses.filter(
           (expense) => expense.step.id == 8,
         );
-        const notUlsanAccommodationRate = report.trip.rates.find(
+        const notUlsanAccomodationRate = report.trip.rates.find(
           (rate) => rate.step.id == 8,
         ) ?? { rate: 0, days: 0 };
-        const totalNotUlsanAccommodationRate =
-          notUlsanAccommodationRate.rate * notUlsanAccommodationRate.days;
-        const totalNotUlsanAccommodationExpenses =
-          notUlsanAccommodationExpenses.reduce((sum, expense) => {
+        const totalNotUlsanAccomodationRate =
+          notUlsanAccomodationRate.rate * notUlsanAccomodationRate.days;
+        const totalNotUlsanAccomodationExpenses =
+          notUlsanAccomodationExpenses.reduce((sum, expense) => {
             return sum + expense.price;
           }, 0);
-        const notUlsanAccommodationDetails = notUlsanAccommodationExpenses
+        const notUlsanAccomodationDetails = notUlsanAccomodationExpenses
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
-        worksheet.getCell('E27').value = notUlsanAccommodationRate.rate;
-        worksheet.getCell('F27').value = notUlsanAccommodationRate.days;
-        worksheet.getCell('G27').value = totalNotUlsanAccommodationRate;
-        worksheet.getCell('H27').value = totalNotUlsanAccommodationExpenses;
-        worksheet.getCell('I27').value = notUlsanAccommodationDetails;
+        worksheet.getCell('E27').value = notUlsanAccomodationRate.rate;
+        worksheet.getCell('F27').value = notUlsanAccomodationRate.days;
+        worksheet.getCell('G27').value = totalNotUlsanAccomodationRate;
+        worksheet.getCell('H27').value = totalNotUlsanAccomodationExpenses;
+        worksheet.getCell('I27').value = notUlsanAccomodationDetails;
 
-        const weekdayAccommodationExpenses = report.trip.expenses.filter(
+        const weekdayAccomodationExpenses = report.trip.expenses.filter(
           (expense) => expense.step.id == 9,
         );
-        const weekdayAccommodationRate = report.trip.rates.find(
+        const weekdayAccomodationRate = report.trip.rates.find(
           (rate) => rate.step.id == 9,
         ) ?? { rate: 0, days: 0 };
-        const totalWeekdayAccommodationRate =
-          weekdayAccommodationRate.rate * weekdayAccommodationRate.days;
+        const totalWeekdayAccomodationRate =
+          weekdayAccomodationRate.rate * weekdayAccomodationRate.days;
         const totalWeekdayAccomdationExpenses =
-          weekdayAccommodationExpenses.reduce((sum, expense) => {
+          weekdayAccomodationExpenses.reduce((sum, expense) => {
             return sum + expense.price;
           }, 0);
-        const weekdayAccomdationDetails = weekdayAccommodationExpenses
+        const weekdayAccomdationDetails = weekdayAccomodationExpenses
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
-        worksheet.getCell('E28').value = weekdayAccommodationRate.rate;
-        worksheet.getCell('F28').value = weekdayAccommodationRate.days;
-        worksheet.getCell('G28').value = totalWeekdayAccommodationRate;
+        worksheet.getCell('E28').value = weekdayAccomodationRate.rate;
+        worksheet.getCell('F28').value = weekdayAccomodationRate.days;
+        worksheet.getCell('G28').value = totalWeekdayAccomodationRate;
         worksheet.getCell('H28').value = totalWeekdayAccomdationExpenses;
         worksheet.getCell('I28').value = weekdayAccomdationDetails;
 
-        const accommodationRate =
-          totalUlsanAccommodationRate +
-          totalNotUlsanAccommodationRate +
-          totalWeekdayAccommodationRate;
+        const accomodationRate =
+          totalUlsanAccomodationRate +
+          totalNotUlsanAccomodationRate +
+          totalWeekdayAccomodationRate;
 
-        worksheet.getCell('G29').value = accommodationRate;
+        worksheet.getCell('G29').value = accomodationRate;
 
-        const accommodationCost =
+        const accomodationCost =
           totalUlsanAccomadationExpenses +
-          totalNotUlsanAccommodationExpenses +
+          totalNotUlsanAccomodationExpenses +
           totalWeekdayAccomdationExpenses;
 
-        worksheet.getCell('H29').value = accommodationCost;
+        worksheet.getCell('H29').value = accomodationCost;
 
-        const accommodationSettlement = accommodationRate - accommodationCost;
+        const accomodationSettlement = accomodationRate - accomodationCost;
 
-        worksheet.getCell('H30').value = accommodationSettlement;
+        worksheet.getCell('H30').value = accomodationSettlement;
 
         const weekdayDailyRate = report.trip.rates.find(
           (rate) => rate.step.id == 10,
@@ -539,10 +540,10 @@ export class ReportService {
         worksheet.getCell('H46').value =
           transportationCost +
           localTransportationCost +
-          accommodationRate +
+          accomodationRate +
           dailyRate +
           otherCost;
-        worksheet.getCell('H47').value = accommodationSettlement;
+        worksheet.getCell('H47').value = accomodationSettlement;
         worksheet.getCell('H48').value = dailyRate + totalPersonalFuel;
       } else {
         const today = new Date();
@@ -647,23 +648,23 @@ export class ReportService {
 
         worksheet.getCell('H27').value = localTransportationCost;
 
-        const accommodationExpenses = report.trip.expenses.filter(
+        const accomodationExpenses = report.trip.expenses.filter(
           (expense) => expense.step.id == 20,
         );
-        const totalAccommodation = accommodationExpenses.reduce(
+        const totalAccomodation = accomodationExpenses.reduce(
           (sum, expense) => {
             return sum + expense.price;
           },
           0,
         );
-        const accommodationDetails = accommodationExpenses
+        const accomodationDetails = accomodationExpenses
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
-        worksheet.getCell('H28').value = totalAccommodation;
-        worksheet.getCell('I28').value = accommodationDetails;
-        worksheet.getCell('H30').value = totalAccommodation;
+        worksheet.getCell('H28').value = totalAccomodation;
+        worksheet.getCell('I28').value = accomodationDetails;
+        worksheet.getCell('H30').value = totalAccomodation;
 
         const managerDailyRate = report.trip.rates.find(
           (rate) => rate.step.id === 21,
@@ -807,7 +808,7 @@ export class ReportService {
         worksheet.getCell('H48').value =
           transportationCost +
           localTransportationCost +
-          totalAccommodation +
+          totalAccomodation +
           totalDailyRate +
           otherCost;
       }
@@ -861,15 +862,6 @@ export class ReportService {
       ? await this.scheduleService.getSchedule(report.schedule.id)
       : null;
 
-    // 계산된 값들 추가
-    let calculations = null;
-    if (report.trip && schedule) {
-      const isDomestic = schedule.category.id === 1;
-      calculations = isDomestic
-        ? this.calculateDomesticTripCosts(report)
-        : await this.calculateOverseasTripCosts(report);
-    }
-
     const reportDto = plainToInstance(
       ReportDto,
       {
@@ -890,7 +882,6 @@ export class ReportService {
                   stepId: rate.step?.id,
                 })) ?? [],
               fuel: report.trip.fuel ?? null,
-              calculations,
             }
           : null,
       },
@@ -917,15 +908,6 @@ export class ReportService {
       ? await this.scheduleService.getSchedule(report.schedule.id)
       : null;
 
-    // 계산된 값들 추가
-    let calculations = null;
-    if (report.trip && schedule) {
-      const isDomestic = schedule.category.id === 1;
-      calculations = isDomestic
-        ? this.calculateDomesticTripCosts(report)
-        : await this.calculateOverseasTripCosts(report);
-    }
-
     const reportDto = plainToInstance(
       ReportDto,
       {
@@ -947,7 +929,6 @@ export class ReportService {
                   stepId: rate.step?.id,
                 })) ?? [],
               fuel: report.trip.fuel ?? null,
-              calculations,
             }
           : null,
       },
@@ -968,14 +949,6 @@ export class ReportService {
           ? await this.scheduleService.getSchedule(report.schedule.id)
           : null;
         const user = await this.userService.getUser(report.user.id);
-
-        let calculations = null;
-        if (report.trip && schedule) {
-          const isDomestic = schedule.category.id === 1;
-          calculations = isDomestic
-            ? this.calculateDomesticTripCosts(report)
-            : await this.calculateOverseasTripCosts(report);
-        }
 
         const reportDto = plainToInstance(
           ReportDto,
@@ -998,7 +971,6 @@ export class ReportService {
                       stepId: rate.step?.id,
                     })) ?? [],
                   fuel: report.trip.fuel ?? null,
-                  calculations: calculations,
                 }
               : null,
           },
@@ -1018,166 +990,6 @@ export class ReportService {
     });
 
     return reportListDto;
-  }
-
-  /** 권한 검증 후 trip 계산값 반환 */
-  async getTripCalculations(user: User, id: number) {
-    const report = await this.findReportById(id);
-
-    if (!report) throw new NotFoundException('report_not_found');
-    if (!report.trip) throw new NotFoundException('trip_data_not_found');
-    if (report.user.id !== user.id && !user.isAdmin)
-      throw new ForbiddenException('no_permission');
-
-    const schedule = report.schedule
-      ? await this.scheduleService.getSchedule(report.schedule.id)
-      : null;
-
-    if (!schedule) throw new NotFoundException('schedule_not_found');
-
-    const isDomestic = schedule.category.id === 1;
-    return isDomestic
-      ? this.calculateDomesticTripCosts(report)
-      : await this.calculateOverseasTripCosts(report);
-  }
-
-  /** 별도 메서드로 분리된 조회 엔드포인트들 */
-  async getDomesticTripCalculations(user: User, id: number) {
-    const calculations = await this.getTripCalculations(user, id);
-    const report = await this.findReportById(id);
-    const schedule = await this.scheduleService.getSchedule(report.schedule.id);
-
-    if (schedule.category.id !== 1) {
-      throw new ForbiddenException('not_domestic_trip');
-    }
-
-    return calculations;
-  }
-
-  async getOverseasTripCalculations(user: User, id: number) {
-    const calculations = await this.getTripCalculations(user, id);
-    const report = await this.findReportById(id);
-    const schedule = await this.scheduleService.getSchedule(report.schedule.id);
-
-    if (schedule.category.id === 1) {
-      throw new ForbiddenException('not_overseas_trip');
-    }
-
-    return calculations;
-  }
-
-  private async calculateOverseasTripCosts(report: Report) {
-    // 환율 조회
-    const today = new Date();
-    const exchange = await this.currencyService.getExchangeRate(
-      dayjs(today).format('YYYYMMDD'),
-    );
-
-    // 헬퍼 함수: stepIds로 지정된 항목들의 합계 계산
-    const sumExpensesByStepIds = (stepIds: number[]): number => {
-      return report.trip.expenses
-        .filter((expense) => stepIds.includes(expense.step.id))
-        .reduce((sum, expense) => sum + expense.price, 0);
-    };
-
-    // 교통비: step 14, 15, 16
-    const transportationCost = sumExpensesByStepIds([14, 15, 16]);
-
-    // 현지교통비: step 17, 18, 19
-    const localTransportCost = sumExpensesByStepIds([17, 18, 19]);
-
-    // 숙박비: step 20
-    const accommodation = sumExpensesByStepIds([20]);
-
-    // 일비 계산 (step 21, 22, 23)
-    const dailyRate = [21, 22, 23].reduce((sum, stepId) => {
-      const rate = report.trip.rates.find((r) => r.step.id === stepId);
-      return sum + (rate?.rate ?? 0) * (rate?.days ?? 0);
-    }, 0);
-
-    // 환율 적용 일비 (step 21~24 + 휴일 보정)
-    const deducted = report.trip.isDeducted ? 0.1 : 0.0;
-    const holidayRate = report.trip.rates.find((r) => r.step.id === 24);
-    const totalHolidayRate =
-      (holidayRate?.rate ?? 0) * (holidayRate?.days ?? 0);
-    const amountReceived = dailyRate * (1 - deducted) + totalHolidayRate;
-    const totalDailyRate = amountReceived * exchange;
-
-    // 기타 비용: step 25, 26, 27, 28, 29
-    const otherCost = sumExpensesByStepIds([25, 26, 27, 28, 29]);
-
-    // 총 비용
-    const totalCost =
-      transportationCost +
-      localTransportCost +
-      accommodation +
-      totalDailyRate +
-      otherCost;
-
-    return plainToInstance(
-      TripCalculationsDto,
-      {
-        totalCost,
-      },
-      { excludeExtraneousValues: true },
-    );
-  }
-
-  private calculateDomesticTripCosts(report: Report) {
-    // 헬퍼 함수: stepIds로 지정된 항목들의 합계 계산
-    const sumExpensesByStepIds = (stepIds: number[]): number => {
-      return report.trip.expenses
-        .filter((expense) => stepIds.includes(expense.step.id))
-        .reduce((sum, expense) => sum + expense.price, 0);
-    };
-
-    // 교통비: step 1, 2, 3
-    const transportationCost = sumExpensesByStepIds([1, 2, 3]);
-
-    // 현지교통비: step 4, 5, 6
-    const localTransportCost = sumExpensesByStepIds([4, 5, 6]);
-
-    // 숙박비 정산액 계산 (step 7, 8, 9)
-    const accommodationRate = [7, 8, 9].reduce((sum, stepId) => {
-      const rate = report.trip.rates.find((r) => r.step.id === stepId);
-      return sum + (rate?.rate ?? 0) * (rate?.days ?? 0);
-    }, 0);
-    const accommodationCost = sumExpensesByStepIds([7, 8, 9]);
-    const accommodationSettlement = accommodationRate - accommodationCost;
-
-    // 일비 (step 10, 11)
-    const dailyRate = [10, 11].reduce((sum, stepId) => {
-      const rate = report.trip.rates.find((r) => r.step.id === stepId);
-      return sum + (rate?.rate ?? 0) * (rate?.days ?? 0);
-    }, 0);
-
-    // 개인차량 유류비
-    const personalFuel = report.trip.fuel;
-    const totalPersonalFuel =
-      personalFuel?.mileage !== 0 && personalFuel?.mileage
-        ? personalFuel.rate * (personalFuel.distance / personalFuel.mileage)
-        : 0;
-
-    // 기타 비용: step 12, 13
-    const otherCost = sumExpensesByStepIds([12, 13]) + totalPersonalFuel;
-
-    // 총 비용
-    const totalCost =
-      transportationCost +
-      localTransportCost +
-      accommodationRate +
-      dailyRate +
-      otherCost;
-
-    return plainToInstance(
-      TripCalculationsDto,
-      {
-        totalCost,
-        taxableAmount: accommodationSettlement,
-        nonTaxableAmount: dailyRate + totalPersonalFuel,
-      },
-      { excludeExtraneousValues: true },
-    );
   }
 
   async sendMail(id: number) {
@@ -1391,13 +1203,12 @@ export class ReportService {
 
       // --- attachments 처리 ---
       if (body.attachments) {
-        const oldAttachments = report.attachments ?? [];
-
+        const oldAttachments = report.attachments || [];
         const toRemove = oldAttachments.filter(
-          (old) => !body.attachments.some((dto) => dto.id === old.id),
+          (oldAtt) =>
+            !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
         );
 
-        // 🔥 파일 시스템 삭제
         for (const att of toRemove) {
           try {
             await this.sftpService.deleteFileByPath(att.path);
@@ -1406,20 +1217,27 @@ export class ReportService {
           }
         }
 
-        if (toRemove.length) {
+        if (toRemove.length > 0) {
           await queryRunner.manager.remove(ReportAttachment, toRemove);
         }
 
-        // 2️⃣ 관계만 재설정 (DB orphan 삭제는 자동)
-        report.attachments = body.attachments.map((dto) =>
-          queryRunner.manager.create(ReportAttachment, {
-            id: dto.id,
-            filename: dto.filename,
-            path: dto.path,
-            size: dto.size,
-            report,
-          }),
+        const remainingAttachments = oldAttachments.filter(
+          (att) => !toRemove.includes(att),
         );
+        const newAttachments = body.attachments
+          .filter(
+            (att) => !report.attachments?.some((old) => old.id === att.id),
+          )
+          .map((att) =>
+            queryRunner.manager.create(ReportAttachment, {
+              filename: att.filename,
+              path: att.path,
+              size: att.size,
+              report: report,
+            }),
+          );
+
+        report.attachments = [...remainingAttachments, ...newAttachments];
       }
 
       let trip = report.trip;
