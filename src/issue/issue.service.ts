@@ -705,13 +705,12 @@ export class IssueService {
 
       // 2️⃣ attachments 업데이트
       if (body.attachments) {
-        const oldAttachments = issue.attachments ?? [];
-
+        const oldAttachments = issue.attachments || [];
         const toRemove = oldAttachments.filter(
-          (old) => !body.attachments.some((dto) => dto.id === old.id),
+          (oldAtt) =>
+            !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
         );
 
-        // 🔥 파일 시스템 삭제
         for (const att of toRemove) {
           try {
             await this.sftpService.deleteFileByPath(att.path);
@@ -720,16 +719,25 @@ export class IssueService {
           }
         }
 
-        // 2️⃣ 관계만 재설정 (DB orphan 삭제는 자동)
-        issue.attachments = body.attachments.map((dto) =>
-          queryRunner.manager.create(IssueAttachment, {
-            id: dto.id,
-            filename: dto.filename,
-            path: dto.path,
-            size: dto.size,
-            issue,
-          }),
+        if (toRemove.length > 0) {
+          await queryRunner.manager.remove(IssueAttachment, toRemove);
+        }
+
+        const remainingAttachments = oldAttachments.filter(
+          (att) => !toRemove.includes(att),
         );
+        const newAttachments = body.attachments
+          .filter((att) => !issue.attachments?.some((old) => old.id === att.id))
+          .map((att) =>
+            queryRunner.manager.create(IssueAttachment, {
+              filename: att.filename,
+              path: att.path,
+              size: att.size,
+              issue: issue,
+            }),
+          );
+
+        issue.attachments = [...remainingAttachments, ...newAttachments];
       }
 
       // 3️⃣ OneToOne 관계 생성 및 업데이트
