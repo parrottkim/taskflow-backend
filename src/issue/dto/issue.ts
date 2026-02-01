@@ -257,7 +257,7 @@ export class TransactionIssueDto extends IssueDto {
 
 export class PaymentIssueDto extends IssueDto {}
 
-export class DeclarationIssueDto extends IssueDto {}
+export class ApprovalIssueDto extends IssueDto {}
 
 export class ProcurementIssueDto extends IssueDto {
   @ApiProperty()

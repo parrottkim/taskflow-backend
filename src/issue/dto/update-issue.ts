@@ -59,12 +59,6 @@ export class UpdateIssueDto extends OmitType(PartialType(CreateIssueDto), [
   @IsNumber()
   id?: number;
 
-  @ApiProperty({ required: false, type: [IssueAttachmentDto] })
-  @ValidateNested({ each: true })
-  @Type(() => IssueAttachmentDto)
-  @IsOptional()
-  attachments?: IssueAttachmentDto[];
-
   @ApiProperty({ required: false, type: [UpdateContractIssueItemDto] })
   @ValidateNested({ each: true })
   @Type(() => UpdateContractIssueItemDto)
