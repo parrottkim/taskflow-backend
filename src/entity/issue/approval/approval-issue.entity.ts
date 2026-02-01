@@ -9,15 +9,15 @@ import {
 import { Issue } from '../issue.entity';
 
 @Entity()
-export class DeclarationIssue {
+export class ApprovalIssue {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @OneToOne(() => Issue, (issue) => issue.declaration)
+  @OneToOne(() => Issue, (issue) => issue.approval)
   @JoinColumn()
   issue: Issue;
 
-  @ManyToOne(() => Project, (project) => project.declarations)
+  @ManyToOne(() => Project, (project) => project.approvals)
   @JoinColumn()
   project: Project;
 }

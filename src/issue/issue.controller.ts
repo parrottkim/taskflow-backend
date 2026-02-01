@@ -28,6 +28,19 @@ export class IssueController {
   constructor(private readonly issueService: IssueService) {}
 
   @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '카테고리 가져오기' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: IssueCategoryDto,
+  })
+  @Get('categories/:id')
+  async getCategory(@Param('id', ParseIntPipe) id: number) {
+    return this.issueService.getCategory(id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '전체 카테고리 조회' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -151,9 +164,9 @@ export class IssueController {
     description: 'Successful response',
     type: LatestIssueDto,
   })
-  @Get('declaration')
-  getDeclarationIssues(@Query() query: GetIssuesDto) {
-    return this.issueService.getDeclarationIssues(query);
+  @Get('approval')
+  getApprovalIssues(@Query() query: GetIssuesDto) {
+    return this.issueService.getApprovalIssues(query);
   }
 
   @UseGuards(JwtAccessAuthGuard)

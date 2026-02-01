@@ -17,7 +17,7 @@ import { ProcurementIssueItem } from 'src/entity/issue/procurement/procurement-i
 import { ProcurementIssue } from 'src/entity/issue/procurement/procurement-issue.entity';
 import { TransactionIssue } from 'src/entity/issue/transaction/transaction-issue.entity';
 import { KickoffIssue } from 'src/entity/issue/kickoff/kickoff-issue.entity';
-import { DeclarationIssue } from 'src/entity/issue/declaration/declaration-issue.entity';
+import { ApprovalIssue } from 'src/entity/issue/approval/approval-issue.entity';
 import { PaymentIssue } from 'src/entity/issue/payment/payment-issue.entity';
 import { Project } from 'src/entity/project/project.entity';
 import { MailService } from 'src/mail/mail.service';
@@ -29,7 +29,7 @@ import { GetLatestIssuesDto } from './dto/get-latest-issues';
 import {
   ContractIssueDto,
   ContractIssueItemDto,
-  DeclarationIssueDto,
+  ApprovalIssueDto,
   IssueDto,
   IssueListDto,
   KickoffIssueDto,
@@ -84,7 +84,7 @@ export class IssueService {
     const dtoMap = {
       1: ContractIssueDto,
       2: KickoffIssueDto,
-      3: DeclarationIssueDto,
+      3: ApprovalIssueDto,
       4: ProcurementIssueDto,
       5: TransactionIssueDto,
       6: PaymentIssueDto,
@@ -117,6 +117,22 @@ export class IssueService {
     return plainToInstance(DtoClass, payload, {
       excludeExtraneousValues: true,
     });
+  }
+
+  async getCategory(id: number) {
+    const category = await this.issueCategoryRepository.findOne({
+      where: { id },
+    });
+
+    if (!category) {
+      throw new NotFoundException('category_not_found');
+    }
+
+    const categoryDto = plainToInstance(IssueCategoryDto, category, {
+      excludeExtraneousValues: true,
+    });
+
+    return categoryDto;
   }
 
   async getAllCategories() {
@@ -321,7 +337,7 @@ export class IssueService {
     return issueDto;
   }
 
-  async getDeclarationIssues(value: GetIssuesDto) {
+  async getApprovalIssues(value: GetIssuesDto) {
     const [issues, total] = await this.issueRepository
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
@@ -330,14 +346,14 @@ export class IssueService {
       .leftJoinAndSelect('user.position', 'position')
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('issue.attachments', 'attachments')
-      .innerJoinAndSelect('issue.declaration', 'declaration')
+      .innerJoinAndSelect('issue.approval', 'approval')
       .where('project.id = :id', { id: value.projectId })
       .orderBy('issue.createdAt', 'DESC')
       .skip((value.page - 1) * value.limit)
       .take(value.limit)
       .getManyAndCount();
 
-    const items = plainToInstance(DeclarationIssueDto, issues, {
+    const items = plainToInstance(ApprovalIssueDto, issues, {
       excludeExtraneousValues: true,
     });
 
@@ -551,12 +567,12 @@ export class IssueService {
         }
         case 3: {
           // DECLARATION
-          const declaration = queryRunner.manager.create(DeclarationIssue, {
+          const approval = queryRunner.manager.create(ApprovalIssue, {
             issue: savedIssue,
             project,
           });
-          const savedDeclaration = await queryRunner.manager.save(declaration);
-          savedIssue.declaration = savedDeclaration;
+          const savedApproval = await queryRunner.manager.save(approval);
+          savedIssue.approval = savedApproval;
           break;
         }
         case 4: {
@@ -666,18 +682,17 @@ export class IssueService {
       const issue = await queryRunner.manager.findOne(Issue, {
         where: { id },
         relations: [
+          'project',
           'user',
           'category',
           'attachments',
           'contract',
-          'contract.items',
           'kickoff',
           'approval',
           'procurement',
           'procurement.items',
           'transaction',
-          'transaction.items',
-          'declaration',
+          'approval',
           'payment',
         ],
       });
