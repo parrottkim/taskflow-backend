@@ -207,11 +207,11 @@ export class ProjectService {
     return contractCount + transactionCount + kickoffCount + paymentCount;
   }
 
-  async countDeclarationsById(id: number) {
+  async countApprovalsById(id: number) {
     return await this.issueRepository
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
-      .innerJoinAndSelect('issue.declaration', 'declaration')
+      .innerJoinAndSelect('issue.approval', 'approval')
       .where('project.id = :id', { id })
       .getCount();
   }
@@ -349,13 +349,13 @@ export class ProjectService {
 
   async getProjectItemCount(id: number) {
     const contracts = await this.countContractsById(id);
-    const declarations = await this.countDeclarationsById(id);
+    const approvals = await this.countApprovalsById(id);
     const procurements = await this.countProcurementsById(id);
     const reports = await this.countReportsById(id);
 
     const countDto = plainToInstance(ProjectItemCountDto, {
       contracts,
-      declarations,
+      approvals,
       procurements,
       reports,
     });

@@ -11,6 +11,7 @@ import {
   IsBoolean,
   ValidateIf,
 } from 'class-validator';
+import { IssueAttachmentDto } from './issue-attachment';
 
 export class CreateContractIssueItemDto {
   @ApiProperty()
@@ -197,4 +198,9 @@ export class CreateIssueDto {
   @Type(() => CreateProcurementIssueItemDto)
   @IsOptional()
   procurementItems?: CreateProcurementIssueItemDto[];
+
+  @ApiProperty({ type: [IssueAttachmentDto], description: '첨부 파일 목록' })
+  @ValidateNested({ each: true })
+  @Type(() => IssueAttachmentDto)
+  attachments: IssueAttachmentDto[];
 }

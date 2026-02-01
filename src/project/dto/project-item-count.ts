@@ -8,7 +8,7 @@ export class ProjectItemCountDto {
 
   @ApiProperty()
   @IsNumber()
-  declarations: number;
+  approvals: number;
 
   @ApiProperty()
   @IsNumber()

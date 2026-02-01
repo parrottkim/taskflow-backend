@@ -21,7 +21,7 @@ import { ContractIssue } from './contract/contract-issue.entity';
 import { TransactionIssue } from './transaction/transaction-issue.entity';
 import { PaymentIssue } from './payment/payment-issue.entity';
 import { Currency } from '../currency/currency.entity';
-import { DeclarationIssue } from './declaration/declaration-issue.entity';
+import { ApprovalIssue } from './approval/approval-issue.entity';
 import { Project } from '../project/project.entity';
 
 @Entity()
@@ -73,8 +73,8 @@ export class Issue {
   @OneToOne(() => PaymentIssue, (payment) => payment.issue)
   payment?: PaymentIssue;
 
-  @OneToOne(() => DeclarationIssue, (declaration) => declaration.issue)
-  declaration?: DeclarationIssue;
+  @OneToOne(() => ApprovalIssue, (approval) => approval.issue)
+  approval?: ApprovalIssue;
 
   @OneToOne(() => ProcurementIssue, (procurement) => procurement.issue)
   procurement?: ProcurementIssue;

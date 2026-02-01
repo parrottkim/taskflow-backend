@@ -20,7 +20,7 @@ import { Module } from '@nestjs/common';
 import { MailModule } from 'src/mail/mail.module';
 import { ProjectClientModule } from 'src/project/project-client.module';
 import { PaymentIssue } from 'src/entity/issue/payment/payment-issue.entity';
-import { DeclarationIssue } from 'src/entity/issue/declaration/declaration-issue.entity';
+import { ApprovalIssue } from 'src/entity/issue/approval/approval-issue.entity';
 import { Supplier } from 'src/entity/supplier/supplier.entity';
 
 @Module({
@@ -34,7 +34,7 @@ import { Supplier } from 'src/entity/supplier/supplier.entity';
       ContractIssue,
       TransactionIssue,
       PaymentIssue,
-      DeclarationIssue,
+      ApprovalIssue,
       ProcurementIssue,
       ProcurementIssueItem,
       IssueCategory,

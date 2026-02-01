@@ -22,7 +22,7 @@ export class IssueCategoryDto {
       case 2:
         return 'kickoff';
       case 3:
-        return 'declaration';
+        return 'approval';
       case 4:
         return 'procurement';
       case 5:
