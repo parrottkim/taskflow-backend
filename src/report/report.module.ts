@@ -10,6 +10,7 @@ import { TripRegulationRate } from 'src/entity/report/trip/trip-regulation-rate.
 import { TripRegulation } from 'src/entity/report/trip/trip-regulation.entity';
 import { TripReport } from 'src/entity/report/trip/trip-report.entity';
 import { TripStep } from 'src/entity/report/trip/trip-step.entity';
+import { TripExchangeRate } from 'src/entity/report/trip/trip-exchange-rate.entity';
 import { UserModule } from 'src/user/user.module';
 import { ReportService } from './report.service';
 import { ScheduleModule } from 'src/schedule/schedule.module';
@@ -29,6 +30,7 @@ import { ProjectModule } from 'src/project/project.module';
       TripRegulationRate,
       TripFuelExpense,
       TripRegulation,
+      TripExchangeRate,
     ]),
     ProjectModule,
     ScheduleModule,
