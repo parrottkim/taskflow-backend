@@ -1312,6 +1312,15 @@ export class ReportService {
 
       await queryRunner.commitTransaction();
 
+      // 계산된 값들 추가
+      let calculations = null;
+      if (saved.trip && schedule) {
+        const isDomestic = schedule.category.id === 1;
+        calculations = isDomestic
+          ? this.calculateDomesticTripCosts(saved)
+          : await this.calculateOverseasTripCosts(saved);
+      }
+
       const reportDto = plainToInstance(
         ReportDto,
         {
@@ -1333,6 +1342,7 @@ export class ReportService {
                   saved.trip.rates?.map((r) => ({ ...r, stepId: r.step.id })) ??
                   [],
                 fuel: saved.trip.fuel,
+                calculations,
               }
             : null,
         },
@@ -1552,6 +1562,15 @@ export class ReportService {
         ? await this.scheduleService.getSchedule(saved.schedule.id)
         : null;
 
+      // 계산된 값들 추가
+      let calculations = null;
+      if (saved.trip && schedule) {
+        const isDomestic = schedule.category.id === 1;
+        calculations = isDomestic
+          ? this.calculateDomesticTripCosts(saved)
+          : await this.calculateOverseasTripCosts(saved);
+      }
+
       const reportDto = plainToInstance(
         ReportDto,
         {
@@ -1571,6 +1590,7 @@ export class ReportService {
                   saved.trip.rates?.map((r) => ({ ...r, stepId: r.step.id })) ??
                   [],
                 fuel: saved.trip.fuel,
+                calculations,
               }
             : null,
         },
