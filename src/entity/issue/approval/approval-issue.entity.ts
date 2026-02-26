@@ -1,10 +1,13 @@
 import { Project } from 'src/entity/project/project.entity';
 import {
+  CreateDateColumn,
+  DeleteDateColumn,
   Entity,
   JoinColumn,
   ManyToOne,
   OneToOne,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { Issue } from '../issue.entity';
 
@@ -20,4 +23,13 @@ export class ApprovalIssue {
   @ManyToOne(() => Project, (project) => project.approvals)
   @JoinColumn()
   project: Project;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt?: Date;
 }

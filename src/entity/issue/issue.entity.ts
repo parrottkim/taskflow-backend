@@ -2,7 +2,6 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   ManyToOne,
-  JoinColumn,
   Column,
   OneToMany,
   OneToOne,
@@ -11,16 +10,14 @@ import {
   DeleteDateColumn,
 } from 'typeorm';
 import { User } from '../user/user.entity';
-import { ContractIssueItem } from './contract/contract-issue-item.entity';
 import { IssueAttachment } from './issue-attachment.entity';
 import { IssueCategory } from './issue-category.entity';
-import { TransactionIssueItem } from './transaction/transaction-issue-item.entity';
 import { ProcurementIssue } from './procurement/procurement-issue.entity';
 import { KickoffIssue } from './kickoff/kickoff-issue.entity';
 import { ContractIssue } from './contract/contract-issue.entity';
 import { TransactionIssue } from './transaction/transaction-issue.entity';
 import { PaymentIssue } from './payment/payment-issue.entity';
-import { Currency } from '../currency/currency.entity';
+
 import { ApprovalIssue } from './approval/approval-issue.entity';
 import { Project } from '../project/project.entity';
 
@@ -57,9 +54,6 @@ export class Issue {
 
   @DeleteDateColumn()
   deletedAt?: Date;
-
-  @ManyToOne(() => Currency, (currency) => currency.issues)
-  currency: Currency;
 
   @OneToOne(() => KickoffIssue, (detail) => detail.issue)
   kickoff?: KickoffIssue;

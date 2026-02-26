@@ -12,147 +12,14 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { IssueAttachmentDto } from './issue-attachment';
+import {
+  CreateContractIssueItemDto,
+  CreateTransactionIssueItemDto,
+  CreateProcurementIssueItemDto,
+} from './create-issue-item';
+import { UpdateTransactionIssueItemDto } from './update-issue-item';
 
-export class CreateContractIssueItemDto {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  item: string;
-
-  @ApiProperty()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return parseInt(value.replace(/,/g, ''), 10);
-    }
-    return value;
-  })
-  @IsInt()
-  @IsNotEmpty()
-  @Min(0)
-  price: number;
-}
-
-// Procurement
-export class CreateProcurementIssueItemDto {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  item: string;
-
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  spec: string;
-
-  @ApiProperty()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return parseInt(value.replace(/,/g, ''), 10);
-    }
-    return value;
-  })
-  @IsInt()
-  @IsNotEmpty()
-  quantity: number;
-
-  @ApiProperty()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return parseInt(value.replace(/,/g, ''), 10);
-    }
-    return value;
-  })
-  @IsInt()
-  @IsNotEmpty()
-  unitPrice: number;
-
-  @ApiProperty()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return parseInt(value.replace(/,/g, ''), 10);
-    }
-    return value;
-  })
-  @IsInt()
-  @IsNotEmpty()
-  totalAmount: number;
-
-  @ApiProperty()
-  @IsBoolean()
-  @Type(() => Boolean)
-  isOnlinePurchase: boolean = false;
-
-  @ApiProperty()
-  @ValidateIf((o) => o.isOnlinePurchase)
-  @IsString()
-  @IsNotEmpty()
-  purchaseUrl?: string;
-
-  @ApiProperty()
-  @Type(() => Number)
-  @ValidateIf((o) => !o.isOnlinePurchase)
-  @IsInt()
-  @IsNotEmpty()
-  supplierId?: number;
-}
-
-export class CreateProcurementIssueDto {
-  @ApiProperty()
-  @ValidateNested({ each: true })
-  @Type(() => CreateProcurementIssueItemDto)
-  @IsOptional()
-  items?: CreateProcurementIssueItemDto[];
-}
-
-export class CreateTransactionIssueItemDto {
-  @ApiProperty()
-  @Type(() => Number)
-  @IsInt()
-  @IsNotEmpty()
-  categoryId: number;
-
-  @ApiProperty()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return parseInt(value.replace(/,/g, ''), 10);
-    }
-    return value;
-  })
-  @IsInt()
-  @IsNotEmpty()
-  @Min(0)
-  price: number;
-
-  @ApiProperty()
-  @IsString()
-  @IsOptional()
-  note?: string;
-
-  @ApiProperty()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return parseInt(value.replace(/,/g, ''), 10);
-    }
-    return value;
-  })
-  @IsInt()
-  @Min(0)
-  @IsOptional()
-  ratio?: number;
-
-  @ApiProperty()
-  @IsBoolean()
-  @IsOptional()
-  isPaid?: boolean;
-
-  @ApiProperty()
-  @IsOptional()
-  @IsString()
-  paidAt?: string;
-}
-
-// 공통 Issue 생성 DTO
-export class CreateIssueDto {
+export class CreateContractIssueDto {
   @ApiProperty()
   @Type(() => Number)
   @IsInt()
@@ -167,37 +34,164 @@ export class CreateIssueDto {
 
   @ApiProperty()
   @IsString()
-  @IsOptional()
-  content?: string;
+  @IsNotEmpty()
+  content: string;
 
   @ApiProperty()
+  @Type(() => Number)
   @IsInt()
-  @IsOptional()
-  currencyId?: number;
-
-  @ApiProperty()
-  @IsOptional()
-  @IsDate()
-  @Type(() => Date)
-  kickoffDate?: Date;
+  @IsNotEmpty()
+  currencyId: number;
 
   @ApiProperty()
   @ValidateNested({ each: true })
   @Type(() => CreateContractIssueItemDto)
-  @IsOptional()
-  contractItems?: CreateContractIssueItemDto[];
+  @IsNotEmpty()
+  contractItems: CreateContractIssueItemDto[];
 
   @ApiProperty()
   @ValidateNested({ each: true })
   @Type(() => CreateTransactionIssueItemDto)
-  @IsOptional()
-  transactionItems?: CreateTransactionIssueItemDto[];
+  @IsNotEmpty()
+  transactionItems: CreateTransactionIssueItemDto[];
+
+  @ApiProperty({ type: [IssueAttachmentDto], description: '첨부 파일 목록' })
+  @ValidateNested({ each: true })
+  @Type(() => IssueAttachmentDto)
+  attachments: IssueAttachmentDto[];
+}
+
+export class CreateKickoffIssueDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  projectId: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  categoryId: number;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  content: string;
+
+  @ApiProperty()
+  @Type(() => Date)
+  @IsDate()
+  @IsNotEmpty()
+  kickoffDate: Date;
+
+  @ApiProperty({ type: [IssueAttachmentDto], description: '첨부 파일 목록' })
+  @ValidateNested({ each: true })
+  @Type(() => IssueAttachmentDto)
+  attachments: IssueAttachmentDto[];
+}
+
+export class CreateApprovalIssueDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  projectId: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  categoryId: number;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  content: string;
+
+  @ApiProperty({ type: [IssueAttachmentDto], description: '첨부 파일 목록' })
+  @ValidateNested({ each: true })
+  @Type(() => IssueAttachmentDto)
+  attachments: IssueAttachmentDto[];
+}
+
+export class CreateProcurementIssueDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  projectId: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  categoryId: number;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  content: string;
 
   @ApiProperty()
   @ValidateNested({ each: true })
   @Type(() => CreateProcurementIssueItemDto)
-  @IsOptional()
-  procurementItems?: CreateProcurementIssueItemDto[];
+  @IsNotEmpty()
+  procurementItems: CreateProcurementIssueItemDto[];
+
+  @ApiProperty({ type: [IssueAttachmentDto], description: '첨부 파일 목록' })
+  @ValidateNested({ each: true })
+  @Type(() => IssueAttachmentDto)
+  attachments: IssueAttachmentDto[];
+}
+
+export class CreateTransactionIssueDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  projectId: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  categoryId: number;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  content: string;
+
+  @ApiProperty()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateTransactionIssueItemDto)
+  @IsNotEmpty()
+  transactionItems: UpdateTransactionIssueItemDto[];
+
+  @ApiProperty({ type: [IssueAttachmentDto], description: '첨부 파일 목록' })
+  @ValidateNested({ each: true })
+  @Type(() => IssueAttachmentDto)
+  attachments: IssueAttachmentDto[];
+}
+
+export class CreatePaymentIssueDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  projectId: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  categoryId: number;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  content: string;
 
   @ApiProperty({ type: [IssueAttachmentDto], description: '첨부 파일 목록' })
   @ValidateNested({ each: true })

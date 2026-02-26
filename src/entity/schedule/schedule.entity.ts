@@ -3,7 +3,10 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  Index,
+  JoinColumn,
   ManyToOne,
+  OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -27,8 +30,10 @@ export class Schedule {
   @ManyToOne(() => Project, (project) => project.schedules)
   project: Project;
 
-  @OneToOne(() => Report, (report) => report.schedule)
-  report: Report;
+  @OneToMany(() => Report, (report) => report.schedule, {
+    nullable: true,
+  })
+  reports: Report[];
 
   @ManyToOne(() => User, (user) => user.schedules)
   user: User;

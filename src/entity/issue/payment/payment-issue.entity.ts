@@ -1,14 +1,22 @@
 import { Issue } from 'src/entity/issue/issue.entity';
 import { Project } from 'src/entity/project/project.entity';
 import {
+  CreateDateColumn,
+  DeleteDateColumn,
   Entity,
   JoinColumn,
-  ManyToOne,
   OneToOne,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
 } from 'typeorm';
 
 @Entity()
+@Index(['project'], {
+  unique: true,
+  where: '"deleted_at" IS NULL',
+})
 export class PaymentIssue {
   @PrimaryGeneratedColumn()
   id: number;
@@ -17,7 +25,16 @@ export class PaymentIssue {
   @JoinColumn()
   issue: Issue;
 
-  @ManyToOne(() => Project, (project) => project.payment)
+  @ManyToOne(() => Project, (project) => project.payments)
   @JoinColumn()
   project: Project;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt?: Date;
 }

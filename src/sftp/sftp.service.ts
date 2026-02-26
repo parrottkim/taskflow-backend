@@ -104,6 +104,27 @@ export class SftpService {
     });
   }
 
+  async archiveFileByPath(path: string) {
+    return this.withSftp(async (sftp) => {
+      const exists = await sftp.exists(path);
+      if (exists) {
+        const timestamp = Date.now();
+        const archivedPath = `${this.configService.sftp.path}/archived/${timestamp}/${path.split('/').pop()}`;
+
+        // archived 폴더 생성
+        const archiveDir = `${this.configService.sftp.path}/archived/${timestamp}`;
+        try {
+          await sftp.mkdir(archiveDir, true);
+        } catch (e) {
+          // 폴더가 이미 있으면 무시
+        }
+
+        // 파일 이동
+        await sftp.rename(path, archivedPath);
+      }
+    });
+  }
+
   private getExtension(filename: string): string {
     const parts = filename.split('.');
     return parts.length > 1 ? parts.pop() : '';

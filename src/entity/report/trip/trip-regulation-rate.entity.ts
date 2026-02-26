@@ -1,5 +1,13 @@
 import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
-import { Entity, PrimaryGeneratedColumn, ManyToOne, Column } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+} from 'typeorm';
 import { TripReport } from './trip-report.entity';
 import { TripStep } from './trip-step.entity';
 
@@ -26,4 +34,13 @@ export class TripRegulationRate {
 
   @Column({ nullable: true })
   details?: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt?: Date;
 }

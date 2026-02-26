@@ -5,6 +5,9 @@ import {
   OneToOne,
   Entity,
   JoinColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 import { TripReport } from './trip-report.entity';
 
@@ -33,4 +36,13 @@ export class TripFuelExpense {
 
   @Column()
   distance: number;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt?: Date;
 }
