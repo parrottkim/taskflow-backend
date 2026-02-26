@@ -1,79 +1,68 @@
 import { ApiProperty, OmitType, PartialType } from '@nestjs/swagger';
-import { IsOptional, IsNumber, IsString } from 'class-validator';
-import { ValidateNested } from 'class-validator';
+import {
+  CreateContractIssueDto,
+  CreateKickoffIssueDto,
+  CreateApprovalIssueDto,
+  CreateProcurementIssueDto,
+  CreateTransactionIssueDto,
+  CreatePaymentIssueDto,
+} from './create-issue';
 import { Type } from 'class-transformer';
 import {
-  CreateContractIssueItemDto,
-  CreateProcurementIssueDto,
-  CreateProcurementIssueItemDto,
-  CreateTransactionIssueItemDto,
-  CreateIssueDto,
-} from './create-issue';
-import { IssueAttachmentDto } from './issue-attachment';
+  IsOptional,
+  IsNumber,
+  ValidateNested,
+  IsNotEmpty,
+} from 'class-validator';
+import {
+  UpdateContractIssueItemDto,
+  UpdateTransactionIssueItemDto,
+  UpdateProcurementIssueItemDto,
+} from './update-issue-item';
 
-export class UpdateContractIssueItemDto extends PartialType(
-  CreateContractIssueItemDto,
+export class UpdateContractIssueDto extends OmitType(
+  PartialType(CreateContractIssueDto),
+  ['contractItems', 'transactionItems'],
 ) {
-  @ApiProperty()
-  @IsOptional()
-  @IsNumber()
-  id?: number;
-}
-
-// Procurement
-export class UpdateProcurementIssueDto extends PartialType(
-  CreateProcurementIssueDto,
-) {
-  @ApiProperty()
-  @IsOptional()
-  @IsNumber()
-  id?: number;
-}
-
-export class UpdateProcurementIssueItemDto extends PartialType(
-  CreateProcurementIssueItemDto,
-) {
-  @ApiProperty()
-  @IsOptional()
-  @IsNumber()
-  id?: number;
-}
-
-export class UpdateTransactionIssueItemDto extends PartialType(
-  CreateTransactionIssueItemDto,
-) {
-  @ApiProperty()
-  @IsOptional()
-  @IsNumber()
-  id?: number;
-}
-
-// 공통 Issue 수정 DTO
-export class UpdateIssueDto extends OmitType(PartialType(CreateIssueDto), [
-  'contractItems',
-  'transactionItems',
-  'procurementItems',
-]) {
-  @ApiProperty()
-  @IsOptional()
-  @IsNumber()
-  id?: number;
-
   @ApiProperty({ required: false, type: [UpdateContractIssueItemDto] })
   @ValidateNested({ each: true })
   @Type(() => UpdateContractIssueItemDto)
-  @IsOptional()
-  contractItems?: UpdateContractIssueItemDto[];
+  @IsNotEmpty()
+  contractItems: UpdateContractIssueItemDto[];
 
   @ApiProperty({ required: false, type: [UpdateTransactionIssueItemDto] })
   @ValidateNested({ each: true })
   @Type(() => UpdateTransactionIssueItemDto)
-  @IsOptional()
-  transactionItems?: UpdateTransactionIssueItemDto[];
+  @IsNotEmpty()
+  transactionItems: UpdateTransactionIssueItemDto[];
+}
 
+export class UpdateKickoffIssueDto extends PartialType(CreateKickoffIssueDto) {}
+
+export class UpdateApprovalIssueDto extends PartialType(
+  CreateApprovalIssueDto,
+) {}
+
+export class UpdateProcurementIssueDto extends OmitType(
+  PartialType(CreateProcurementIssueDto),
+  ['procurementItems'],
+) {
   @ApiProperty({ required: false, type: [UpdateProcurementIssueItemDto] })
   @ValidateNested({ each: true })
   @Type(() => UpdateProcurementIssueItemDto)
-  @IsOptional()
-  procurementItems?: UpdateProcurementIssueItemDto[];
+  @IsNotEmpty()
+  procurementItems: UpdateProcurementIssueItemDto[];
 }
+
+export class UpdateTransactionIssueDto extends OmitType(
+  PartialType(CreateTransactionIssueDto),
+  ['transactionItems'],
+) {
+  @ApiProperty({ required: false, type: [UpdateTransactionIssueItemDto] })
+  @ValidateNested({ each: true })
+  @Type(() => UpdateTransactionIssueItemDto)
+  @IsNotEmpty()
+  transactionItems: UpdateTransactionIssueItemDto[];
+}
+
+export class UpdatePaymentIssueDto extends PartialType(CreatePaymentIssueDto) {}

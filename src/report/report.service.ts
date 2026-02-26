@@ -866,7 +866,7 @@ export class ReportService {
     if (report.trip && schedule) {
       const isDomestic = schedule.category.id === 1;
       calculations = isDomestic
-        ? this.calculateDomesticTripCosts(report)
+        ? await this.calculateDomesticTripCosts(report)
         : await this.calculateOverseasTripCosts(report);
     }
 
@@ -922,7 +922,7 @@ export class ReportService {
     if (report.trip && schedule) {
       const isDomestic = schedule.category.id === 1;
       calculations = isDomestic
-        ? this.calculateDomesticTripCosts(report)
+        ? await this.calculateDomesticTripCosts(report)
         : await this.calculateOverseasTripCosts(report);
     }
 
@@ -973,7 +973,7 @@ export class ReportService {
         if (report.trip && schedule) {
           const isDomestic = schedule.category.id === 1;
           calculations = isDomestic
-            ? this.calculateDomesticTripCosts(report)
+            ? await this.calculateDomesticTripCosts(report)
             : await this.calculateOverseasTripCosts(report);
         }
 
@@ -1037,7 +1037,7 @@ export class ReportService {
 
     const isDomestic = schedule.category.id === 1;
     return isDomestic
-      ? this.calculateDomesticTripCosts(report)
+      ? await this.calculateDomesticTripCosts(report)
       : await this.calculateOverseasTripCosts(report);
   }
 
@@ -1123,7 +1123,7 @@ export class ReportService {
     );
   }
 
-  private calculateDomesticTripCosts(report: Report) {
+  private async calculateDomesticTripCosts(report: Report) {
     // 헬퍼 함수: stepIds로 지정된 항목들의 합계 계산
     const sumExpensesByStepIds = (stepIds: number[]): number => {
       return report.trip.expenses
@@ -1236,7 +1236,10 @@ export class ReportService {
 
       if (scheduleReference) {
         const existingReport = await queryRunner.manager.findOne(Report, {
-          where: { schedule: { id: body.scheduleId } },
+          where: {
+            schedule: { id: body.scheduleId },
+            deletedAt: null,
+          },
         });
 
         if (existingReport) {
@@ -1261,6 +1264,7 @@ export class ReportService {
         const savedTrip = await queryRunner.manager.save(trip);
 
         // 2-1. Expense 생성 (TripReport에 연결)
+        let savedExpenses: TripActualExpense[] = [];
         if (body.trip.expenses) {
           const expenseEntities = body.trip.expenses.map(
             (expenseDto: CreateActualExpenseDto) => {
@@ -1272,11 +1276,11 @@ export class ReportService {
               return expense;
             },
           );
-          await queryRunner.manager.save(expenseEntities);
-          // savedTrip.expenses = savedExpenses; // DTO 반환 시 필요 없으면 생략 가능
+          savedExpenses = await queryRunner.manager.save(expenseEntities);
         }
 
         // 2-2. Rate 생성 (TripReport에 연결)
+        let savedRates: TripRegulationRate[] = [];
         if (body.trip.rates) {
           const rateEntities = body.trip.rates.map(
             (rateDto: CreateRegulationRateDto) => {
@@ -1289,10 +1293,11 @@ export class ReportService {
               return rate;
             },
           );
-          await queryRunner.manager.save(rateEntities);
+          savedRates = await queryRunner.manager.save(rateEntities);
         }
 
         // 2-3. Fuel 생성 (TripReport에 연결)
+        let savedFuel: TripFuelExpense | null = null;
         if (body.trip.fuel) {
           const fuel = new TripFuelExpense();
           fuel.trip = savedTrip; // ⭐️ report 대신 trip에 연결
@@ -1300,8 +1305,13 @@ export class ReportService {
           fuel.mileage = body.trip.fuel.mileage;
           fuel.distance = body.trip.fuel.distance;
 
-          await queryRunner.manager.save(fuel);
+          savedFuel = await queryRunner.manager.save(fuel);
         }
+
+        // TripReport에 관계 데이터 attach
+        savedTrip.expenses = savedExpenses;
+        savedTrip.rates = savedRates;
+        savedTrip.fuel = savedFuel;
 
         saved.trip = savedTrip; // 최종 Report 객체에 연결
       }
@@ -1317,7 +1327,7 @@ export class ReportService {
       if (saved.trip && schedule) {
         const isDomestic = schedule.category.id === 1;
         calculations = isDomestic
-          ? this.calculateDomesticTripCosts(saved)
+          ? await this.calculateDomesticTripCosts(saved)
           : await this.calculateOverseasTripCosts(saved);
       }
 
@@ -1352,6 +1362,7 @@ export class ReportService {
 
       return reportDto;
     } catch (err) {
+      console.log(err);
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
@@ -1567,7 +1578,7 @@ export class ReportService {
       if (saved.trip && schedule) {
         const isDomestic = schedule.category.id === 1;
         calculations = isDomestic
-          ? this.calculateDomesticTripCosts(saved)
+          ? await this.calculateDomesticTripCosts(saved)
           : await this.calculateOverseasTripCosts(saved);
       }
 
@@ -1577,7 +1588,7 @@ export class ReportService {
           // Report 엔티티의 직접 속성들
           ...saved,
           schedule: schedule,
-          user: user,
+          user: saved.user,
           trip: saved.trip
             ? {
                 isDeducted: saved.trip.isDeducted,
@@ -1607,6 +1618,49 @@ export class ReportService {
   }
 
   async deleteReport(id: number) {
-    await this.reportRepository.softDelete(id);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const report = await queryRunner.manager.findOne(Report, {
+        where: { id },
+        relations: ['trip', 'attachments'],
+      });
+
+      if (!report) {
+        throw new NotFoundException('report_not_found');
+      }
+
+      // 연관된 TripReport soft delete (유니크 제약 조건 위반 방지)
+      if (report.trip) {
+        await queryRunner.manager.softDelete(TripReport, report.trip.id);
+      }
+
+      // Attachments는 파일을 아카이브 폴더로 이동 후 DB는 soft delete (복구 가능)
+      if (report.attachments?.length) {
+        // SFTP에서 파일 아카이브
+        for (const att of report.attachments) {
+          try {
+            await this.sftpService.archiveFileByPath(att.path);
+          } catch (e) {
+            console.warn(`파일 아카이브 실패: ${att.path}`, e);
+          }
+        }
+        await queryRunner.manager.softDelete(
+          ReportAttachment,
+          report.attachments.map((att) => att.id),
+        );
+      }
+
+      await queryRunner.manager.softDelete(Report, id);
+
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 }

@@ -82,17 +82,17 @@ export class Project {
   })
   issues: Issue[];
 
-  @OneToOne(() => KickoffIssue, (kickoff) => kickoff.project)
-  kickoff: KickoffIssue;
+  @OneToMany(() => KickoffIssue, (kickoff) => kickoff.project)
+  kickoffs: KickoffIssue[];
 
-  @OneToOne(() => ContractIssue, (contract) => contract.project)
-  contract: ContractIssue;
+  @OneToMany(() => ContractIssue, (contract) => contract.project)
+  contracts: ContractIssue[];
 
-  @OneToOne(() => TransactionIssue, (transaction) => transaction.project)
-  transaction: TransactionIssue;
+  @OneToMany(() => TransactionIssue, (transaction) => transaction.project)
+  transactions: TransactionIssue[];
 
-  @OneToOne(() => PaymentIssue, (payment) => payment.project)
-  payment: PaymentIssue;
+  @OneToMany(() => PaymentIssue, (payment) => payment.project)
+  payments: PaymentIssue[];
 
   @OneToMany(() => ApprovalIssue, (approval) => approval.project)
   approvals: ApprovalIssue[];

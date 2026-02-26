@@ -1,11 +1,14 @@
 import {
   Column,
+  CreateDateColumn,
+  DeleteDateColumn,
   Entity,
   JoinColumn,
   ManyToOne,
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { ProcurementIssueItem } from './procurement-issue-item.entity';
 import { Issue } from 'src/entity/issue/issue.entity';
@@ -29,4 +32,13 @@ export class ProcurementIssue {
     orphanedRowAction: 'delete',
   })
   items: ProcurementIssueItem[];
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt?: Date;
 }

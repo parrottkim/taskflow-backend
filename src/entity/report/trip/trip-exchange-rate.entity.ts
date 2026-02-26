@@ -1,5 +1,13 @@
 import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
-import { Entity, PrimaryGeneratedColumn, ManyToOne, Column } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+} from 'typeorm';
 import { TripReport } from './trip-report.entity';
 
 @Entity()
@@ -19,4 +27,13 @@ export class TripExchangeRate {
 
   @Column()
   appliedDate: Date; // 환율 적용 날짜
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt?: Date;
 }

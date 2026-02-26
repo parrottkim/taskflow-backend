@@ -6,6 +6,11 @@ import {
   OneToMany,
   Column,
   PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+  Index,
+  ManyToOne,
 } from 'typeorm';
 import { Report } from '../report.entity'; // Report 엔티티 경로
 import { TripActualExpense } from './trip-actual-expense.entity';
@@ -14,11 +19,15 @@ import { TripFuelExpense } from './trip-fuel-expense.entity';
 import { TripExchangeRate } from './trip-exchange-rate.entity';
 
 @Entity()
+@Index(['report'], {
+  unique: true,
+  where: '"deleted_at" IS NULL',
+})
 export class TripReport {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @OneToOne(() => Report, (report) => report.trip)
+  @ManyToOne(() => Report, (report) => report.trip)
   @JoinColumn()
   report: Report;
 
@@ -45,4 +54,13 @@ export class TripReport {
 
   @Column({ default: false })
   isDeducted: boolean;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt?: Date;
 }
