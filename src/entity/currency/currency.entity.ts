@@ -1,5 +1,5 @@
 import { Entity, Column, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { Issue } from '../issue/issue.entity';
+import { ContractIssue } from '../issue/contract/contract-issue.entity';
 
 @Entity()
 export class Currency {
@@ -13,6 +13,6 @@ export class Currency {
   @Column({ type: 'varchar' })
   symbol: string;
 
-  @OneToMany(() => Issue, (issue) => issue.currency)
-  issues: Issue[];
+  @OneToMany(() => ContractIssue, (contract) => contract.currency)
+  contracts: ContractIssue[];
 }

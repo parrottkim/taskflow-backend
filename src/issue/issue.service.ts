@@ -41,13 +41,27 @@ import {
 import { IssueCategoryDto } from './dto/issue-category';
 import { LatestIssueDto, LatestIssueListDto } from './dto/latest-issue';
 import { GetIssuesDto } from './dto/get-issues';
-import { UpdateIssueDto } from './dto/update-issue';
-import { CreateIssueDto } from './dto/create-issue';
+import {
+  CreateApprovalIssueDto,
+  CreateContractIssueDto,
+  CreateKickoffIssueDto,
+  CreatePaymentIssueDto,
+  CreateProcurementIssueDto,
+  CreateTransactionIssueDto,
+} from './dto/create-issue';
 import { User } from 'src/entity/user/user.entity';
 import { ContractIssueItem } from 'src/entity/issue/contract/contract-issue-item.entity';
 import * as dayjs from 'dayjs';
 import { Supplier } from 'src/entity/supplier/supplier.entity';
 import { SftpService } from 'src/sftp/sftp.service';
+import {
+  UpdateApprovalIssueDto,
+  UpdateContractIssueDto,
+  UpdateKickoffIssueDto,
+  UpdatePaymentIssueDto,
+  UpdateProcurementIssueDto,
+  UpdateTransactionIssueDto,
+} from './dto/update-issue';
 
 @Injectable()
 export class IssueService {
@@ -70,6 +84,11 @@ export class IssueService {
 
   private async mapIssueToDto(issue: Issue) {
     if (!issue) return null;
+
+    const contract = await this.dataSource.manager.findOne(ContractIssue, {
+      where: { project: { id: issue.project.id }, deletedAt: null },
+      relations: ['currency'],
+    });
 
     const contractItems = await this.contractIssueItemRepository.find({
       where: { project: { id: issue.project.id } },
@@ -94,7 +113,7 @@ export class IssueService {
 
     let payload: any = {
       ...issue,
-      currency: issue.currency ?? null, // 공통 필드 사용
+      currency: contract?.currency,
     };
 
     switch (issue.category?.id) {
@@ -241,11 +260,11 @@ export class IssueService {
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('issue.currency', 'currency')
       .leftJoinAndSelect('user.position', 'position')
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('issue.attachments', 'attachments')
       .innerJoinAndSelect('issue.contract', 'contract')
+      .leftJoinAndSelect('contract.currency', 'currency')
       .where('project.id = :id', { id })
       .getOne();
 
@@ -253,7 +272,7 @@ export class IssueService {
 
     const issueDto = plainToInstance(
       ContractIssueDto,
-      { ...issue, currency: issue.currency },
+      { ...issue, currency: issue.contract?.currency },
       {
         excludeExtraneousValues: true,
       },
@@ -294,7 +313,6 @@ export class IssueService {
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('issue.currency', 'currency')
       .leftJoinAndSelect('user.position', 'position')
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('issue.attachments', 'attachments')
@@ -304,9 +322,17 @@ export class IssueService {
 
     if (!issue) return null;
 
+    const contract = await this.dataSource.manager.findOne(ContractIssue, {
+      where: { project: { id: issue.project.id }, deletedAt: null },
+      relations: ['currency'],
+    });
+
     const issueDto = plainToInstance(
       TransactionIssueDto,
-      { ...issue, currency: issue.currency },
+      {
+        ...issue,
+        currency: contract?.currency,
+      },
       {
         excludeExtraneousValues: true,
       },
@@ -417,7 +443,6 @@ export class IssueService {
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('issue.currency', 'currency')
       .leftJoinAndSelect('user.position', 'position')
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('issue.attachments', 'attachments')
@@ -445,6 +470,8 @@ export class IssueService {
       .leftJoinAndSelect('user.position', 'position')
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('issue.attachments', 'attachments')
+      .leftJoinAndSelect('issue.contract', 'contract')
+      .leftJoinAndSelect('contract.currency', 'currency')
       .where('issue.id = :id', { id })
       .orderBy('issue.updatedAt', 'DESC')
       .getOne();
@@ -470,192 +497,84 @@ export class IssueService {
     await this.mailService.sendIssueMail(projectDto, issueDto);
   }
 
-  async createIssue(user: any, value: CreateIssueDto) {
+  async createContractIssue(user: User, body: CreateContractIssueDto) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      // 1️⃣ 프로젝트 조회
       const project = await queryRunner.manager.findOne(Project, {
-        where: { id: value.projectId },
-        relations: ['contract', 'kickoff', 'transaction', 'payment'],
+        where: { id: body.projectId },
       });
       if (!project) throw new NotFoundException('project_not_found');
 
       // 2️⃣ 카테고리 조회
       const category = await queryRunner.manager.findOne(IssueCategory, {
-        where: { id: value.categoryId },
+        where: { id: body.categoryId },
       });
       if (!category) throw new NotFoundException('category_not_found');
 
-      // 3️⃣ 기존 Issue 체크 (soft-deleted 제외)
-      const existingIssue = await queryRunner.manager
-        .createQueryBuilder(Issue, 'issue')
-        .leftJoinAndSelect('issue.contract', 'contract')
-        .leftJoinAndSelect('issue.kickoff', 'kickoff')
-        .leftJoinAndSelect('issue.transaction', 'transaction')
-        .leftJoinAndSelect('issue.payment', 'payment')
-        .where('issue.project_id = :projectId', { projectId: project.id })
-        .andWhere('issue.deleted_at IS NULL')
-        .getOne();
-
-      if (value.categoryId === 1 && existingIssue?.contract)
+      const existingContract = await queryRunner.manager.findOne(
+        ContractIssue,
+        {
+          where: {
+            project: { id: body.projectId },
+          },
+        },
+      );
+      if (existingContract) {
         throw new ConflictException('contract_issue_exists');
-      if (value.categoryId === 2 && existingIssue?.kickoff)
-        throw new ConflictException('kickoff_issue_exists');
-      if (value.categoryId === 5 && existingIssue?.transaction)
-        throw new ConflictException('transaction_issue_exists');
-      if (value.categoryId === 6 && existingIssue?.payment)
-        throw new ConflictException('payment_issue_exists');
-
-      // 4️⃣ 통화 정보 결정
-      let currency = null;
-      if (value.currencyId) {
-        currency = await queryRunner.manager.findOne(Currency, {
-          where: { id: value.currencyId },
-        });
-      } else {
-        const contractIssue = await queryRunner.manager.findOne(Issue, {
-          where: { project: { id: project.id }, category: { id: 1 } },
-          relations: ['currency'],
-        });
-        currency = contractIssue?.currency ?? null;
       }
 
-      // 5️⃣ Issue 생성
-      const issue = queryRunner.manager.create(Issue, {
+      const currency = await queryRunner.manager.findOne(Currency, {
+        where: { id: body.currencyId },
+      });
+
+      const issue = await queryRunner.manager.create(Issue, {
         project,
         category,
         user,
-        content: value.content ?? null,
-        currency,
+        content: body.content,
       });
       const savedIssue = await queryRunner.manager.save(issue);
 
-      // 6️⃣ 카테고리별 OneToOne 엔티티 생성
-      switch (value.categoryId) {
-        case 1: {
-          // CONTRACT
-          const contract = queryRunner.manager.create(ContractIssue, {
-            issue: savedIssue,
-            project,
-          });
-          const savedContract = await queryRunner.manager.save(contract);
+      const contract = await queryRunner.manager.create(ContractIssue, {
+        issue: savedIssue,
+        project,
+        currency,
+      });
+      const savedContract = await queryRunner.manager.save(contract);
+      savedIssue.contract = savedContract;
 
-          // 통화 업데이트
-          if (value.currencyId) {
-            const curr = await queryRunner.manager.findOne(Currency, {
-              where: { id: value.currencyId },
-            });
-            if (curr) savedIssue.currency = curr;
-          }
+      const contractItems = body.contractItems.map((dto) =>
+        queryRunner.manager.create(ContractIssueItem, {
+          project,
+          item: dto.item,
+          price: dto.price,
+        }),
+      );
+      await queryRunner.manager.save(contractItems);
 
-          savedIssue.contract = savedContract;
-          break;
-        }
-        case 2: {
-          // KICKOFF
-          const kickoff = queryRunner.manager.create(KickoffIssue, {
-            issue: savedIssue,
-            project,
-            kickoffDate: value.kickoffDate,
-          });
-          const savedKickoff = await queryRunner.manager.save(kickoff);
-          savedIssue.kickoff = savedKickoff;
-          break;
-        }
-        case 3: {
-          // DECLARATION
-          const approval = queryRunner.manager.create(ApprovalIssue, {
-            issue: savedIssue,
-            project,
-          });
-          const savedApproval = await queryRunner.manager.save(approval);
-          savedIssue.approval = savedApproval;
-          break;
-        }
-        case 4: {
-          // PROCUREMENT
-          const procurement = queryRunner.manager.create(ProcurementIssue, {
-            issue: savedIssue,
-            project,
-          });
-          const savedProcurement = await queryRunner.manager.save(procurement);
+      const transactionItems = await Promise.all(
+        body.transactionItems.map(async (dto) => {
+          const category = await queryRunner.manager.findOne(
+            TransactionIssueItemCategory,
+            { where: { id: dto.categoryId } },
+          );
 
-          if (value.procurementItems?.length) {
-            const items = value.procurementItems.map((dto) =>
-              queryRunner.manager.create(ProcurementIssueItem, {
-                procurement: savedProcurement,
-                ...dto,
-              }),
-            );
-            savedProcurement.items = items;
-            await queryRunner.manager.save(savedProcurement); // cascade로 items 저장
-          }
-
-          savedIssue.procurement = savedProcurement;
-          break;
-        }
-        case 5: {
-          // TRANSACTION
-          const transaction = queryRunner.manager.create(TransactionIssue, {
-            issue: savedIssue,
+          return queryRunner.manager.create(TransactionIssueItem, {
             project,
-          });
-          const savedTransaction = await queryRunner.manager.save(transaction);
-          savedIssue.transaction = savedTransaction;
-          break;
-        }
-        case 6: {
-          // PAYMENT
-          const payment = queryRunner.manager.create(PaymentIssue, {
-            issue: savedIssue,
-            project,
-          });
-          const savedPayment = await queryRunner.manager.save(payment);
-          savedIssue.payment = savedPayment;
-          break;
-        }
-      }
-
-      // 7️⃣ contractItems 별도 처리
-      if (value.contractItems?.length) {
-        const items = value.contractItems.map((dto) =>
-          queryRunner.manager.create(ContractIssueItem, {
-            project,
-            item: dto.item,
+            category,
             price: dto.price,
-          }),
-        );
-        await queryRunner.manager.save(items);
-      }
+            ratio: dto.ratio,
+            isPaid: dto.isPaid ?? false,
+            paidAt: dto.paidAt ?? null,
+            note: dto.note ?? null,
+          });
+        }),
+      );
+      await queryRunner.manager.save(transactionItems);
 
-      // 8️⃣ transactionItems 별도 처리
-      if (value.transactionItems?.length) {
-        const items = await Promise.all(
-          value.transactionItems.map(async (dto) => {
-            const category = await queryRunner.manager.findOne(
-              TransactionIssueItemCategory,
-              { where: { id: dto.categoryId } },
-            );
-
-            return queryRunner.manager.create(TransactionIssueItem, {
-              project,
-              category,
-              price: dto.price,
-              ratio: dto.ratio,
-              isPaid: dto.isPaid ?? false,
-              paidAt: dto.paidAt ?? null,
-              note: dto.note ?? null,
-            });
-          }),
-        );
-
-        await queryRunner.manager.save(items);
-      }
-
-      // 9️⃣ 프로젝트 latestCategory 업데이트
       await queryRunner.manager.update(
         Project,
         { id: project.id },
@@ -672,57 +591,328 @@ export class IssueService {
     }
   }
 
-  async updateIssue(user: any, id: number, body: UpdateIssueDto) {
+  async createKickoffIssue(user: User, body: CreateKickoffIssueDto) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      // Issue 조회 (relations 포함)
+      const project = await queryRunner.manager.findOne(Project, {
+        where: { id: body.projectId },
+      });
+      if (!project) throw new NotFoundException('project_not_found');
+
+      const category = await queryRunner.manager.findOne(IssueCategory, {
+        where: { id: body.categoryId },
+      });
+      if (!category) throw new NotFoundException('category_not_found');
+
+      const existingKickoff = await queryRunner.manager.findOne(KickoffIssue, {
+        where: {
+          project: { id: body.projectId },
+        },
+      });
+      if (existingKickoff) {
+        throw new ConflictException('kickoff_issue_exists');
+      }
+
+      const issue = await queryRunner.manager.create(Issue, {
+        project,
+        category,
+        user,
+        content: body.content,
+      });
+      const savedIssue = await queryRunner.manager.save(issue);
+
+      const kickoff = await queryRunner.manager.create(KickoffIssue, {
+        issue: savedIssue,
+        project,
+        kickoffDate: body.kickoffDate,
+      });
+      const savedKickoff = await queryRunner.manager.save(kickoff);
+      savedIssue.kickoff = savedKickoff;
+
+      await queryRunner.manager.update(
+        Project,
+        { id: project.id },
+        { latestCategory: category },
+      );
+
+      await queryRunner.commitTransaction();
+      return await this.mapIssueToDto(savedIssue);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async createApprovalIssue(user: User, body: CreateApprovalIssueDto) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const project = await queryRunner.manager.findOne(Project, {
+        where: { id: body.projectId },
+      });
+      if (!project) throw new NotFoundException('project_not_found');
+
+      // 2️⃣ 카테고리 조회
+      const category = await queryRunner.manager.findOne(IssueCategory, {
+        where: { id: body.categoryId },
+      });
+      if (!category) throw new NotFoundException('category_not_found');
+
+      const issue = await queryRunner.manager.create(Issue, {
+        project,
+        category,
+        user,
+        content: body.content,
+      });
+      const savedIssue = await queryRunner.manager.save(issue);
+
+      const approval = await queryRunner.manager.create(ApprovalIssue, {
+        issue: savedIssue,
+        project,
+      });
+      const savedApproval = await queryRunner.manager.save(approval);
+      savedIssue.approval = savedApproval;
+
+      await queryRunner.manager.update(
+        Project,
+        { id: project.id },
+        { latestCategory: category },
+      );
+
+      await queryRunner.commitTransaction();
+      return await this.mapIssueToDto(savedIssue);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async createProcurementIssue(user: User, body: CreateProcurementIssueDto) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const project = await queryRunner.manager.findOne(Project, {
+        where: { id: body.projectId },
+      });
+      if (!project) throw new NotFoundException('project_not_found');
+
+      // 2️⃣ 카테고리 조회
+      const category = await queryRunner.manager.findOne(IssueCategory, {
+        where: { id: body.categoryId },
+      });
+      if (!category) throw new NotFoundException('category_not_found');
+
+      const issue = await queryRunner.manager.create(Issue, {
+        project,
+        category,
+        user,
+        content: body.content,
+      });
+      const savedIssue = await queryRunner.manager.save(issue);
+
+      const procurement = await queryRunner.manager.create(ProcurementIssue, {
+        issue: savedIssue,
+        project,
+      });
+      const savedProcurement = await queryRunner.manager.save(procurement);
+
+      const items = await Promise.all(
+        body.procurementItems.map(async (dto) =>
+          queryRunner.manager.create(ProcurementIssueItem, {
+            procurement: savedProcurement,
+            ...dto,
+            supplier: dto.supplierId
+              ? await queryRunner.manager.findOne(Supplier, {
+                  where: { id: dto.supplierId },
+                })
+              : null,
+          }),
+        ),
+      );
+      savedProcurement.items = items;
+      await queryRunner.manager.save(savedProcurement);
+
+      savedIssue.procurement = savedProcurement;
+
+      await queryRunner.manager.update(
+        Project,
+        { id: project.id },
+        { latestCategory: category },
+      );
+
+      await queryRunner.commitTransaction();
+      return await this.mapIssueToDto(savedIssue);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async createTransactionIssue(user: User, body: CreateTransactionIssueDto) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const project = await queryRunner.manager.findOne(Project, {
+        where: { id: body.projectId },
+      });
+      if (!project) throw new NotFoundException('project_not_found');
+
+      const category = await queryRunner.manager.findOne(IssueCategory, {
+        where: { id: body.categoryId },
+      });
+      if (!category) throw new NotFoundException('category_not_found');
+
+      const existingTransaction = await queryRunner.manager.findOne(
+        TransactionIssue,
+        {
+          where: {
+            project: { id: body.projectId },
+          },
+        },
+      );
+      if (existingTransaction) {
+        throw new ConflictException('transaction_issue_exists');
+      }
+
+      const issue = await queryRunner.manager.create(Issue, {
+        project,
+        category,
+        user,
+        content: body.content,
+      });
+      const savedIssue = await queryRunner.manager.save(issue);
+
+      const transaction = await queryRunner.manager.create(TransactionIssue, {
+        issue: savedIssue,
+        project,
+      });
+      const savedTransaction = await queryRunner.manager.save(transaction);
+      savedIssue.transaction = savedTransaction;
+
+      await queryRunner.manager.update(
+        Project,
+        { id: project.id },
+        { latestCategory: category },
+      );
+
+      await queryRunner.commitTransaction();
+      return await this.mapIssueToDto(savedIssue);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async createPaymentIssue(user: User, body: CreatePaymentIssueDto) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const project = await queryRunner.manager.findOne(Project, {
+        where: { id: body.projectId },
+      });
+      if (!project) throw new NotFoundException('project_not_found');
+
+      // 2️⃣ 카테고리 조회
+      const category = await queryRunner.manager.findOne(IssueCategory, {
+        where: { id: body.categoryId },
+      });
+      if (!category) throw new NotFoundException('category_not_found');
+
+      const existingPayment = await queryRunner.manager.findOne(PaymentIssue, {
+        where: {
+          project: { id: body.projectId },
+        },
+      });
+      if (existingPayment) {
+        throw new ConflictException('payment_issue_exists');
+      }
+
+      const issue = await queryRunner.manager.create(Issue, {
+        project,
+        category,
+        user,
+        content: body.content,
+      });
+      const savedIssue = await queryRunner.manager.save(issue);
+
+      const payment = await queryRunner.manager.create(PaymentIssue, {
+        issue: savedIssue,
+        project,
+      });
+      const savedPayment = await queryRunner.manager.save(payment);
+      savedIssue.approval = savedPayment;
+
+      await queryRunner.manager.update(
+        Project,
+        { id: project.id },
+        { latestCategory: category },
+      );
+
+      await queryRunner.commitTransaction();
+      return await this.mapIssueToDto(savedIssue);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async updateContractIssue(
+    user: User,
+    id: number,
+    body: UpdateContractIssueDto,
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
       const issue = await queryRunner.manager.findOne(Issue, {
         where: { id },
-        relations: [
-          'project',
-          'user',
-          'category',
-          'attachments',
-          'contract',
-          'kickoff',
-          'approval',
-          'procurement',
-          'procurement.items',
-          'transaction',
-          'approval',
-          'payment',
-        ],
+        relations: ['project', 'user', 'category', 'contract', 'attachments'],
       });
-
       if (!issue) throw new NotFoundException('issue_not_found');
 
       if (issue.user.id !== user.id && !user.isAdmin) {
         throw new ForbiddenException('no_permission');
       }
 
+      // Currency 업데이트
       if (body.currencyId) {
         const currency = await queryRunner.manager.findOne(Currency, {
           where: { id: body.currencyId },
         });
         if (currency) {
-          // 현재 객체 업데이트
-          issue.currency = currency;
-          // [핵심] 같은 프로젝트의 모든 이슈 통화를 한꺼번에 변경하여 정합성 유지
-          await queryRunner.manager.update(
-            Issue,
-            { project: { id: issue.project.id } },
-            { currency: currency },
-          );
+          issue.contract.currency = currency;
         }
       }
 
-      // 1️⃣ content 업데이트
-      if (typeof body.content === 'string') issue.content = body.content;
+      // Content 업데이트
+      if (body.content) {
+        issue.content = body.content;
+      }
 
-      // 2️⃣ attachments 업데이트
+      // Attachments 업데이트
       if (body.attachments) {
         const oldAttachments = issue.attachments || [];
         const toRemove = oldAttachments.filter(
@@ -759,104 +949,7 @@ export class IssueService {
         issue.attachments = [...remainingAttachments, ...newAttachments];
       }
 
-      // 3️⃣ OneToOne 관계 생성 및 업데이트
-      if (issue.category.id === 1) {
-        // CONTRACT
-        if (!issue.contract) {
-          issue.contract = await queryRunner.manager.save(
-            queryRunner.manager.create(ContractIssue, { issue }),
-          );
-        }
-        if (body.currencyId) {
-          const currency = await queryRunner.manager.findOne(Currency, {
-            where: { id: body.currencyId },
-          });
-          if (currency) issue.currency = currency;
-        }
-      } else if (issue.category.id === 2) {
-        // KICKOFF
-        if (!issue.kickoff) {
-          issue.kickoff = await queryRunner.manager.save(
-            queryRunner.manager.create(KickoffIssue, { issue }),
-          );
-        }
-        if (body.kickoffDate) issue.kickoff.kickoffDate = body.kickoffDate;
-      } else if (issue.category.id === 4) {
-        // PROCUREMENT
-        if (!issue.procurement) {
-          issue.procurement = await queryRunner.manager.save(
-            queryRunner.manager.create(ProcurementIssue, { issue }),
-          );
-        }
-        if (body.procurementItems) {
-          const existingItems = issue.procurement.items ?? [];
-
-          // 삭제 처리
-          const toRemove = existingItems.filter(
-            (e) => !body.procurementItems.some((dto) => dto.id === e.id),
-          );
-          if (toRemove.length) {
-            await queryRunner.manager.remove(toRemove);
-          }
-
-          const items = await Promise.all(
-            body.procurementItems.map(async (dto) => {
-              if (dto.id) {
-                const existing = existingItems.find((e) => e.id === dto.id);
-                if (existing) {
-                  existing.item = dto.item;
-                  existing.spec = dto.spec;
-                  existing.quantity = dto.quantity;
-                  existing.unitPrice = dto.unitPrice;
-                  existing.totalAmount = dto.totalAmount;
-                  existing.isOnlinePurchase = dto.isOnlinePurchase;
-                  existing.purchaseUrl = dto.purchaseUrl;
-
-                  // ⭐ supplier 유지 / 변경 로직
-                  if (dto.supplierId !== undefined) {
-                    existing.supplier = dto.supplierId
-                      ? await queryRunner.manager.findOne(Supplier, {
-                          where: { id: dto.supplierId },
-                        })
-                      : null;
-                  }
-
-                  return existing;
-                }
-              }
-
-              // 신규 생성
-              return queryRunner.manager.create(ProcurementIssueItem, {
-                procurement: issue.procurement,
-                item: dto.item,
-                spec: dto.spec,
-                quantity: dto.quantity,
-                unitPrice: dto.unitPrice,
-                totalAmount: dto.totalAmount,
-                isOnlinePurchase: dto.isOnlinePurchase,
-                purchaseUrl: dto.purchaseUrl,
-                supplier: dto.supplierId
-                  ? await queryRunner.manager.findOne(Supplier, {
-                      where: { id: dto.supplierId },
-                    })
-                  : null,
-              });
-            }),
-          );
-
-          issue.procurement.items = items;
-          await queryRunner.manager.save(issue.procurement);
-        }
-      } else if (issue.category.id === 5) {
-        // TRANSACTION
-        if (!issue.transaction) {
-          issue.transaction = await queryRunner.manager.save(
-            queryRunner.manager.create(TransactionIssue, { issue }),
-          );
-        }
-      }
-
-      // 4️⃣ contractItems (독립 컬렉션) 업데이트
+      // ContractItems 업데이트
       if (body.contractItems) {
         const existingItems = await queryRunner.manager.find(
           ContractIssueItem,
@@ -868,7 +961,11 @@ export class IssueService {
         const toRemove = existingItems.filter(
           (e) => !body.contractItems.some((dto) => dto.id === e.id),
         );
-        if (toRemove.length) await queryRunner.manager.remove(toRemove);
+        if (toRemove.length)
+          await queryRunner.manager.softDelete(
+            ContractIssueItem,
+            toRemove.map((item) => item.id),
+          );
 
         const items = body.contractItems.map((dto) => {
           if (dto.id) {
@@ -889,7 +986,7 @@ export class IssueService {
         await queryRunner.manager.save(items);
       }
 
-      // 5️⃣ transactionItems (독립 컬렉션) 업데이트
+      // TransactionItems 업데이트
       if (body.transactionItems) {
         const existingItems = await queryRunner.manager.find(
           TransactionIssueItem,
@@ -901,7 +998,11 @@ export class IssueService {
         const toRemove = existingItems.filter(
           (e) => !body.transactionItems.some((dto) => dto.id === e.id),
         );
-        if (toRemove.length) await queryRunner.manager.remove(toRemove);
+        if (toRemove.length)
+          await queryRunner.manager.softDelete(
+            TransactionIssueItem,
+            toRemove.map((item) => item.id),
+          );
 
         const items = await Promise.all(
           body.transactionItems.map(async (dto) => {
@@ -940,10 +1041,10 @@ export class IssueService {
         await queryRunner.manager.save(items);
       }
 
-      // 6️⃣ 최종 issue 저장
+      // Issue 저장
       const saved = await queryRunner.manager.save(issue);
-      await queryRunner.commitTransaction();
 
+      await queryRunner.commitTransaction();
       return await this.mapIssueToDto(saved);
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -952,6 +1053,784 @@ export class IssueService {
       await queryRunner.release();
     }
   }
+
+  async updateKickoffIssue(
+    user: User,
+    id: number,
+    body: UpdateKickoffIssueDto,
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const issue = await queryRunner.manager.findOne(Issue, {
+        where: { id },
+        relations: ['project', 'user', 'category', 'kickoff', 'attachments'],
+      });
+      if (!issue) throw new NotFoundException('issue_not_found');
+
+      if (issue.user.id !== user.id && !user.isAdmin) {
+        throw new ForbiddenException('no_permission');
+      }
+
+      if (body.kickoffDate) {
+        issue.kickoff.kickoffDate = body.kickoffDate;
+        await queryRunner.manager.save(issue.kickoff);
+      }
+
+      if (body.content) {
+        issue.content = body.content;
+      }
+
+      if (body.attachments) {
+        const oldAttachments = issue.attachments || [];
+        const toRemove = oldAttachments.filter(
+          (oldAtt) =>
+            !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
+        );
+
+        for (const att of toRemove) {
+          try {
+            await this.sftpService.deleteFileByPath(att.path);
+          } catch (e) {
+            console.warn(`SFTP 삭제 실패: ${att.path}`, e);
+          }
+        }
+
+        if (toRemove.length > 0) {
+          await queryRunner.manager.remove(IssueAttachment, toRemove);
+        }
+
+        const remainingAttachments = oldAttachments.filter(
+          (att) => !toRemove.includes(att),
+        );
+        const newAttachments = body.attachments
+          .filter((att) => !issue.attachments?.some((old) => old.id === att.id))
+          .map((att) =>
+            queryRunner.manager.create(IssueAttachment, {
+              filename: att.filename,
+              path: att.path,
+              size: att.size,
+              issue: issue,
+            }),
+          );
+
+        issue.attachments = [...remainingAttachments, ...newAttachments];
+      }
+
+      const saved = await queryRunner.manager.save(issue);
+
+      await queryRunner.commitTransaction();
+      return await this.mapIssueToDto(saved);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async updateApprovalIssue(
+    user: User,
+    id: number,
+    body: UpdateApprovalIssueDto,
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const issue = await queryRunner.manager.findOne(Issue, {
+        where: { id },
+        relations: ['project', 'user', 'category', 'approval', 'attachments'],
+      });
+      if (!issue) throw new NotFoundException('issue_not_found');
+
+      if (issue.user.id !== user.id && !user.isAdmin) {
+        throw new ForbiddenException('no_permission');
+      }
+
+      if (body.content) {
+        issue.content = body.content;
+      }
+
+      if (body.attachments) {
+        const oldAttachments = issue.attachments || [];
+        const toRemove = oldAttachments.filter(
+          (oldAtt) =>
+            !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
+        );
+
+        for (const att of toRemove) {
+          try {
+            await this.sftpService.deleteFileByPath(att.path);
+          } catch (e) {
+            console.warn(`SFTP 삭제 실패: ${att.path}`, e);
+          }
+        }
+
+        if (toRemove.length > 0) {
+          await queryRunner.manager.remove(IssueAttachment, toRemove);
+        }
+
+        const remainingAttachments = oldAttachments.filter(
+          (att) => !toRemove.includes(att),
+        );
+        const newAttachments = body.attachments
+          .filter((att) => !issue.attachments?.some((old) => old.id === att.id))
+          .map((att) =>
+            queryRunner.manager.create(IssueAttachment, {
+              filename: att.filename,
+              path: att.path,
+              size: att.size,
+              issue: issue,
+            }),
+          );
+
+        issue.attachments = [...remainingAttachments, ...newAttachments];
+      }
+
+      const saved = await queryRunner.manager.save(issue);
+
+      await queryRunner.commitTransaction();
+      return await this.mapIssueToDto(saved);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async updateProcurementIssue(
+    user: User,
+    id: number,
+    body: UpdateProcurementIssueDto,
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const issue = await queryRunner.manager.findOne(Issue, {
+        where: { id },
+        relations: [
+          'project',
+          'user',
+          'category',
+          'procurement',
+          'attachments',
+        ],
+      });
+      if (!issue) throw new NotFoundException('issue_not_found');
+
+      if (issue.user.id !== user.id && !user.isAdmin) {
+        throw new ForbiddenException('no_permission');
+      }
+
+      if (body.content) {
+        issue.content = body.content;
+      }
+
+      if (body.attachments) {
+        const oldAttachments = issue.attachments || [];
+        const toRemove = oldAttachments.filter(
+          (oldAtt) =>
+            !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
+        );
+
+        for (const att of toRemove) {
+          try {
+            await this.sftpService.deleteFileByPath(att.path);
+          } catch (e) {
+            console.warn(`SFTP 삭제 실패: ${att.path}`, e);
+          }
+        }
+
+        if (toRemove.length > 0) {
+          await queryRunner.manager.remove(IssueAttachment, toRemove);
+        }
+
+        const remainingAttachments = oldAttachments.filter(
+          (att) => !toRemove.includes(att),
+        );
+        const newAttachments = body.attachments
+          .filter((att) => !issue.attachments?.some((old) => old.id === att.id))
+          .map((att) =>
+            queryRunner.manager.create(IssueAttachment, {
+              filename: att.filename,
+              path: att.path,
+              size: att.size,
+              issue: issue,
+            }),
+          );
+
+        issue.attachments = [...remainingAttachments, ...newAttachments];
+      }
+
+      if (body.procurementItems) {
+        const existingItems = await queryRunner.manager.find(
+          ProcurementIssueItem,
+          {
+            where: { procurement: { id: issue.procurement.id } },
+          },
+        );
+
+        const toRemove = existingItems.filter(
+          (e) => !body.procurementItems.some((dto) => dto.id === e.id),
+        );
+        if (toRemove.length) {
+          await queryRunner.manager.softDelete(
+            ProcurementIssueItem,
+            toRemove.map((item) => item.id),
+          );
+        }
+
+        const items = await Promise.all(
+          body.procurementItems.map(async (dto) => {
+            if (dto.id) {
+              const existing = existingItems.find((e) => e.id === dto.id);
+              if (existing) {
+                existing.item = dto.item;
+                existing.spec = dto.spec;
+                existing.quantity = dto.quantity;
+                existing.unitPrice = dto.unitPrice;
+                existing.totalAmount = dto.totalAmount;
+                existing.isOnlinePurchase = dto.isOnlinePurchase;
+                existing.purchaseUrl = dto.purchaseUrl;
+
+                // ⭐ supplier 유지 / 변경 로직
+                if (dto.supplierId !== undefined) {
+                  existing.supplier = dto.supplierId
+                    ? await queryRunner.manager.findOne(Supplier, {
+                        where: { id: dto.supplierId },
+                      })
+                    : null;
+                }
+
+                return existing;
+              }
+            }
+
+            return queryRunner.manager.create(ProcurementIssueItem, {
+              procurement: issue.procurement,
+              item: dto.item,
+              spec: dto.spec,
+              quantity: dto.quantity,
+              unitPrice: dto.unitPrice,
+              totalAmount: dto.totalAmount,
+              isOnlinePurchase: dto.isOnlinePurchase,
+              purchaseUrl: dto.purchaseUrl,
+              supplier: dto.supplierId
+                ? await queryRunner.manager.findOne(Supplier, {
+                    where: { id: dto.supplierId },
+                  })
+                : null,
+            });
+          }),
+        );
+
+        await queryRunner.manager.save(items);
+      }
+
+      const saved = await queryRunner.manager.save(issue);
+
+      await queryRunner.commitTransaction();
+      return await this.mapIssueToDto(saved);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async updateTransactionIssue(
+    user: User,
+    id: number,
+    body: UpdateTransactionIssueDto,
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const issue = await queryRunner.manager.findOne(Issue, {
+        where: { id },
+        relations: [
+          'project',
+          'user',
+          'category',
+          'transaction',
+          'attachments',
+        ],
+      });
+      if (!issue) throw new NotFoundException('issue_not_found');
+
+      if (issue.user.id !== user.id && !user.isAdmin) {
+        throw new ForbiddenException('no_permission');
+      }
+
+      if (body.content) {
+        issue.content = body.content;
+      }
+
+      if (body.attachments) {
+        const oldAttachments = issue.attachments || [];
+        const toRemove = oldAttachments.filter(
+          (oldAtt) =>
+            !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
+        );
+
+        for (const att of toRemove) {
+          try {
+            await this.sftpService.deleteFileByPath(att.path);
+          } catch (e) {
+            console.warn(`SFTP 삭제 실패: ${att.path}`, e);
+          }
+        }
+
+        if (toRemove.length > 0) {
+          await queryRunner.manager.remove(IssueAttachment, toRemove);
+        }
+
+        const remainingAttachments = oldAttachments.filter(
+          (att) => !toRemove.includes(att),
+        );
+        const newAttachments = body.attachments
+          .filter((att) => !issue.attachments?.some((old) => old.id === att.id))
+          .map((att) =>
+            queryRunner.manager.create(IssueAttachment, {
+              filename: att.filename,
+              path: att.path,
+              size: att.size,
+              issue: issue,
+            }),
+          );
+
+        issue.attachments = [...remainingAttachments, ...newAttachments];
+      }
+
+      if (body.transactionItems) {
+        const existingItems = await queryRunner.manager.find(
+          TransactionIssueItem,
+          {
+            where: { project: { id: issue.project.id } },
+          },
+        );
+
+        const toRemove = existingItems.filter(
+          (e) => !body.transactionItems.some((dto) => dto.id === e.id),
+        );
+        if (toRemove.length)
+          await queryRunner.manager.softDelete(
+            TransactionIssueItem,
+            toRemove.map((item) => item.id),
+          );
+
+        const items = await Promise.all(
+          body.transactionItems.map(async (dto) => {
+            const category = await queryRunner.manager.findOne(
+              TransactionIssueItemCategory,
+              { where: { id: dto.categoryId } },
+            );
+
+            if (dto.id) {
+              const existing = existingItems.find((e) => e.id === dto.id);
+              if (existing) {
+                existing.category = category;
+                existing.price = dto.price;
+                existing.ratio = dto.ratio;
+                existing.isPaid = dto.isPaid;
+                existing.paidAt = dto.paidAt
+                  ? dayjs(dto.paidAt).toDate()
+                  : null;
+                existing.note = dto.note;
+                return existing;
+              }
+            }
+
+            return queryRunner.manager.create(TransactionIssueItem, {
+              project: issue.project,
+              category,
+              price: dto.price,
+              ratio: dto.ratio,
+              isPaid: dto.isPaid ?? false,
+              paidAt: dto.paidAt ?? null,
+              note: dto.note ?? null,
+            });
+          }),
+        );
+
+        await queryRunner.manager.save(items);
+      }
+
+      // Issue 저장
+      const saved = await queryRunner.manager.save(issue);
+
+      await queryRunner.commitTransaction();
+      return await this.mapIssueToDto(saved);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async updatePaymentIssue(
+    user: User,
+    id: number,
+    body: UpdatePaymentIssueDto,
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const issue = await queryRunner.manager.findOne(Issue, {
+        where: { id },
+        relations: ['project', 'user', 'category', 'payment', 'attachments'],
+      });
+      if (!issue) throw new NotFoundException('issue_not_found');
+
+      if (issue.user.id !== user.id && !user.isAdmin) {
+        throw new ForbiddenException('no_permission');
+      }
+
+      if (body.content) {
+        issue.content = body.content;
+      }
+
+      if (body.attachments) {
+        const oldAttachments = issue.attachments || [];
+        const toRemove = oldAttachments.filter(
+          (oldAtt) =>
+            !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
+        );
+
+        for (const att of toRemove) {
+          try {
+            await this.sftpService.deleteFileByPath(att.path);
+          } catch (e) {
+            console.warn(`SFTP 삭제 실패: ${att.path}`, e);
+          }
+        }
+
+        if (toRemove.length > 0) {
+          await queryRunner.manager.remove(IssueAttachment, toRemove);
+        }
+
+        const remainingAttachments = oldAttachments.filter(
+          (att) => !toRemove.includes(att),
+        );
+        const newAttachments = body.attachments
+          .filter((att) => !issue.attachments?.some((old) => old.id === att.id))
+          .map((att) =>
+            queryRunner.manager.create(IssueAttachment, {
+              filename: att.filename,
+              path: att.path,
+              size: att.size,
+              issue: issue,
+            }),
+          );
+
+        issue.attachments = [...remainingAttachments, ...newAttachments];
+      }
+
+      const saved = await queryRunner.manager.save(issue);
+
+      await queryRunner.commitTransaction();
+      return await this.mapIssueToDto(saved);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // async updateIssue(user: any, id: number, body: UpdateIssueDto) {
+  //   const queryRunner = this.dataSource.createQueryRunner();
+  //   await queryRunner.connect();
+  //   await queryRunner.startTransaction();
+
+  //   try {
+  //     // Issue 조회 (relations 포함)
+  //     const issue = await queryRunner.manager.findOne(Issue, {
+  //       where: { id },
+  //       relations: [
+  //         'project',
+  //         'user',
+  //         'category',
+  //         'attachments',
+  //         'contract',
+  //         'kickoff',
+  //         'approval',
+  //         'procurement',
+  //         'procurement.items',
+  //         'transaction',
+  //         'approval',
+  //         'payment',
+  //       ],
+  //     });
+
+  //     if (!issue) throw new NotFoundException('issue_not_found');
+
+  //     if (issue.user.id !== user.id && !user.isAdmin) {
+  //       throw new ForbiddenException('no_permission');
+  //     }
+
+  //     if (body.currencyId) {
+  //       const currency = await queryRunner.manager.findOne(Currency, {
+  //         where: { id: body.currencyId },
+  //       });
+  //       if (currency) {
+  //         // 현재 객체 업데이트
+  //         issue.currency = currency;
+  //         // [핵심] 같은 프로젝트의 모든 이슈 통화를 한꺼번에 변경하여 정합성 유지
+  //         await queryRunner.manager.update(
+  //           Issue,
+  //           { project: { id: issue.project.id } },
+  //           { currency: currency },
+  //         );
+  //       }
+  //     }
+
+  //     // 1️⃣ content 업데이트
+  //     if (typeof body.content === 'string') issue.content = body.content;
+
+  //     // 2️⃣ attachments 업데이트
+  //     if (body.attachments) {
+  //       const oldAttachments = issue.attachments || [];
+  //       const toRemove = oldAttachments.filter(
+  //         (oldAtt) =>
+  //           !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
+  //       );
+
+  //       for (const att of toRemove) {
+  //         try {
+  //           await this.sftpService.deleteFileByPath(att.path);
+  //         } catch (e) {
+  //           console.warn(`SFTP 삭제 실패: ${att.path}`, e);
+  //         }
+  //       }
+
+  //       if (toRemove.length > 0) {
+  //         await queryRunner.manager.remove(IssueAttachment, toRemove);
+  //       }
+
+  //       const remainingAttachments = oldAttachments.filter(
+  //         (att) => !toRemove.includes(att),
+  //       );
+  //       const newAttachments = body.attachments
+  //         .filter((att) => !issue.attachments?.some((old) => old.id === att.id))
+  //         .map((att) =>
+  //           queryRunner.manager.create(IssueAttachment, {
+  //             filename: att.filename,
+  //             path: att.path,
+  //             size: att.size,
+  //             issue: issue,
+  //           }),
+  //         );
+
+  //       issue.attachments = [...remainingAttachments, ...newAttachments];
+  //     }
+
+  //     // 3️⃣ OneToOne 관계 생성 및 업데이트
+  //     if (issue.category.id === 1) {
+  //       // CONTRACT
+  //       if (!issue.contract) {
+  //         issue.contract = await queryRunner.manager.save(
+  //           queryRunner.manager.create(ContractIssue, { issue }),
+  //         );
+  //       }
+  //       if (body.currencyId) {
+  //         const currency = await queryRunner.manager.findOne(Currency, {
+  //           where: { id: body.currencyId },
+  //         });
+  //         if (currency) issue.currency = currency;
+  //       }
+  //     } else if (issue.category.id === 2) {
+  //       // KICKOFF
+  //       if (!issue.kickoff) {
+  //         issue.kickoff = await queryRunner.manager.save(
+  //           queryRunner.manager.create(KickoffIssue, { issue }),
+  //         );
+  //       }
+  //       if (body.kickoffDate) issue.kickoff.kickoffDate = body.kickoffDate;
+  //     } else if (issue.category.id === 4) {
+  //       // PROCUREMENT
+  //       if (!issue.procurement) {
+  //         issue.procurement = await queryRunner.manager.save(
+  //           queryRunner.manager.create(ProcurementIssue, { issue }),
+  //         );
+  //       }
+  //       if (body.procurementItems) {
+  //         const existingItems = issue.procurement.items ?? [];
+
+  //         // 삭제 처리
+  //         const toRemove = existingItems.filter(
+  //           (e) => !body.procurementItems.some((dto) => dto.id === e.id),
+  //         );
+  //         if (toRemove.length) {
+  //           await queryRunner.manager.remove(toRemove);
+  //         }
+
+  //         const items = await Promise.all(
+  //           body.procurementItems.map(async (dto) => {
+  //             if (dto.id) {
+  //               const existing = existingItems.find((e) => e.id === dto.id);
+  //               if (existing) {
+  //                 existing.item = dto.item;
+  //                 existing.spec = dto.spec;
+  //                 existing.quantity = dto.quantity;
+  //                 existing.unitPrice = dto.unitPrice;
+  //                 existing.totalAmount = dto.totalAmount;
+  //                 existing.isOnlinePurchase = dto.isOnlinePurchase;
+  //                 existing.purchaseUrl = dto.purchaseUrl;
+
+  //                 // ⭐ supplier 유지 / 변경 로직
+  //                 if (dto.supplierId !== undefined) {
+  //                   existing.supplier = dto.supplierId
+  //                     ? await queryRunner.manager.findOne(Supplier, {
+  //                         where: { id: dto.supplierId },
+  //                       })
+  //                     : null;
+  //                 }
+
+  //                 return existing;
+  //               }
+  //             }
+
+  //             // 신규 생성
+  //             return queryRunner.manager.create(ProcurementIssueItem, {
+  //               procurement: issue.procurement,
+  //               item: dto.item,
+  //               spec: dto.spec,
+  //               quantity: dto.quantity,
+  //               unitPrice: dto.unitPrice,
+  //               totalAmount: dto.totalAmount,
+  //               isOnlinePurchase: dto.isOnlinePurchase,
+  //               purchaseUrl: dto.purchaseUrl,
+  //               supplier: dto.supplierId
+  //                 ? await queryRunner.manager.findOne(Supplier, {
+  //                     where: { id: dto.supplierId },
+  //                   })
+  //                 : null,
+  //             });
+  //           }),
+  //         );
+
+  //         issue.procurement.items = items;
+  //         await queryRunner.manager.save(issue.procurement);
+  //       }
+  //     } else if (issue.category.id === 5) {
+  //       // TRANSACTION
+  //       if (!issue.transaction) {
+  //         issue.transaction = await queryRunner.manager.save(
+  //           queryRunner.manager.create(TransactionIssue, { issue }),
+  //         );
+  //       }
+  //     }
+
+  //     // 4️⃣ contractItems (독립 컬렉션) 업데이트
+  //     if (body.contractItems) {
+  //       const existingItems = await queryRunner.manager.find(
+  //         ContractIssueItem,
+  //         {
+  //           where: { project: { id: issue.project.id } },
+  //         },
+  //       );
+
+  //       const toRemove = existingItems.filter(
+  //         (e) => !body.contractItems.some((dto) => dto.id === e.id),
+  //       );
+  //       if (toRemove.length) await queryRunner.manager.remove(toRemove);
+
+  //       const items = body.contractItems.map((dto) => {
+  //         if (dto.id) {
+  //           const existing = existingItems.find((e) => e.id === dto.id);
+  //           if (existing) {
+  //             existing.item = dto.item;
+  //             existing.price = dto.price;
+  //             return existing;
+  //           }
+  //         }
+  //         return queryRunner.manager.create(ContractIssueItem, {
+  //           project: issue.project,
+  //           item: dto.item,
+  //           price: dto.price,
+  //         });
+  //       });
+
+  //       await queryRunner.manager.save(items);
+  //     }
+
+  //     // 5️⃣ transactionItems (독립 컬렉션) 업데이트
+  //     if (body.transactionItems) {
+  //       const existingItems = await queryRunner.manager.find(
+  //         TransactionIssueItem,
+  //         {
+  //           where: { project: { id: issue.project.id } },
+  //         },
+  //       );
+
+  //       const toRemove = existingItems.filter(
+  //         (e) => !body.transactionItems.some((dto) => dto.id === e.id),
+  //       );
+  //       if (toRemove.length) await queryRunner.manager.remove(toRemove);
+
+  //       const items = await Promise.all(
+  //         body.transactionItems.map(async (dto) => {
+  //           const category = await queryRunner.manager.findOne(
+  //             TransactionIssueItemCategory,
+  //             { where: { id: dto.categoryId } },
+  //           );
+
+  //           if (dto.id) {
+  //             const existing = existingItems.find((e) => e.id === dto.id);
+  //             if (existing) {
+  //               existing.category = category;
+  //               existing.price = dto.price;
+  //               existing.ratio = dto.ratio;
+  //               existing.isPaid = dto.isPaid;
+  //               existing.paidAt = dto.paidAt
+  //                 ? dayjs(dto.paidAt).toDate()
+  //                 : null;
+  //               existing.note = dto.note;
+  //               return existing;
+  //             }
+  //           }
+
+  //           return queryRunner.manager.create(TransactionIssueItem, {
+  //             project: issue.project,
+  //             category,
+  //             price: dto.price,
+  //             ratio: dto.ratio,
+  //             isPaid: dto.isPaid ?? false,
+  //             paidAt: dto.paidAt ?? null,
+  //             note: dto.note ?? null,
+  //           });
+  //         }),
+  //       );
+
+  //       await queryRunner.manager.save(items);
+  //     }
+
+  //     // 6️⃣ 최종 issue 저장
+  //     const saved = await queryRunner.manager.save(issue);
+  //     await queryRunner.commitTransaction();
+
+  //     return await this.mapIssueToDto(saved);
+  //   } catch (err) {
+  //     await queryRunner.rollbackTransaction();
+  //     throw err;
+  //   } finally {
+  //     await queryRunner.release();
+  //   }
+  // }
 
   async deleteIssue(user: User, id: number) {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -969,11 +1848,11 @@ export class IssueService {
         .leftJoinAndSelect('user.department', 'department')
         .leftJoinAndSelect('issue.attachments', 'attachments')
         .leftJoinAndSelect('issue.contract', 'contract')
+        .leftJoinAndSelect('contract.currency', 'currency')
         .leftJoinAndSelect('issue.transaction', 'transaction')
         .leftJoinAndSelect('issue.kickoff', 'kickoff')
         .leftJoinAndSelect('issue.payment', 'payment')
         .leftJoinAndSelect('issue.procurement', 'procurement')
-        .leftJoinAndSelect('issue.currency', 'currency')
         .leftJoinAndSelect('procurement.items', 'procurementItems')
         .leftJoinAndSelect('procurementItems.supplier', 'supplier')
         .where('issue.id = :id', { id })
@@ -990,6 +1869,59 @@ export class IssueService {
       }
 
       const projectId = issue.project.id;
+
+      // Attachments 아카이브 및 soft delete
+      if (issue.attachments?.length) {
+        // SFTP에서 파일 아카이브
+        for (const att of issue.attachments) {
+          try {
+            await this.sftpService.archiveFileByPath(att.path);
+          } catch (e) {
+            console.warn(`파일 아카이브 실패: ${att.path}`, e);
+          }
+        }
+        await queryRunner.manager.softDelete(
+          IssueAttachment,
+          issue.attachments.map((att) => att.id),
+        );
+      }
+
+      // Transaction 우선 soft delete
+      if (issue.transaction) {
+        await queryRunner.manager.softDelete(
+          TransactionIssue,
+          issue.transaction.id,
+        );
+      }
+
+      // Contract 삭제 시 contractItems, transactionItems도 함께 soft delete
+      if (issue.contract) {
+        await queryRunner.manager.softDelete(ContractIssueItem, {
+          project: { id: projectId },
+        });
+        await queryRunner.manager.softDelete(TransactionIssueItem, {
+          project: { id: projectId },
+        });
+        await queryRunner.manager.softDelete(ContractIssue, issue.contract.id);
+      }
+      if (issue.kickoff) {
+        await queryRunner.manager.softDelete(KickoffIssue, issue.kickoff.id);
+      }
+      if (issue.payment) {
+        await queryRunner.manager.softDelete(PaymentIssue, issue.payment.id);
+      }
+      if (issue.approval) {
+        await queryRunner.manager.softDelete(ApprovalIssue, issue.approval.id);
+      }
+      if (issue.procurement) {
+        await queryRunner.manager.softDelete(ProcurementIssueItem, {
+          procurement: { id: issue.procurement.id },
+        });
+        await queryRunner.manager.softDelete(
+          ProcurementIssue,
+          issue.procurement.id,
+        );
+      }
 
       await queryRunner.manager.softDelete(Issue, id);
 

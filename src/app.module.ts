@@ -3,6 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigType } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule as NestScheduleModule } from '@nestjs/schedule';
 import config from 'config';
 import * as Joi from 'joi';
 import { UserModule } from './user/user.module';
@@ -23,6 +24,7 @@ import { IssueModule } from './issue/issue.module';
 import { IssueAttachmentModule } from './issue/issue-attachment.module';
 import { ReportAttachmentModule } from './report/report-attachment.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { CleanupModule } from './common/cleanup/cleanup.module';
 
 @Module({
   imports: [
@@ -67,8 +69,10 @@ import { DashboardModule } from './dashboard/dashboard.module';
         };
       },
     }),
+    NestScheduleModule.forRoot(),
     AuthModule,
     BookmarkModule,
+    CleanupModule,
     CurrencyModule,
     DashboardModule,
     ScheduleModule,

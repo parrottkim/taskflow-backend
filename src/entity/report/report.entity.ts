@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -17,14 +18,17 @@ import { TripReport } from './trip/trip-report.entity';
 import { Project } from '../project/project.entity';
 
 @Entity()
+@Index(['schedule'], {
+  unique: true,
+  where: '"deleted_at" IS NULL',
+})
 export class Report {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @OneToOne(() => Schedule, (schedule) => schedule.report, {
+  @ManyToOne(() => Schedule, (schedule) => schedule.reports, {
     nullable: true,
   })
-  @JoinColumn()
   schedule: Schedule;
 
   @ManyToOne(() => Project, (project) => project.reports)
