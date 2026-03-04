@@ -538,8 +538,6 @@ export class ScheduleService {
         },
       );
 
-      await this.mailService.sendScheduleMail(projectDto, scheduleDto);
-
       return scheduleDto;
     } catch (err) {
       // 오류 발생 시 롤백
