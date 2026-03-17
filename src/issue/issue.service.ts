@@ -1220,6 +1220,7 @@ export class IssueService {
           'user',
           'category',
           'procurement',
+          'procurement.items',
           'attachments',
         ],
       });
@@ -1331,7 +1332,8 @@ export class IssueService {
           }),
         );
 
-        await queryRunner.manager.save(items);
+        const savedItems = await queryRunner.manager.save(items);
+        issue.procurement.items = savedItems;
       }
 
       const saved = await queryRunner.manager.save(issue);
