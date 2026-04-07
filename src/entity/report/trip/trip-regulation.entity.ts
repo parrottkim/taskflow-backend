@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
-import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
+import { DecimalColumnTransformer } from '@/common/utils/transformer.utils';
 import { TripStep } from './trip-step.entity';
 
 @Entity()

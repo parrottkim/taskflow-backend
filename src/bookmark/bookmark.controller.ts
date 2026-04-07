@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { BookmarkService } from './bookmark.service';
 import { ApiTags, ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { BookmarkDto } from './dto/bookmark';
 
 @ApiTags('Bookmark (북마크)')

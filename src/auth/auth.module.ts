@@ -4,12 +4,12 @@ import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { LocalStrategy } from './strategies/local-strategy';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from 'src/entity/user/user.entity';
+import { User } from '@/entity/user/user.entity';
 import { JwtAccessStrategy } from './strategies/jwt-access-strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh-strategy';
-import { UserModule } from 'src/user/user.module';
+import { UserModule } from '@/user/user.module';
 import { ConfigService } from '@nestjs/config';
-import { MailModule } from 'src/mail/mail.module';
+import { MailModule } from '@/mail/mail.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({

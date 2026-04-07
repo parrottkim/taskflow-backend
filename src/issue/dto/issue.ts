@@ -11,11 +11,11 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { UserDto } from 'src/user/dto/user';
+import { UserDto } from '@/user/dto/user';
 import { IssueAttachmentDto } from './issue-attachment';
 import { IssueCategoryDto } from './issue-category';
-import { CurrencyDto } from 'src/currency/dto/currency';
-import { SupplierDto } from 'src/supplier/dto/supplier';
+import { CurrencyDto } from '@/currency/dto/currency';
+import { SupplierDto } from '@/supplier/dto/supplier';
 
 export class ContractIssueItemDto {
   @ApiProperty()

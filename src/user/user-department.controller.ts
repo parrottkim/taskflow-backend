@@ -1,8 +1,7 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserDepartmentService } from './user-department.service';
-import { CreateUserDepartmentDto } from './dto/create-user-department';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 
 @ApiTags('User Department (사용자 부서)')
 @Controller('user-department')

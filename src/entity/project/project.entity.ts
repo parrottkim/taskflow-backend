@@ -43,6 +43,16 @@ export class Project {
   @Column({ type: 'bool', default: false })
   isClosed: boolean;
 
+  // 새로운 컬럼 추가
+  @Column({ type: 'timestamp', nullable: true })
+  preexecutedAt?: Date; // 사전절차 완료 시점
+
+  @Column({ type: 'timestamp', nullable: true })
+  contractedAt?: Date; // 계약 완료 시점
+
+  @Column({ type: 'timestamp', nullable: true })
+  closedAt?: Date; // 프로젝트 종료 시점
+
   @Column({ type: 'varchar', nullable: true })
   closureMessage: string;
 

@@ -7,8 +7,8 @@ import {
   IsString,
   ValidateNested,
 } from 'class-validator';
-import { UserDto } from 'src/user/dto/user';
-import { ProjectClientDto } from 'src/project/dto/project-client';
+import { UserDto } from '@/user/dto/user';
+import { ProjectClientDto } from '@/project/dto/project-client';
 import { IssueCategoryDto } from './issue-category';
 
 export class LatestIssueDto {

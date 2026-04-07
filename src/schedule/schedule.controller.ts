@@ -16,7 +16,7 @@ import { ScheduleService } from './schedule.service';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ScheduleDto, ScheduleListDto } from './dto/schedule';
 import { CreateScheduleDto } from './dto/create-schedule';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { ScheduleCategoryDto } from './dto/schedule-category';
 import { UpdateScheduleDto } from './dto/update-schedule';
 import { GetSchedulesDto } from './dto/get-schedules';

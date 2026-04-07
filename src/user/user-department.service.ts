@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { UserDepartmentClosure } from 'src/entity/user/user-department-closure.entity';
-import { UserDepartment } from 'src/entity/user/user-department.entity';
+import { UserDepartmentClosure } from '@/entity/user/user-department-closure.entity';
+import { UserDepartment } from '@/entity/user/user-department.entity';
 import { Repository } from 'typeorm';
 import { CreateUserDepartmentDto } from './dto/create-user-department';
 

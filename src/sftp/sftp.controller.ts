@@ -16,10 +16,11 @@ import {
   ParseFilePipe,
   UploadedFile,
 } from '@nestjs/common';
+import { Multer } from 'multer';
 import { SftpService } from './sftp.service';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { UploadInlineImageDto } from './dto/upload-inline-image';
 
 @Controller('files')

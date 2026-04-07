@@ -1,4 +1,4 @@
-import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
+import { DecimalColumnTransformer } from '@/common/utils/transformer.utils';
 import {
   PrimaryGeneratedColumn,
   Column,

@@ -9,9 +9,9 @@ import {
   Index,
   ManyToOne,
 } from 'typeorm';
-import { Issue } from 'src/entity/issue/issue.entity';
-import { Project } from 'src/entity/project/project.entity';
-import { Currency } from 'src/entity/currency/currency.entity';
+import { Issue } from '@/entity/issue/issue.entity';
+import { Project } from '@/entity/project/project.entity';
+import { Currency } from '@/entity/currency/currency.entity';
 
 @Entity()
 @Index(['project'], {

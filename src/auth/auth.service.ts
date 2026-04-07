@@ -6,17 +6,16 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import config from 'config';
+import config from '@/config/config';
 import { ConfigType } from '@nestjs/config';
-import { User } from 'src/entity/user/user.entity';
-import { CreateUserDto } from 'src/user/dto/create-user';
-import { UserService } from 'src/user/user.service';
+import { User } from '@/entity/user/user.entity';
+import { CreateUserDto } from '@/user/dto/create-user';
+import { UserService } from '@/user/user.service';
 import { plainToInstance } from 'class-transformer';
-import { UserDto } from 'src/user/dto/user';
+import { UserDto } from '@/user/dto/user';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
-import { MailService } from 'src/mail/mail.service';
-import { firstValueFrom } from 'rxjs';
+import { MailService } from '@/mail/mail.service';
 import { ForgotPasswordDto } from './dto/forgot-password';
 import { ResetPasswordDto } from './dto/reset-password';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -87,12 +86,15 @@ export class AuthService {
         excludeExtraneousValues: true,
       });
     } catch (error) {
-      // Handle specific errors with appropriate HTTP status codes
-      if (error.code === '23505') {
-        throw new ConflictException('user_exists');
-      } else {
-        throw error;
+      // TypeORM/Postgres 에러 코드 확인을 위한 타입 가드
+      if (error && typeof error === 'object' && 'code' in error) {
+        if (error.code === '23505') {
+          throw new ConflictException('user_exists');
+        }
       }
+
+      // 처리되지 않은 에러는 그대로 던지기
+      throw error;
     }
   }
 

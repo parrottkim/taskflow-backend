@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { SupplierService } from './supplier.service';
 import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { SupplierDto, SupplierListDto } from './dto/supplier';
 import { GetSuppliersDto } from './dto/get-suppliers';
 import { CreateSupplierDto } from './dto/create-supplier';

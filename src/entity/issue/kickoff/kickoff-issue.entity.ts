@@ -12,7 +12,7 @@ import {
   ManyToOne,
 } from 'typeorm';
 import { Issue } from '../issue.entity';
-import { Project } from 'src/entity/project/project.entity';
+import { Project } from '@/entity/project/project.entity';
 
 @Entity()
 @Index(['project'], {

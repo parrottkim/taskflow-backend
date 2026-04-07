@@ -19,7 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { TokenDto } from './dto/token';
 import { LoginRequestDto } from './dto/login-request';
-import { CreateUserDto } from 'src/user/dto/create-user';
+import { CreateUserDto } from '@/user/dto/create-user';
 import { ResetPasswordDto } from './dto/reset-password';
 import { ForgotPasswordDto } from './dto/forgot-password';
 

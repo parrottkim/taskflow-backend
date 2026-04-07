@@ -1,21 +1,28 @@
-import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
 import {
   Entity,
   PrimaryGeneratedColumn,
-  ManyToOne,
+  OneToOne,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  JoinColumn,
+  Index,
 } from 'typeorm';
 import { TripReport } from './trip-report.entity';
+import { DecimalColumnTransformer } from '@/common/utils/transformer.utils';
 
 @Entity()
+@Index(['trip'], {
+  unique: true,
+  where: '"deleted_at" IS NULL',
+})
 export class TripExchangeRate {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => TripReport, (trip) => trip.exchangeRates)
+  @OneToOne(() => TripReport, (trip) => trip.exchangeRate)
+  @JoinColumn({ name: 'trip_id' })
   trip: TripReport;
 
   @Column('decimal', {

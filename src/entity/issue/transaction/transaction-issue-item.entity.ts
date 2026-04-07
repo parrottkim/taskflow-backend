@@ -8,8 +8,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { TransactionIssueItemCategory } from './transaction-issue-category.entity';
-import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
-import { Project } from 'src/entity/project/project.entity';
+import { DecimalColumnTransformer } from '@/common/utils/transformer.utils';
+import { Project } from '@/entity/project/project.entity';
 
 @Entity()
 export class TransactionIssueItem {
