@@ -46,4 +46,4 @@ RUN if [ "$NODE_ENV" = "production" ]; then npm ci --omit=dev; else npm ci; fi
 COPY --from=builder /app/dist ./dist
 
 # 애플리케이션 시작 명령
-CMD ["node", "dist/src/main.js"]
+CMD ["node", "dist/main.js"]

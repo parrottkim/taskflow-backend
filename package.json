@@ -20,9 +20,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm": "node ./node_modules/typeorm/cli.js",
-    "typeorm:migrate": "npm run typeorm -- migration:run -d ./dist/src/data-source.js",
-    "typeorm:generate": "npm run typeorm -- migration:generate -d ./dist/src/data-source.js",
-    "typeorm:revert": "npm run typeorm -- migration:revert -d ./dist/src/data-source.js",
+    "typeorm:migrate": "npm run typeorm -- migration:run -d ./dist/data-source.js",
+    "typeorm:generate": "npm run typeorm -- migration:generate -d ./dist/data-source.js",
+    "typeorm:revert": "npm run typeorm -- migration:revert -d ./dist/data-source.js",
     "typeorm:local": "cross-env DOTENV_CONFIG_PATH=.local.env ts-node -r dotenv/config --files ./node_modules/typeorm/cli.js",
     "typeorm:local:create": "npm run typeorm:local -- migration:create",
     "typeorm:local:generate": "npm run typeorm:local -- migration:generate -d ./src/data-source.ts",
@@ -30,7 +30,7 @@
     "typeorm:local:revert": "npm run typeorm:local -- migration:revert -d ./src/data-source.ts",
     "backfill:trip-exchange-rate": "cross-env NODE_ENV=local ts-node -r tsconfig-paths/register src/report/backfill-trip-exchange-rates.ts",
     "backfill:trip-exchange-rate:write": "npm run backfill:trip-exchange-rate -- --write",
-    "backfill:trip-exchange-rate:dist": "node dist/src/report/backfill-trip-exchange-rates.js",
+    "backfill:trip-exchange-rate:dist": "node dist/report/backfill-trip-exchange-rates.js",
     "backfill:trip-exchange-rate:dist:write": "npm run backfill:trip-exchange-rate:dist -- --write"
   },
   "dependencies": {

@@ -22,7 +22,7 @@ export default new DataSource({
   entities: ['dist/**/*.entity.js'],
 
   // 마이그레이션 파일의 경로 (컴파일된 .js 파일 경로)
-  migrations: ['dist/src/migrations/*.js'],
+  migrations: ['dist/migrations/*.js'],
 
   // 마이그레이션 실행 후 동기화 상태를 저장할 테이블명 (선택적)
   migrationsTableName: 'migrations',
