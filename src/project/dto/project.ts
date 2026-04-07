@@ -9,7 +9,7 @@ import {
   IsString,
   ValidateNested,
 } from 'class-validator';
-import { UserDto } from 'src/user/dto/user';
+import { UserDto } from '@/user/dto/user';
 import { ProjectClientDto } from './project-client';
 import { IssueCategoryDto } from '../../issue/dto/issue-category';
 

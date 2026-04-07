@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
-import { ReportAttachment } from 'src/entity/report/report-attachment.entity';
-import { IssueAttachment } from 'src/entity/issue/issue-attachment.entity';
-import { SftpService } from 'src/sftp/sftp.service';
+import { ReportAttachment } from '@/entity/report/report-attachment.entity';
+import { IssueAttachment } from '@/entity/issue/issue-attachment.entity';
+import { SftpService } from '@/sftp/sftp.service';
 
 @Injectable()
 export class CleanupService {

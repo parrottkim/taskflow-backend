@@ -3,7 +3,6 @@ import {
   Entity,
   OneToOne,
   JoinColumn,
-  OneToMany,
   Column,
   PrimaryGeneratedColumn,
   CreateDateColumn,
@@ -11,6 +10,7 @@ import {
   DeleteDateColumn,
   Index,
   ManyToOne,
+  OneToMany,
 } from 'typeorm';
 import { Report } from '../report.entity'; // Report 엔티티 경로
 import { TripActualExpense } from './trip-actual-expense.entity';
@@ -46,11 +46,11 @@ export class TripReport {
   @OneToOne(() => TripFuelExpense, (fuel) => fuel.trip)
   fuel?: TripFuelExpense;
 
-  @OneToMany(() => TripExchangeRate, (rate) => rate.trip, {
+  @OneToOne(() => TripExchangeRate, (rate) => rate.trip, {
     cascade: true,
     orphanedRowAction: 'delete',
   })
-  exchangeRates: TripExchangeRate[];
+  exchangeRate?: TripExchangeRate;
 
   @Column({ default: false })
   isDeducted: boolean;

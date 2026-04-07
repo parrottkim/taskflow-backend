@@ -8,8 +8,8 @@ import {
   IsString,
   ValidateNested,
 } from 'class-validator';
-import { UserDto } from 'src/user/dto/user';
-import { ScheduleDto } from 'src/schedule/dto/schedule';
+import { UserDto } from '@/user/dto/user';
+import { ScheduleDto } from '@/schedule/dto/schedule';
 import { TripReportDto } from './trip/trip-report';
 import { ReportAttachmentDto } from './report-attachment';
 

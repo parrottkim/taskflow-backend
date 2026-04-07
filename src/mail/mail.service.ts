@@ -1,16 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
-import config from 'config';
+import config from '@/config/config';
 import { google } from 'googleapis';
 import { marked } from 'marked';
-import { IssueDto } from 'src/issue/dto/issue';
-import { IssueAttachmentDto } from 'src/issue/dto/issue-attachment';
-import { ProjectDto } from 'src/project/dto/project';
-import { ReportDto } from 'src/report/dto/report';
-import { ReportAttachmentDto } from 'src/report/dto/report-attachment';
-import { ScheduleDto } from 'src/schedule/dto/schedule';
-import { UserService } from 'src/user/user.service';
-import * as dayjs from 'dayjs';
+import { IssueDto } from '@/issue/dto/issue';
+import { IssueAttachmentDto } from '@/issue/dto/issue-attachment';
+import { ProjectDto } from '@/project/dto/project';
+import { ReportDto } from '@/report/dto/report';
+import { ReportAttachmentDto } from '@/report/dto/report-attachment';
+import { ScheduleDto } from '@/schedule/dto/schedule';
+import { UserService } from '@/user/user.service';
+import dayjs from 'dayjs';
 
 @Injectable()
 export class MailService {
@@ -99,7 +99,7 @@ export class MailService {
       <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Helvetica Neue', Arial, sans-serif;">
         <div style="max-width:600px;margin:40px auto;background-color:#fff;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.1);overflow:hidden;">
           <div style="padding:40px 30px;text-align:center;">
-            <img src="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고" style="width:50px;height:50px;margin-bottom:25px;">
+            <img @="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고" style="width:50px;height:50px;margin-bottom:25px;">
             <h1 style="font-size:24px;font-weight:700;color:#111827;margin-bottom:20px;">비밀번호 재설정 요청</h1>
             <p style="font-size:16px;color:#4b5563;line-height:1.6;margin-bottom:35px;"> 요청하신 계정의 비밀번호를 재설정하려면 아래 버튼을 클릭해 주세요. <br> 링크는 보안을 위해 <span style="color:#e11d48;font-weight:bold;">10분 동안만 유효</span>합니다. </p>
             <a href="${resetLink}" target="_blank" style="display:inline-block;padding:14px 28px;font-size:16px;color:#ffffff;background-color:#78909C;border-radius:8px;text-decoration:none;font-weight:600;">비밀번호 재설정</a>
@@ -132,7 +132,7 @@ export class MailService {
       </head>
       <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Helvetica Neue', Arial, sans-serif;">
         <div style="max-width:600px;margin:40px auto;background-color:#fff;border-radius:10px;box-shadow:0 6px 18px rgba(0, 0, 0, 0.1);overflow:hidden;padding:40px 30px;">
-          <img style="width:50px;height:50px;margin-bottom:25px;display:block;margin-left:auto;margin-right:auto;" src="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고">
+          <img style="width:50px;height:50px;margin-bottom:25px;display:block;margin-left:auto;margin-right:auto;" @="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고">
           <h1 style="font-size:24px;font-weight:700;color:#111827;margin-bottom:20px;text-align:center;">🗓️ 새로운 일정 등록</h1>
           <div style="font-size:20px;font-weight:600;color:#78909C;margin-bottom:30px;text-align:center;padding:10px 0;border-bottom:1px solid #e5e7eb;">${summary}</div>
           <div style="display:block;margin-bottom:30px;">
@@ -232,7 +232,7 @@ export class MailService {
       </head>
       <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Helvetica Neue', Arial, sans-serif;">
         <div style="max-width:600px;margin:40px auto;background-color:#fff;border-radius:10px;box-shadow:0 6px 18px rgba(0, 0, 0, 0.1);overflow:hidden;padding:40px 30px;">
-          <img style="width:50px;height:50px;margin-bottom:25px;display:block;margin-left:auto;margin-right:auto;" src="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고">
+          <img style="width:50px;height:50px;margin-bottom:25px;display:block;margin-left:auto;margin-right:auto;" @="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고">
           <h1 style="font-size:24px;font-weight:700;color:#111827;margin-bottom:20px;text-align:center;">💻️ 업무 내용 공유</h1>
           <div style="display:block;margin-bottom:30px;">
             <div style="width:100%;padding:15px;box-sizing:border-box;margin-top:20px;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">
@@ -350,7 +350,7 @@ export class MailService {
       </head>
       <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Helvetica Neue', Arial, sans-serif;">
         <div style="max-width:600px;margin:40px auto;background-color:#fff;border-radius:10px;box-shadow:0 6px 18px rgba(0, 0, 0, 0.1);overflow:hidden;padding:40px 30px;">
-          <img style="width:50px;height:50px;margin-bottom:25px;display:block;margin-left:auto;margin-right:auto;" src="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고">
+          <img style="width:50px;height:50px;margin-bottom:25px;display:block;margin-left:auto;margin-right:auto;" @="http://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고">
           <h1 style="font-size:24px;font-weight:700;color:#111827;margin-bottom:20px;text-align:center;">✈️️ 실무 결과 공유</h1>
           <div style="display:block;margin-bottom:30px;">
             <div style="width:100%;padding:15px;box-sizing:border-box;margin-top:20px;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">

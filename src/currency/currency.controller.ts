@@ -1,6 +1,6 @@
 import { Controller, UseGuards, HttpStatus, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { CurrencyService } from './currency.service';
 import { CurrencyDto } from './dto/currency';
 
@@ -18,7 +18,8 @@ export class CurrencyController {
   })
   @Get('exchange')
   async getRate(@Query('date') date: string) {
-    return this.currencyService.getExchangeRate(date);
+    const snapshot = await this.currencyService.getExchangeRate(date);
+    return snapshot.rate;
   }
 
   @UseGuards(JwtAccessAuthGuard)

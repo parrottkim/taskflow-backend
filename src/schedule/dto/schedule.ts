@@ -10,7 +10,7 @@ import {
   IsString,
   ValidateNested,
 } from 'class-validator';
-import { UserDto } from 'src/user/dto/user';
+import { UserDto } from '@/user/dto/user';
 import { ScheduleCategoryDto } from './schedule-category';
 
 export class ScheduleDto {

@@ -9,9 +9,9 @@ import * as Client from 'ssh2-sftp-client';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import config from 'config';
+import config from '@/config/config';
 import { ConfigType } from '@nestjs/config';
-import { User } from 'src/entity/user/user.entity';
+import { User } from '@/entity/user/user.entity';
 import { UploadInlineImageDto } from './dto/upload-inline-image';
 import { plainToInstance } from 'class-transformer';
 

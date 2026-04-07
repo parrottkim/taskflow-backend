@@ -7,7 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { UserDto, UserListDto } from './dto/user';
 import { UserService } from './user.service';
 import { GetUsersDto } from './dto/get-users';

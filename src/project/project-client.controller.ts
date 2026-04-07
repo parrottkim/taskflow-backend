@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { ProjectClientService } from './project-client.service';
 import { ApiOperation, ApiHeader, ApiTags, ApiResponse } from '@nestjs/swagger';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { ProjectClientDto } from './dto/project-client';
 import { AllClientCountDto } from './dto/all-client-count';
 

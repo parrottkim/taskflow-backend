@@ -12,6 +12,7 @@ import {
   TripFuelExpenseDto,
 } from './trip-expense';
 import { TripCalculationsDto } from './trip-calculations';
+import { TripExchangeRateDto } from './trip-exchange-rate';
 
 export class TripReportDto {
   @ApiProperty({ type: [TripActualExpenseDto] })
@@ -42,4 +43,10 @@ export class TripReportDto {
   @IsOptional()
   @Expose()
   calculations?: TripCalculationsDto;
+
+  @ApiProperty({ type: TripExchangeRateDto, required: false, nullable: true })
+  @Type(() => TripExchangeRateDto)
+  @IsOptional()
+  @Expose()
+  exchangeRate?: TripExchangeRateDto | null;
 }

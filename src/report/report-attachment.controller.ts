@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { ReportAttachmentService } from './report-attachment.service';
 import { ReportAttachmentDto } from './dto/report-attachment';
 

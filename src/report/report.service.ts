@@ -1,56 +1,56 @@
+import { extractImages } from '@/common/utils/markdown.util';
+import { CurrencyService } from '@/currency/currency.service';
+import { Project } from '@/entity/project/project.entity';
+import { ReportAttachment } from '@/entity/report/report-attachment.entity';
+import { Report } from '@/entity/report/report.entity';
+import { TripActualExpense } from '@/entity/report/trip/trip-actual-expense.entity';
+import { TripCategory } from '@/entity/report/trip/trip-category.entity';
+import { TripExchangeRate } from '@/entity/report/trip/trip-exchange-rate.entity';
+import { TripFuelExpense } from '@/entity/report/trip/trip-fuel-expense.entity';
+import { TripRegulationRate } from '@/entity/report/trip/trip-regulation-rate.entity';
+import { TripRegulation } from '@/entity/report/trip/trip-regulation.entity';
+import { TripReport } from '@/entity/report/trip/trip-report.entity';
+import { TripStep } from '@/entity/report/trip/trip-step.entity';
+import { Schedule } from '@/entity/schedule/schedule.entity';
+import { User } from '@/entity/user/user.entity';
+import { MailService } from '@/mail/mail.service';
+import { ProjectService } from '@/project/project.service';
+import { ScheduleService } from '@/schedule/schedule.service';
+import { SftpService } from '@/sftp/sftp.service';
+import { UserService } from '@/user/user.service';
 import {
-  ConflictException,
-  ForbiddenException,
-  Inject,
   Injectable,
-  InternalServerErrorException,
+  Inject,
   NotFoundException,
+  ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import FormData from 'form-data';
+import axios from 'axios';
 import { plainToInstance } from 'class-transformer';
+import path from 'path';
+import dayjs from 'dayjs';
+import * as ExcelJS from 'exceljs';
 import { DataSource, Repository } from 'typeorm';
 import {
+  CreateReportDto,
   CreateActualExpenseDto,
   CreateRegulationRateDto,
-  CreateReportDto,
 } from './dto/create-report';
-import { ScheduleService } from 'src/schedule/schedule.service';
-import { Report } from 'src/entity/report/report.entity';
+import { GetReportDto } from './dto/get-report';
 import { ReportDto, ReportListDto } from './dto/report';
+import { TripCalculationsDto } from './dto/trip/trip-calculations';
+import { TripCategoryDto } from './dto/trip/trip-category';
+import { TripRegulationDto } from './dto/trip/trip-regulation';
+import { TripStepDto } from './dto/trip/trip-step';
 import {
+  UpdateReportDto,
   UpdateActualExpenseDto,
   UpdateRegulationRateDto,
-  UpdateReportDto,
 } from './dto/update-report';
-import { GetReportDto } from './dto/get-report';
-import { UserService } from 'src/user/user.service';
-import { User } from 'src/entity/user/user.entity';
-import * as path from 'path';
-import * as ExcelJS from 'exceljs';
-import * as dayjs from 'dayjs';
-import { CurrencyService } from 'src/currency/currency.service';
-import * as FormData from 'form-data';
-import axios from 'axios';
-import { TripReport } from 'src/entity/report/trip/trip-report.entity';
-import { TripFuelExpense } from 'src/entity/report/trip/trip-fuel-expense.entity';
-import { TripActualExpense } from 'src/entity/report/trip/trip-actual-expense.entity';
-import { TripCategory } from 'src/entity/report/trip/trip-category.entity';
-import { TripRegulationRate } from 'src/entity/report/trip/trip-regulation-rate.entity';
-import { TripRegulation } from 'src/entity/report/trip/trip-regulation.entity';
-import { TripStep } from 'src/entity/report/trip/trip-step.entity';
-import { TripCategoryDto } from './dto/trip/trip-category';
-import { TripStepDto } from './dto/trip/trip-step';
-import { TripRegulationDto } from './dto/trip/trip-regulation';
-import { TripCalculationsDto } from './dto/trip/trip-calculations';
-import { ReportAttachment } from 'src/entity/report/report-attachment.entity';
-import { extractImages } from 'src/common/utils/markdown.util';
-import { SftpService } from 'src/sftp/sftp.service';
-import { MailService } from 'src/mail/mail.service';
-import { ProjectService } from 'src/project/project.service';
-import { Project } from 'src/entity/project/project.entity';
-import { Schedule } from 'src/entity/schedule/schedule.entity';
+import config from '@/config/config';
 import { ConfigType } from '@nestjs/config';
-import config from 'config';
 
 @Injectable()
 export class ReportService {
@@ -134,6 +134,7 @@ export class ReportService {
       .leftJoinAndSelect('trip.rates', 'rate')
       .leftJoinAndSelect('rate.step', 'rateStep')
       .leftJoinAndSelect('trip.fuel', 'fuel')
+      .leftJoinAndSelect('trip.exchangeRate', 'exchangeRate')
       .leftJoinAndSelect('report.attachments', 'attachment')
       .where('report.id = :id', { id })
       .getOne();
@@ -152,6 +153,7 @@ export class ReportService {
       .leftJoinAndSelect('trip.rates', 'rate')
       .leftJoinAndSelect('rate.step', 'rateStep')
       .leftJoinAndSelect('trip.fuel', 'fuel')
+      .leftJoinAndSelect('trip.exchangeRate', 'exchangeRate')
       .leftJoinAndSelect('report.attachments', 'attachment')
       .where('project.id = :id', { id: value.projectId })
       .orderBy('report.createdAt', 'DESC')
@@ -545,10 +547,7 @@ export class ReportService {
         worksheet.getCell('H47').value = accommodationSettlement;
         worksheet.getCell('H48').value = dailyRate + totalPersonalFuel;
       } else {
-        const today = new Date();
-        const exchange = await this.currencyService.getExchangeRate(
-          dayjs(today).format('YYYYMMDD'),
-        );
+        const exchangeRate = await report.trip?.exchangeRate.rate;
 
         const airfareExpenses = report.trip.expenses.filter(
           (expense) => expense.step.id === 14,
@@ -699,7 +698,7 @@ export class ReportService {
 
         worksheet.getCell('H35').value = dailyRate;
 
-        worksheet.getCell('E35').value = exchange;
+        worksheet.getCell('E35').value = exchangeRate;
 
         const deducted = report.trip.isDeducted ? 0.1 : 0.0;
 
@@ -721,7 +720,7 @@ export class ReportService {
 
         worksheet.getCell('H38').value = amountReceived;
 
-        const totalDailyRate = amountReceived * exchange;
+        const totalDailyRate = amountReceived * exchangeRate;
 
         worksheet.getCell('H41').value = totalDailyRate;
 
@@ -890,6 +889,7 @@ export class ReportService {
                   stepId: rate.step?.id,
                 })) ?? [],
               fuel: report.trip.fuel ?? null,
+              exchangeRate: report.trip.exchangeRate ?? null,
               calculations,
             }
           : null,
@@ -947,6 +947,7 @@ export class ReportService {
                   stepId: rate.step?.id,
                 })) ?? [],
               fuel: report.trip.fuel ?? null,
+              exchangeRate: report.trip.exchangeRate ?? null,
               calculations,
             }
           : null,
@@ -998,6 +999,7 @@ export class ReportService {
                       stepId: rate.step?.id,
                     })) ?? [],
                   fuel: report.trip.fuel ?? null,
+                  exchangeRate: report.trip.exchangeRate ?? null,
                   calculations: calculations,
                 }
               : null,
@@ -1020,8 +1022,61 @@ export class ReportService {
     return reportListDto;
   }
 
-  /** 권한 검증 후 trip 계산값 반환 */
-  async getTripCalculations(user: User, id: number) {
+  async backfillOverseasTripExchangeRates(dryRun = true) {
+    const reports = await this.reportRepository
+      .createQueryBuilder('report')
+      .leftJoinAndSelect('report.schedule', 'schedule')
+      .leftJoinAndSelect('schedule.category', 'scheduleCategory')
+      .leftJoinAndSelect('report.trip', 'trip')
+      .leftJoinAndSelect('trip.exchangeRate', 'exchangeRate')
+      .where('trip.id IS NOT NULL')
+      .andWhere('exchangeRate.id IS NULL')
+      .andWhere('scheduleCategory.id != :domesticCategoryId', {
+        domesticCategoryId: 1,
+      })
+      .orderBy('report.id', 'ASC')
+      .getMany();
+
+    const results: Array<{
+      reportId: number;
+      tripId: number;
+      requestedDate: string;
+      appliedDate: string;
+      rate: number;
+    }> = [];
+
+    for (const report of reports) {
+      const requestedDate = dayjs(report.schedule.start).format('YYYYMMDD');
+      const snapshot =
+        await this.currencyService.getExchangeRate(requestedDate);
+
+      if (!dryRun) {
+        const exchangeRate = this.dataSource.manager.create(TripExchangeRate, {
+          trip: report.trip,
+          rate: snapshot.rate,
+          appliedDate: snapshot.appliedDate,
+        });
+
+        await this.dataSource.manager.save(exchangeRate);
+      }
+
+      results.push({
+        reportId: report.id,
+        tripId: report.trip.id,
+        requestedDate,
+        appliedDate: dayjs(snapshot.appliedDate).format('YYYYMMDD'),
+        rate: snapshot.rate,
+      });
+    }
+
+    return {
+      dryRun,
+      total: reports.length,
+      items: results,
+    };
+  }
+
+  async getDomesticTripCalculations(user: User, id: number) {
     const report = await this.findReportById(id);
 
     if (!report) throw new NotFoundException('report_not_found');
@@ -1029,98 +1084,34 @@ export class ReportService {
     if (report.user.id !== user.id && !user.isAdmin)
       throw new ForbiddenException('no_permission');
 
-    const schedule = report.schedule
-      ? await this.scheduleService.getSchedule(report.schedule.id)
-      : null;
+    const schedule = await this.scheduleService.getSchedule(report.schedule.id);
 
     if (!schedule) throw new NotFoundException('schedule_not_found');
-
-    const isDomestic = schedule.category.id === 1;
-    return isDomestic
-      ? await this.calculateDomesticTripCosts(report)
-      : await this.calculateOverseasTripCosts(report);
-  }
-
-  /** 별도 메서드로 분리된 조회 엔드포인트들 */
-  async getDomesticTripCalculations(user: User, id: number) {
-    const calculations = await this.getTripCalculations(user, id);
-    const report = await this.findReportById(id);
-    const schedule = await this.scheduleService.getSchedule(report.schedule.id);
 
     if (schedule.category.id !== 1) {
       throw new ForbiddenException('not_domestic_trip');
     }
 
-    return calculations;
+    return await this.calculateDomesticTripCosts(report);
   }
 
   async getOverseasTripCalculations(user: User, id: number) {
-    const calculations = await this.getTripCalculations(user, id);
     const report = await this.findReportById(id);
+
+    if (!report) throw new NotFoundException('report_not_found');
+    if (!report.trip) throw new NotFoundException('trip_data_not_found');
+    if (report.user.id !== user.id && !user.isAdmin)
+      throw new ForbiddenException('no_permission');
+
     const schedule = await this.scheduleService.getSchedule(report.schedule.id);
+
+    if (!schedule) throw new NotFoundException('schedule_not_found');
 
     if (schedule.category.id === 1) {
       throw new ForbiddenException('not_overseas_trip');
     }
 
-    return calculations;
-  }
-
-  private async calculateOverseasTripCosts(report: Report) {
-    // 환율 조회
-    const today = new Date();
-    const exchange = await this.currencyService.getExchangeRate(
-      dayjs(today).format('YYYYMMDD'),
-    );
-
-    // 헬퍼 함수: stepIds로 지정된 항목들의 합계 계산
-    const sumExpensesByStepIds = (stepIds: number[]): number => {
-      return report.trip.expenses
-        .filter((expense) => stepIds.includes(expense.step.id))
-        .reduce((sum, expense) => sum + expense.price, 0);
-    };
-
-    // 교통비: step 14, 15, 16
-    const transportationCost = sumExpensesByStepIds([14, 15, 16]);
-
-    // 현지교통비: step 17, 18, 19
-    const localTransportCost = sumExpensesByStepIds([17, 18, 19]);
-
-    // 숙박비: step 20
-    const accommodation = sumExpensesByStepIds([20]);
-
-    // 일비 계산 (step 21, 22, 23)
-    const dailyRate = [21, 22, 23].reduce((sum, stepId) => {
-      const rate = report.trip.rates.find((r) => r.step.id === stepId);
-      return sum + (rate?.rate ?? 0) * (rate?.days ?? 0);
-    }, 0);
-
-    // 환율 적용 일비 (step 21~24 + 휴일 보정)
-    const deducted = report.trip.isDeducted ? 0.1 : 0.0;
-    const holidayRate = report.trip.rates.find((r) => r.step.id === 24);
-    const totalHolidayRate =
-      (holidayRate?.rate ?? 0) * (holidayRate?.days ?? 0);
-    const amountReceived = dailyRate * (1 - deducted) + totalHolidayRate;
-    const totalDailyRate = amountReceived * exchange;
-
-    // 기타 비용: step 25, 26, 27, 28, 29
-    const otherCost = sumExpensesByStepIds([25, 26, 27, 28, 29]);
-
-    // 총 비용
-    const totalCost =
-      transportationCost +
-      localTransportCost +
-      accommodation +
-      totalDailyRate +
-      otherCost;
-
-    return plainToInstance(
-      TripCalculationsDto,
-      {
-        totalCost,
-      },
-      { excludeExtraneousValues: true },
-    );
+    return await this.calculateOverseasTripCosts(report);
   }
 
   private async calculateDomesticTripCosts(report: Report) {
@@ -1180,6 +1171,60 @@ export class ReportService {
     );
   }
 
+  private async calculateOverseasTripCosts(report: Report) {
+    const exchangeRate = report.trip?.exchangeRate.rate;
+
+    // 헬퍼 함수: stepIds로 지정된 항목들의 합계 계산
+    const sumExpensesByStepIds = (stepIds: number[]): number => {
+      return report.trip.expenses
+        .filter((expense) => stepIds.includes(expense.step.id))
+        .reduce((sum, expense) => sum + expense.price, 0);
+    };
+
+    // 교통비: step 14, 15, 16
+    const transportationCost = sumExpensesByStepIds([14, 15, 16]);
+
+    // 현지교통비: step 17, 18, 19
+    const localTransportCost = sumExpensesByStepIds([17, 18, 19]);
+
+    // 숙박비: step 20
+    const accommodation = sumExpensesByStepIds([20]);
+
+    // 일비 계산 (step 21, 22, 23)
+    const dailyRate = [21, 22, 23].reduce((sum, stepId) => {
+      const rate = report.trip.rates.find((r) => r.step.id === stepId);
+      return sum + (rate?.rate ?? 0) * (rate?.days ?? 0);
+    }, 0);
+
+    // 환율 적용 일비 (step 21~24 + 휴일 보정)
+    const deducted = report.trip.isDeducted ? 0.1 : 0.0;
+    const holidayRate = report.trip.rates.find((r) => r.step.id === 24);
+    const totalHolidayRate =
+      (holidayRate?.rate ?? 0) * (holidayRate?.days ?? 0);
+    const amountReceived = dailyRate * (1 - deducted) + totalHolidayRate;
+    const totalDailyRate = amountReceived * exchangeRate;
+
+    // 기타 비용: step 25, 26, 27, 28, 29
+    const otherCost = sumExpensesByStepIds([25, 26, 27, 28, 29]);
+
+    // 총 비용
+    const totalCost =
+      transportationCost +
+      localTransportCost +
+      accommodation +
+      totalDailyRate +
+      otherCost;
+
+    return plainToInstance(
+      TripCalculationsDto,
+      {
+        totalCost,
+        exchangeRate,
+      },
+      { excludeExtraneousValues: true },
+    );
+  }
+
   async sendMail(id: number) {
     const report = await this.findReportById(id);
     const schedule = report.schedule
@@ -1209,6 +1254,7 @@ export class ReportService {
                   stepId: rate.step?.id,
                 })) ?? [],
               fuel: report.trip.fuel ?? null,
+              exchangeRate: report.trip.exchangeRate ?? null,
             }
           : null,
       },
@@ -1257,6 +1303,11 @@ export class ReportService {
       const saved = await queryRunner.manager.save(report);
 
       if (body.trip) {
+        const schedule = body.scheduleId
+          ? await this.scheduleService.getSchedule(body.scheduleId)
+          : null;
+        const isOverseasTrip = Boolean(schedule) && schedule.category.id !== 1;
+
         const trip = queryRunner.manager.create(TripReport, {
           report: saved,
           isDeducted: body.trip.isDeducted ?? false,
@@ -1308,10 +1359,26 @@ export class ReportService {
           savedFuel = await queryRunner.manager.save(fuel);
         }
 
+        let savedExchangeRate: TripExchangeRate | null = null;
+        if (isOverseasTrip) {
+          const snapshot = await this.currencyService.getExchangeRate(
+            dayjs(schedule.start).format('YYYYMMDD'),
+          );
+
+          savedExchangeRate = await queryRunner.manager.save(
+            queryRunner.manager.create(TripExchangeRate, {
+              trip: savedTrip,
+              rate: snapshot.rate,
+              appliedDate: snapshot.appliedDate,
+            }),
+          );
+        }
+
         // TripReport에 관계 데이터 attach
         savedTrip.expenses = savedExpenses;
         savedTrip.rates = savedRates;
         savedTrip.fuel = savedFuel;
+        savedTrip.exchangeRate = savedExchangeRate;
 
         saved.trip = savedTrip; // 최종 Report 객체에 연결
       }
@@ -1352,6 +1419,7 @@ export class ReportService {
                   saved.trip.rates?.map((r) => ({ ...r, stepId: r.step.id })) ??
                   [],
                 fuel: saved.trip.fuel,
+                exchangeRate: saved.trip.exchangeRate ?? null,
                 calculations,
               }
             : null,
@@ -1386,6 +1454,7 @@ export class ReportService {
           'trip.expenses',
           'trip.rates',
           'trip.fuel',
+          'trip.exchangeRate',
         ],
       });
 
@@ -1466,6 +1535,8 @@ export class ReportService {
 
       // 2. 출장 관련 데이터가 있다면 TripReport 필드 업데이트
       if (trip) {
+        const isOverseasTrip = report.schedule?.category?.id !== 1;
+
         // isDeducted 업데이트
         if (body.trip.isDeducted !== undefined) {
           trip.isDeducted = body.trip.isDeducted;
@@ -1552,6 +1623,21 @@ export class ReportService {
           await queryRunner.manager.save(trip);
           await queryRunner.manager.remove(fuelToDelete);
         }
+
+        if (isOverseasTrip && !trip.exchangeRate) {
+          const today = new Date();
+          const snapshot = await this.currencyService.getExchangeRate(
+            dayjs(today).format('YYYYMMDD'),
+          );
+
+          trip.exchangeRate = await queryRunner.manager.save(
+            queryRunner.manager.create(TripExchangeRate, {
+              trip,
+              rate: snapshot.rate,
+              appliedDate: snapshot.appliedDate,
+            }),
+          );
+        }
       } else if (!isTripReportNow && trip) {
         // 3. 기존 TripReport였는데, 업데이트 시 모든 출장 관련 데이터가 제거된 경우
         // TripReport 엔티티와 그 하위 관계들을 정리합니다.
@@ -1601,6 +1687,7 @@ export class ReportService {
                   saved.trip.rates?.map((r) => ({ ...r, stepId: r.step.id })) ??
                   [],
                 fuel: saved.trip.fuel,
+                exchangeRate: saved.trip.exchangeRate ?? null,
                 calculations,
               }
             : null,

@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Project } from 'src/entity/project/project.entity';
-import { Schedule } from 'src/entity/schedule/schedule.entity';
+import { Project } from '@/entity/project/project.entity';
+import { Schedule } from '@/entity/schedule/schedule.entity';
 import { Repository } from 'typeorm';
 import { GetProjectStatsDto } from './dto/get-project-stats';
 import { GetProjectSummaryDto } from './dto/get-project-summary';
 import { plainToInstance } from 'class-transformer';
 import { ProjectStatsDto, ProjectStatsListDto } from './dto/project-stats';
 import { ProjectSummaryDto } from './dto/project-summary';
-import { UserService } from 'src/user/user.service';
-import * as dayjs from 'dayjs';
+import { UserService } from '@/user/user.service';
+import dayjs from 'dayjs';
 import { TodayScheduleDto } from './dto/today-schedule';
 
 @Injectable()

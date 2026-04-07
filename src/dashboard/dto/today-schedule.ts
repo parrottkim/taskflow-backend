@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Expose, plainToInstance, Transform, Type } from 'class-transformer';
 import { IsString, IsDateString } from 'class-validator';
-import { ScheduleCategoryDto } from 'src/schedule/dto/schedule-category';
-import { UserDto } from 'src/user/dto/user';
+import { ScheduleCategoryDto } from '@/schedule/dto/schedule-category';
+import { UserDto } from '@/user/dto/user';
 
 export class TodayScheduleDto {
   @ApiProperty()

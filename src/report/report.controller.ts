@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { ReportService } from './report.service';
 import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { TripCategoryDto } from './dto/trip/trip-category';
 import { TripStepDto } from './dto/trip/trip-step';
 import { TripRegulationDto } from './dto/trip/trip-regulation';

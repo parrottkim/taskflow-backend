@@ -1,7 +1,7 @@
 import { Controller, Get, HttpStatus, Query, UseGuards } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { GetProjectStatsDto } from './dto/get-project-stats';
 import { GetProjectSummaryDto } from './dto/get-project-summary';
 import { ProjectStatsListDto } from './dto/project-stats';

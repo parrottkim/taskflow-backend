@@ -13,7 +13,7 @@ import {
   Body,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { ProjectService } from './project.service';
 import { ProjectDto, ProjectListDto } from './dto/project';
 import { GetProjectsDto } from './dto/get-projects';

@@ -1,5 +1,6 @@
 import { HttpService } from '@nestjs/axios';
 import {
+  BadRequestException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -8,16 +9,18 @@ import {
 import { ConfigType } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
-import config from 'config';
+import config from '@/config/config';
 import { firstValueFrom } from 'rxjs';
-import { Currency } from 'src/entity/currency/currency.entity';
+import { Currency } from '@/entity/currency/currency.entity';
 import { Repository } from 'typeorm';
 import { CurrencyDto } from './dto/currency';
+import dayjs from 'dayjs';
 
 @Injectable()
 export class CurrencyService {
   private readonly BASE_URL =
     'https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON';
+  private readonly MAX_FALLBACK_DAYS = 10;
 
   constructor(
     private readonly httpService: HttpService,
@@ -55,14 +58,23 @@ export class CurrencyService {
     return result;
   }
 
-  /**
-   * 한국수출입은행 환율 API를 호출하여 특정 날짜의 데이터를 가져옵니다.
-   * API: 환율정보(JSON) 조회
-   * @param date 조회할 날짜 (YYYYMMDD 형식, 예: '20200102')
-   * @returns Array<any> (환율 데이터 배열)
-   */
+  private toDateCursor(date: string) {
+    if (!/^\d{8}$/.test(date)) {
+      throw new BadRequestException('invalid_exchange_date');
+    }
+
+    const parsedDate = dayjs(
+      `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`,
+    );
+
+    if (!parsedDate.isValid()) {
+      throw new BadRequestException('invalid_exchange_date');
+    }
+
+    return parsedDate;
+  }
+
   async getExchangeRate(date: string) {
-    // 환경 설정에서 API 키를 가져옵니다.
     const apiKey = this.configService.exchange.key;
     if (!apiKey) {
       throw new InternalServerErrorException(
@@ -70,23 +82,32 @@ export class CurrencyService {
       );
     }
 
-    // API 요청에 필요한 쿼리 파라미터 구성
-    const params = {
-      authkey: apiKey,
-      searchdate: date,
-      data: 'AP01',
-    };
-
     try {
-      // 1. API 호출
-      const response = await firstValueFrom(
-        this.httpService.get(this.BASE_URL, { params }),
-      );
+      let cursor = this.toDateCursor(date);
 
-      const allRates: Array<any> = response.data;
+      const attemptedDates: string[] = [];
 
-      // 2. API 자체 오류 처리 (응답의 첫 번째 항목 확인)
-      if (Array.isArray(allRates) && allRates.length > 0) {
+      for (let attempt = 0; attempt < this.MAX_FALLBACK_DAYS; attempt += 1) {
+        const searchDate = cursor.format('YYYYMMDD');
+        attemptedDates.push(searchDate);
+
+        const response = await firstValueFrom(
+          this.httpService.get(this.BASE_URL, {
+            params: {
+              authkey: apiKey,
+              searchdate: searchDate,
+              data: 'AP01',
+            },
+          }),
+        );
+
+        const allRates: Array<any> = response.data;
+
+        if (!Array.isArray(allRates) || allRates.length === 0) {
+          cursor = cursor.subtract(1, 'day');
+          continue;
+        }
+
         const firstItem = allRates[0];
         const resultValue =
           typeof firstItem.result === 'string'
@@ -104,38 +125,39 @@ export class CurrencyService {
             `환율 정보 조회 실패: ${errorMessage}`,
           );
         }
-      } else {
-        // 배열은 받았으나 내용이 비어있는 경우
-        throw new NotFoundException('exchange_not_found');
+
+        const usdRate = allRates.find((item) => item.cur_unit === 'USD');
+        const tts = usdRate?.tts;
+
+        if (!tts) {
+          cursor = cursor.subtract(1, 'day');
+          continue;
+        }
+
+        const rate = parseFloat(tts.replace(/,/g, ''));
+
+        if (!Number.isNaN(rate)) {
+          return {
+            rate,
+            appliedDate: cursor.toDate(),
+          };
+        }
+
+        cursor = cursor.subtract(1, 'day');
       }
 
-      // 3. 미국 달러(USD) 데이터 추출
-      const usdRate = allRates.find((item) => item.cur_unit === 'USD');
-
-      if (!usdRate) {
-        throw new NotFoundException(
-          `날짜(${date})에 해당하는 미국 달러(USD) 환율 정보를 찾을 수 없습니다.`,
-        );
-      }
-
-      // 4. 최종 값(tts) 반환
-      const tts = usdRate.tts;
-      if (!tts) {
-        throw new InternalServerErrorException(
-          'USD 환율 데이터에서 tts 필드를 찾을 수 없습니다. ⚙️',
-        );
-      }
-      const cleanedString = tts.replace(/,/g, '');
-      const exchange = parseFloat(cleanedString);
-
-      return exchange;
+      throw new NotFoundException(
+        `exchange_not_found: ${attemptedDates.join(', ')}`,
+      );
     } catch (error) {
-      // 이미 위에서 NestJS Exception으로 처리된 경우 그대로 던지기
-      if (error.status) {
+      if (error instanceof Error && 'status' in error) {
         throw error;
       }
 
-      console.error('API 호출 중 예기치 않은 오류 발생:', error.message);
+      console.error(
+        'API 호출 중 예기치 않은 오류 발생:',
+        error instanceof Error ? error.message : error,
+      );
 
       throw new InternalServerErrorException(
         '환율 정보를 처리하는 데 예상치 못한 오류가 발생했습니다.',

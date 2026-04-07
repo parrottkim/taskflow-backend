@@ -4,7 +4,6 @@ import { AppService } from './app.service';
 import { ConfigModule, ConfigType } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule as NestScheduleModule } from '@nestjs/schedule';
-import config from 'config';
 import * as Joi from 'joi';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
@@ -25,6 +24,7 @@ import { IssueAttachmentModule } from './issue/issue-attachment.module';
 import { ReportAttachmentModule } from './report/report-attachment.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { CleanupModule } from './common/cleanup/cleanup.module';
+import config from '@/config/config';
 
 @Module({
   imports: [
