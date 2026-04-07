@@ -6,24 +6,24 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
-import { ContractIssue } from 'src/entity/issue/contract/contract-issue.entity';
-import { IssueCategory } from 'src/entity/issue/issue-category.entity';
-import { Issue } from 'src/entity/issue/issue.entity';
-import { TransactionIssueItemCategory } from 'src/entity/issue/transaction/transaction-issue-category.entity';
-import { TransactionIssueItem } from 'src/entity/issue/transaction/transaction-issue-item.entity';
-import { IssueAttachment } from 'src/entity/issue/issue-attachment.entity';
-import { Currency } from 'src/entity/currency/currency.entity';
-import { ProcurementIssueItem } from 'src/entity/issue/procurement/procurement-issue-item.entity';
-import { ProcurementIssue } from 'src/entity/issue/procurement/procurement-issue.entity';
-import { TransactionIssue } from 'src/entity/issue/transaction/transaction-issue.entity';
-import { KickoffIssue } from 'src/entity/issue/kickoff/kickoff-issue.entity';
-import { ApprovalIssue } from 'src/entity/issue/approval/approval-issue.entity';
-import { PaymentIssue } from 'src/entity/issue/payment/payment-issue.entity';
-import { Project } from 'src/entity/project/project.entity';
-import { MailService } from 'src/mail/mail.service';
-import { ProjectDto } from 'src/project/dto/project';
-import { ProjectClientDto } from 'src/project/dto/project-client';
-import { ProjectClientService } from 'src/project/project-client.service';
+import { ContractIssue } from '@/entity/issue/contract/contract-issue.entity';
+import { IssueCategory } from '@/entity/issue/issue-category.entity';
+import { Issue } from '@/entity/issue/issue.entity';
+import { TransactionIssueItemCategory } from '@/entity/issue/transaction/transaction-issue-category.entity';
+import { TransactionIssueItem } from '@/entity/issue/transaction/transaction-issue-item.entity';
+import { IssueAttachment } from '@/entity/issue/issue-attachment.entity';
+import { Currency } from '@/entity/currency/currency.entity';
+import { ProcurementIssueItem } from '@/entity/issue/procurement/procurement-issue-item.entity';
+import { ProcurementIssue } from '@/entity/issue/procurement/procurement-issue.entity';
+import { TransactionIssue } from '@/entity/issue/transaction/transaction-issue.entity';
+import { KickoffIssue } from '@/entity/issue/kickoff/kickoff-issue.entity';
+import { ApprovalIssue } from '@/entity/issue/approval/approval-issue.entity';
+import { PaymentIssue } from '@/entity/issue/payment/payment-issue.entity';
+import { Project } from '@/entity/project/project.entity';
+import { MailService } from '@/mail/mail.service';
+import { ProjectDto } from '@/project/dto/project';
+import { ProjectClientDto } from '@/project/dto/project-client';
+import { ProjectClientService } from '@/project/project-client.service';
 import { DataSource, Repository } from 'typeorm';
 import { GetLatestIssuesDto } from './dto/get-latest-issues';
 import {
@@ -49,11 +49,11 @@ import {
   CreateProcurementIssueDto,
   CreateTransactionIssueDto,
 } from './dto/create-issue';
-import { User } from 'src/entity/user/user.entity';
-import { ContractIssueItem } from 'src/entity/issue/contract/contract-issue-item.entity';
-import * as dayjs from 'dayjs';
-import { Supplier } from 'src/entity/supplier/supplier.entity';
-import { SftpService } from 'src/sftp/sftp.service';
+import { User } from '@/entity/user/user.entity';
+import { ContractIssueItem } from '@/entity/issue/contract/contract-issue-item.entity';
+import dayjs from 'dayjs';
+import { Supplier } from '@/entity/supplier/supplier.entity';
+import { SftpService } from '@/sftp/sftp.service';
 import {
   UpdateApprovalIssueDto,
   UpdateContractIssueDto,

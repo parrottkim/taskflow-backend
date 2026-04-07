@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
-import { ProjectClientClosure } from 'src/entity/project/project-client-closure.entity';
-import { ProjectClient } from 'src/entity/project/project-client.entity';
+import { ProjectClientClosure } from '@/entity/project/project-client-closure.entity';
+import { ProjectClient } from '@/entity/project/project-client.entity';
 import { Repository } from 'typeorm';
 import { AllClientCountDto } from './dto/all-client-count';
 import { ProjectClientDto, ProjectClientGroupDto } from './dto/project-client';

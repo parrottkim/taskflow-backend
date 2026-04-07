@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
-import { IssueAttachment } from 'src/entity/issue/issue-attachment.entity';
-import { User } from 'src/entity/user/user.entity';
-import { SftpService } from 'src/sftp/sftp.service';
+import { IssueAttachment } from '@/entity/issue/issue-attachment.entity';
+import { User } from '@/entity/user/user.entity';
+import { SftpService } from '@/sftp/sftp.service';
 import { Repository } from 'typeorm';
 import { IssueAttachmentDto } from './dto/issue-attachment';
 

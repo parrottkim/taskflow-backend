@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IssueService } from './issue.service';
-import { JwtAccessAuthGuard } from 'src/common/guards/jwt-access-auth.guard';
+import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { IssueCategoryDto } from './dto/issue-category';
 import { IssueDto } from './dto/issue';
 import { LatestIssueDto } from './dto/latest-issue';

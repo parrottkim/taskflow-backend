@@ -6,20 +6,20 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
-import { Project } from 'src/entity/project/project.entity';
+import { Project } from '@/entity/project/project.entity';
 import { Brackets, DataSource, Repository } from 'typeorm';
 import { ProjectClientService } from './project-client.service';
 import { ProjectClientDto } from './dto/project-client';
 import { GetProjectsDto } from './dto/get-projects';
-import { User } from 'src/entity/user/user.entity';
+import { User } from '@/entity/user/user.entity';
 import { CreateProjectDto } from './dto/create-project';
 import { UpdateProjectDto } from './dto/update-project';
-import { IssueCategory } from 'src/entity/issue/issue-category.entity';
-import { ProjectClient } from 'src/entity/project/project-client.entity';
+import { IssueCategory } from '@/entity/issue/issue-category.entity';
+import { ProjectClient } from '@/entity/project/project-client.entity';
 import { ProjectDto, ProjectListDto } from './dto/project';
 import { ProjectItemCountDto } from './dto/project-item-count';
-import { Report } from 'src/entity/report/report.entity';
-import { Issue } from 'src/entity/issue/issue.entity';
+import { Report } from '@/entity/report/report.entity';
+import { Issue } from '@/entity/issue/issue.entity';
 
 @Injectable()
 export class ProjectService {

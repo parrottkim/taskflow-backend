@@ -5,13 +5,13 @@ import * as bcrypt from 'bcrypt';
 import { UpdateUserDto } from './dto/update-user';
 import { UserDto, UserListDto } from './dto/user';
 import { CreateUserDto } from './dto/create-user';
-import { User } from 'src/entity/user/user.entity';
+import { User } from '@/entity/user/user.entity';
 import { plainToInstance } from 'class-transformer';
 import { GetUsersDto } from './dto/get-users';
 import { DepartmentDto } from './dto/department';
-import { UserDepartment } from 'src/entity/user/user-department.entity';
+import { UserDepartment } from '@/entity/user/user-department.entity';
 import { PositionDto } from './dto/position';
-import { UserPosition } from 'src/entity/user/user-position.entity';
+import { UserPosition } from '@/entity/user/user-position.entity';
 
 @Injectable()
 export class UserService {

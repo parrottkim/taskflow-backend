@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Project } from 'src/entity/project/project.entity';
+import { Project } from '@/entity/project/project.entity';
 import { ProjectService } from './project.service';
 import { ProjectController } from './project.controller';
 import { ProjectClientModule } from './project-client.module';
-import { IssueModule } from 'src/issue/issue.module';
-import { Report } from 'src/entity/report/report.entity';
-import { Issue } from 'src/entity/issue/issue.entity';
+import { IssueModule } from '@/issue/issue.module';
+import { Report } from '@/entity/report/report.entity';
+import { Issue } from '@/entity/issue/issue.entity';
 
 @Module({
   imports: [

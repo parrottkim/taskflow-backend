@@ -1,23 +1,23 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Report } from 'src/entity/report/report.entity';
+import { Report } from '@/entity/report/report.entity';
 import { ReportController } from './report.controller';
-import { CurrencyModule } from 'src/currency/currency.module';
-import { TripActualExpense } from 'src/entity/report/trip/trip-actual-expense.entity';
-import { TripCategory } from 'src/entity/report/trip/trip-category.entity';
-import { TripFuelExpense } from 'src/entity/report/trip/trip-fuel-expense.entity';
-import { TripRegulationRate } from 'src/entity/report/trip/trip-regulation-rate.entity';
-import { TripRegulation } from 'src/entity/report/trip/trip-regulation.entity';
-import { TripReport } from 'src/entity/report/trip/trip-report.entity';
-import { TripStep } from 'src/entity/report/trip/trip-step.entity';
-import { TripExchangeRate } from 'src/entity/report/trip/trip-exchange-rate.entity';
-import { UserModule } from 'src/user/user.module';
+import { CurrencyModule } from '@/currency/currency.module';
+import { TripActualExpense } from '@/entity/report/trip/trip-actual-expense.entity';
+import { TripCategory } from '@/entity/report/trip/trip-category.entity';
+import { TripFuelExpense } from '@/entity/report/trip/trip-fuel-expense.entity';
+import { TripRegulationRate } from '@/entity/report/trip/trip-regulation-rate.entity';
+import { TripRegulation } from '@/entity/report/trip/trip-regulation.entity';
+import { TripReport } from '@/entity/report/trip/trip-report.entity';
+import { TripStep } from '@/entity/report/trip/trip-step.entity';
+import { TripExchangeRate } from '@/entity/report/trip/trip-exchange-rate.entity';
+import { UserModule } from '@/user/user.module';
 import { ReportService } from './report.service';
-import { ScheduleModule } from 'src/schedule/schedule.module';
-import { SftpModule } from 'src/sftp/sftp.module';
-import { ReportAttachmentSubscriber } from 'src/common/subscribers/report-attachment.subscriber';
-import { MailModule } from 'src/mail/mail.module';
-import { ProjectModule } from 'src/project/project.module';
+import { ScheduleModule } from '@/schedule/schedule.module';
+import { SftpModule } from '@/sftp/sftp.module';
+import { ReportAttachmentSubscriber } from '@/common/subscribers/report-attachment.subscriber';
+import { MailModule } from '@/mail/mail.module';
+import { ProjectModule } from '@/project/project.module';
 
 @Module({
   imports: [

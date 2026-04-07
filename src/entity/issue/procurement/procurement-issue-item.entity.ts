@@ -7,8 +7,8 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { DecimalColumnTransformer } from 'src/common/utils/transformer.utils';
-import { Supplier } from 'src/entity/supplier/supplier.entity';
+import { DecimalColumnTransformer } from '@/common/utils/transformer.utils';
+import { Supplier } from '@/entity/supplier/supplier.entity';
 import { ProcurementIssue } from './procurement-issue.entity';
 
 @Entity()

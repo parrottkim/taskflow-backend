@@ -1,5 +1,5 @@
-import { IssueAttachment } from 'src/entity/issue/issue-attachment.entity';
-import { SftpService } from 'src/sftp/sftp.service';
+import { IssueAttachment } from '@/entity/issue/issue-attachment.entity';
+import { SftpService } from '@/sftp/sftp.service';
 import {
   DataSource,
   EntitySubscriberInterface,
@@ -8,9 +8,7 @@ import {
 } from 'typeorm';
 
 @EventSubscriber()
-export class IssueAttachmentSubscriber
-  implements EntitySubscriberInterface<IssueAttachment>
-{
+export class IssueAttachmentSubscriber implements EntitySubscriberInterface<IssueAttachment> {
   constructor(
     dataSource: DataSource,
     private readonly sftpService: SftpService,

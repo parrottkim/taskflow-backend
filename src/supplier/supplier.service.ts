@@ -4,15 +4,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Supplier } from 'src/entity/supplier/supplier.entity';
+import { Supplier } from '@/entity/supplier/supplier.entity';
 import { Brackets, Repository } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
-import { SupplierKeyword } from 'src/entity/supplier/supplier-keyword.entity';
+import { SupplierKeyword } from '@/entity/supplier/supplier-keyword.entity';
 import { CreateSupplierDto } from './dto/create-supplier';
 import { GetSuppliersDto } from './dto/get-suppliers';
 import { SupplierDto, SupplierListDto } from './dto/supplier';
 import { UpdateSupplierDto } from './dto/update-supplier';
-import { SftpService } from 'src/sftp/sftp.service';
+import { SftpService } from '@/sftp/sftp.service';
 
 @Injectable()
 export class SupplierService {

@@ -7,10 +7,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
-import { Bookmark } from 'src/entity/bookmark/bookmark.entity';
-import { Project } from 'src/entity/project/project.entity';
-import { User } from 'src/entity/user/user.entity';
-import { ProjectService } from 'src/project/project.service';
+import { Bookmark } from '@/entity/bookmark/bookmark.entity';
+import { Project } from '@/entity/project/project.entity';
+import { User } from '@/entity/user/user.entity';
+import { ProjectService } from '@/project/project.service';
 import { Repository } from 'typeorm';
 import { BookmarkDto } from './dto/bookmark';
 

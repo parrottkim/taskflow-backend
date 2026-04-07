@@ -1,5 +1,5 @@
-import { ReportAttachment } from 'src/entity/report/report-attachment.entity';
-import { SftpService } from 'src/sftp/sftp.service';
+import { ReportAttachment } from '@/entity/report/report-attachment.entity';
+import { SftpService } from '@/sftp/sftp.service';
 import {
   DataSource,
   EntitySubscriberInterface,
@@ -8,9 +8,7 @@ import {
 } from 'typeorm';
 
 @EventSubscriber()
-export class ReportAttachmentSubscriber
-  implements EntitySubscriberInterface<ReportAttachment>
-{
+export class ReportAttachmentSubscriber implements EntitySubscriberInterface<ReportAttachment> {
   constructor(
     dataSource: DataSource,
     private readonly sftpService: SftpService,

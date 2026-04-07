@@ -20,4 +20,10 @@ export class TripCalculationsDto {
   })
   @Expose()
   nonTaxableAmount?: number;
+
+  @ApiProperty({
+    description: '환율',
+  })
+  @Expose()
+  exchangeRate?: number;
 }

@@ -8,24 +8,24 @@ import {
 import { google, calendar_v3 } from 'googleapis';
 import { join } from 'path';
 import { ConfigType } from '@nestjs/config';
-import config from 'config';
+import config from '@/config/config';
 import { CreateScheduleDto } from './dto/create-schedule';
 import { plainToInstance } from 'class-transformer';
 import { ScheduleDto, ScheduleGroupDto, ScheduleListDto } from './dto/schedule';
-import { ProjectService } from 'src/project/project.service';
+import { ProjectService } from '@/project/project.service';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ScheduleCategory } from 'src/entity/schedule/schedule-category.entity';
+import { ScheduleCategory } from '@/entity/schedule/schedule-category.entity';
 import { DataSource, Repository } from 'typeorm';
-import { User } from 'src/entity/user/user.entity';
+import { User } from '@/entity/user/user.entity';
 import { ScheduleCategoryDto } from './dto/schedule-category';
-import { Schedule } from 'src/entity/schedule/schedule.entity';
+import { Schedule } from '@/entity/schedule/schedule.entity';
 import { UpdateScheduleDto } from './dto/update-schedule';
 import { GetSchedulesDto } from './dto/get-schedules';
-import { MailService } from 'src/mail/mail.service';
-import * as dayjs from 'dayjs';
-import { Project } from 'src/entity/project/project.entity';
-import { ProjectClientService } from 'src/project/project-client.service';
-import { ProjectDto } from 'src/project/dto/project';
+import { MailService } from '@/mail/mail.service';
+import dayjs from 'dayjs';
+import { Project } from '@/entity/project/project.entity';
+import { ProjectClientService } from '@/project/project-client.service';
+import { ProjectDto } from '@/project/dto/project';
 
 @Injectable()
 export class ScheduleService {
