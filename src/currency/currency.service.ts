@@ -127,14 +127,14 @@ export class CurrencyService {
         }
 
         const usdRate = allRates.find((item) => item.cur_unit === 'USD');
-        const tts = usdRate?.tts;
+        const deal_bas_r = usdRate?.deal_bas_r;
 
-        if (!tts) {
+        if (!deal_bas_r) {
           cursor = cursor.subtract(1, 'day');
           continue;
         }
 
-        const rate = parseFloat(tts.replace(/,/g, ''));
+        const rate = parseFloat(deal_bas_r.replace(/,/g, ''));
 
         if (!Number.isNaN(rate)) {
           return {
