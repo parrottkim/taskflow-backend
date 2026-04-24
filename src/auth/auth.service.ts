@@ -33,7 +33,7 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, pass: string) {
-    const user = await this.userService.findUserByEmail(email);
+    const user = await this.userService.findByEmail(email);
 
     if (!user) {
       throw new UnauthorizedException('user_not_found');
@@ -100,7 +100,7 @@ export class AuthService {
 
   async refreshToken(user: User) {
     const payload = { email: user.email, sub: user.id };
-    const existingUser = await this.userService.findUserById(payload.sub);
+    const existingUser = await this.userService.findById(payload.sub);
     if (!existingUser) {
       throw new UnauthorizedException('user_not_found');
     }
@@ -140,7 +140,7 @@ export class AuthService {
     }
 
     try {
-      const user = await this.userService.findUserByEmail(value.email);
+      const user = await this.userService.findByEmail(value.email);
 
       if (!user) {
       }
@@ -179,7 +179,7 @@ export class AuthService {
     }
 
     const userId = parseInt(userIdString, 10);
-    const user = await this.userService.findUserById(userId);
+    const user = await this.userService.findById(userId);
 
     if (!user) {
       throw new UnauthorizedException('user_not_found');
