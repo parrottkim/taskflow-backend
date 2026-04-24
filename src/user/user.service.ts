@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { UpdateUserDto } from './dto/update-user';
 import { UserDto, UserListDto } from './dto/user';
@@ -23,70 +23,94 @@ export class UserService {
     private readonly userPositionRepository: Repository<UserPosition>,
   ) {}
 
-  async findAllDepartments() {
-    return await this.userDepartmentRepository
-      .createQueryBuilder('department')
-      .orderBy('department.id', 'ASC')
-      .getMany();
+  async findByEmail(email: string): Promise<User | null> {
+    return await this.userRepository.findOne({
+      where: { email },
+      relations: ['position', 'department'],
+    });
   }
 
-  async findAllPositions() {
-    return await this.userPositionRepository
-      .createQueryBuilder('position')
-      .orderBy('position.id', 'ASC')
-      .getMany();
+  async findById(id: number): Promise<User | null> {
+    return await this.userRepository.findOne({
+      where: { id },
+      relations: ['position', 'department'],
+    });
   }
 
-  async findUserById(id: number) {
-    return await this.userRepository
-      .createQueryBuilder('user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
-      .where('user.id = :id', { id })
-      .getOne();
+  async getAllDepartments() {
+    const departments = await this.userDepartmentRepository.find({
+      order: { id: 'ASC' },
+    });
+    return plainToInstance(DepartmentDto, departments, {
+      excludeExtraneousValues: true,
+    });
   }
 
-  async findUserByEmail(email: string) {
-    return await this.userRepository
-      .createQueryBuilder('user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
-      .where('user.email = :email', { email })
-      .getOne();
+  async getAllPositions() {
+    const positions = await this.userPositionRepository.find({
+      order: { id: 'ASC' },
+    });
+    return plainToInstance(PositionDto, positions, {
+      excludeExtraneousValues: true,
+    });
   }
 
-  async findUsers(value: GetUsersDto) {
+  // 2. 유저 상세 조회 (ID 또는 Email 공용화 가능하지만 명확성을 위해 분리)
+  async getUser(id: number) {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: ['position', 'department'],
+    });
+
+    if (!user) throw new UnauthorizedException('user_not_found');
+    return plainToInstance(UserDto, user, { excludeExtraneousValues: true });
+  }
+
+  // 3. 질문하신 ID별 선택 조회 (In 연산자 활용)
+  async getUsersByIds(ids: number[]) {
+    if (!ids?.length) return [];
+
+    const users = await this.userRepository.find({
+      where: { id: In(ids) },
+      relations: ['position', 'department'],
+    });
+
+    return plainToInstance(UserDto, users, { excludeExtraneousValues: true });
+  }
+
+  // 4. 검색 로직 (QueryBuilder가 필요한 유일한 곳)
+  async getUsers(query: GetUsersDto) {
     let queryBuilder = this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.position', 'position')
       .leftJoinAndSelect('user.department', 'department');
 
-    if (value.departmentId) {
+    if (query.departmentId) {
       queryBuilder.andWhere('department.id = :departmentId', {
-        departmentId: value.departmentId,
+        departmentId: query.departmentId,
       });
     }
 
-    if (value.positionId) {
+    if (query.positionId) {
       queryBuilder.andWhere('position.id = :positionId', {
-        positionId: value.positionId,
+        positionId: query.positionId,
       });
     }
 
-    if (value.search) {
+    if (query.search) {
       queryBuilder.andWhere(
         new Brackets((qb) => {
           qb.orWhere('user.email ILIKE :search', {
-            search: `%${value.search}%`,
+            search: `%${query.search}%`,
           })
             .orWhere('user.username ILIKE :search', {
-              search: `%${value.search}%`,
+              search: `%${query.search}%`,
             })
             .orWhere('department.name ILIKE :search', {
-              search: `%${value.search}%`,
+              search: `%${query.search}%`,
             })
             .orWhere('position.name ILIKE :search', {
-              search: `%${value.search}%`,
+              search: `%${query.search}%`,
             });
         }),
       );
@@ -96,87 +120,39 @@ export class UserService {
       .orderBy('position.id', 'ASC')
       .addOrderBy('user.username', 'ASC');
 
-    return queryBuilder
-      .skip((value.page - 1) * value.limit)
-      .take(value.limit)
+    const [items, total] = await queryBuilder
+      .skip((query.page - 1) * query.limit)
+      .take(query.limit)
       .getManyAndCount();
-  }
 
-  async findAllUsers() {
-    return await this.userRepository
-      .createQueryBuilder('user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
-      .getMany();
-  }
-
-  async getAllDepartments() {
-    const departments = await this.findAllDepartments();
-
-    const result = departments.map((item) =>
-      plainToInstance(DepartmentDto, item, {
-        excludeExtraneousValues: true,
-      }),
-    );
-
-    return result;
-  }
-
-  async getAllPositions() {
-    const positions = await this.findAllPositions();
-
-    const result = positions.map((item) =>
-      plainToInstance(PositionDto, item, {
-        excludeExtraneousValues: true,
-      }),
-    );
-
-    return result;
-  }
-
-  async getUser(id: number) {
-    const user = await this.findUserById(id);
-
-    if (!user) {
-      throw new UnauthorizedException('user_not_found');
-    }
-
-    return plainToInstance(UserDto, user);
-  }
-
-  async getUsers(query: GetUsersDto) {
-    const [users, total] = await this.findUsers(query);
-
-    const userListDto = plainToInstance(UserListDto, {
-      items: users,
-      page: query.page,
-      total: total,
-    });
-
-    return userListDto;
+    return plainToInstance(UserListDto, { items, total, page: query.page });
   }
 
   async getAllUsers() {
-    const users = await this.findAllUsers();
-
-    const result = plainToInstance(UserDto, users, {
-      excludeExtraneousValues: true,
+    const users = await this.userRepository.find({
+      relations: ['position', 'department'],
+      order: { username: 'ASC' },
     });
 
-    return result;
+    return plainToInstance(UserDto, users, {
+      excludeExtraneousValues: true,
+    });
   }
+  ㅋ;
 
-  async create(user: CreateUserDto) {
-    user.password = await bcrypt.hash(user.password, 10);
+  async create(dto: CreateUserDto) {
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const user = this.userRepository.create({
+      ...dto,
+      password: hashedPassword,
+    });
     return this.userRepository.save(user);
   }
 
-  async update(id: number, updateUserDto: UpdateUserDto) {
-    const user = await this.findUserById(id);
-    if (!user) {
-      throw new UnauthorizedException('user_not_found');
-    }
-    Object.assign(user, updateUserDto);
-    return this.userRepository.save(user);
+  async update(id: number, dto: UpdateUserDto) {
+    const user = await this.userRepository.findOneBy({ id });
+    if (!user) throw new UnauthorizedException('user_not_found');
+
+    return this.userRepository.save({ ...user, ...dto });
   }
 }

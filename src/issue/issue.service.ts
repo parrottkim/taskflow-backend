@@ -1,6 +1,7 @@
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -62,6 +63,12 @@ import {
   UpdateProcurementIssueDto,
   UpdateTransactionIssueDto,
 } from './dto/update-issue';
+import path from 'path';
+import axios from 'axios';
+import FormData from 'form-data';
+import * as ExcelJS from 'exceljs';
+import { ConfigType } from '@nestjs/config';
+import config from '@/config/config';
 
 @Injectable()
 export class IssueService {
@@ -80,6 +87,8 @@ export class IssueService {
     private readonly projectClientService: ProjectClientService,
     private readonly mailService: MailService,
     private readonly sftpService: SftpService,
+    @Inject(config.KEY)
+    private configService: ConfigType<typeof config>,
   ) {}
 
   private async mapIssueToDto(issue: Issue) {
@@ -225,6 +234,108 @@ export class IssueService {
     });
 
     return latestIssueListDto;
+  }
+
+  async exportPurchaseRequest(id: number) {
+    const TEMPLATE_BASE_PATH = path.join(process.cwd(), 'templates');
+    const TEMPLATE_FILE_NAME = 'purchase_template.xlsx';
+
+    const PATH_FILENAME = `purchase_${id}_filled`;
+    const TEMPLATE_PATH = path.join(TEMPLATE_BASE_PATH, TEMPLATE_FILE_NAME);
+
+    const issue = await this.issueRepository
+      .createQueryBuilder('issue')
+      .leftJoinAndSelect('issue.project', 'project')
+      .leftJoinAndSelect('issue.user', 'user')
+      .innerJoinAndSelect('issue.procurement', 'procurement')
+      .leftJoinAndSelect('procurement.items', 'items')
+      .leftJoinAndSelect('items.supplier', 'supplier')
+      .where('issue.id = :id', { id })
+      .getOne();
+    if (!issue) throw new NotFoundException('issue_not_found');
+
+    try {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(TEMPLATE_PATH);
+
+      const worksheet = workbook.worksheets[0];
+
+      worksheet.pageSetup = {
+        paperSize: 9,
+        orientation: 'portrait',
+        fitToPage: true,
+        horizontalCentered: true,
+        verticalCentered: true,
+        margins: {
+          left: 0.5 / 2.54,
+          right: 0.5 / 2.54,
+          top: 0.5 / 2.54,
+          bottom: 0.5 / 2.54,
+          header: 0,
+          footer: 0,
+        },
+      };
+
+      worksheet.pageSetup.printArea = 'A1:K24';
+
+      worksheet.getCell('I5').value = issue.user.username;
+      worksheet.getCell('C8').value = issue.project.code;
+      worksheet.getCell('C9').value = issue.content.trimEnd();
+      worksheet.getCell('H8').value = issue.project.name;
+      worksheet.getCell('C10').value = dayjs().format('YYYY-MM-DD');
+
+      let currentRow = 12;
+      const maxRow = 22;
+
+      for (const item of issue.procurement.items) {
+        if (currentRow > maxRow) break;
+
+        worksheet.getCell(`A${currentRow}`).value = item.item;
+        worksheet.getCell(`D${currentRow}`).value = item.quantity;
+        worksheet.getCell(`E${currentRow}`).value = item.spec;
+        worksheet.getCell(`G${currentRow}`).value = item.unitPrice;
+        worksheet.getCell(`H${currentRow}`).value =
+          item.supplier?.name ?? item.purchaseUrl;
+
+        currentRow++;
+      }
+
+      const xlsxBuffer = await workbook.xlsx.writeBuffer();
+
+      const form = new FormData();
+      form.append('files', xlsxBuffer, {
+        filename: `${PATH_FILENAME}.xlsx`,
+        contentType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      // PDF 변환 시 여백 제거를 위한 파라미터 추가
+      // nativePdfFormat을 false로 설정하여 LibreOffice의 기본 PDF 엔진 사용
+      form.append('nativePdfFormat', 'false');
+      // singlePageSheets를 true로 설정하여 각 시트를 단일 페이지로 처리
+      form.append('singlePageSheets', 'true');
+
+      const url = this.configService.url.docConverter;
+
+      const response = await axios.post(
+        `${url}/forms/libreoffice/convert`,
+        form,
+        {
+          headers: {
+            ...form.getHeaders(),
+          },
+          responseType: 'arraybuffer',
+          timeout: 30000,
+        },
+      );
+
+      const buffer = response.data;
+      const filename = `${PATH_FILENAME}.pdf`;
+
+      return { buffer, filename };
+    } catch (e) {
+      throw e;
+    }
   }
 
   async getContractItems(id: number) {
@@ -459,7 +570,7 @@ export class IssueService {
     return await this.mapIssueToDto(issue);
   }
 
-  async sendMail(id: number) {
+  async sendMail(id: number, userIds?: number[]) {
     const issue = await this.issueRepository
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
@@ -494,7 +605,7 @@ export class IssueService {
       excludeExtraneousValues: true,
     });
 
-    await this.mailService.sendIssueMail(projectDto, issueDto);
+    await this.mailService.sendIssueMail(projectDto, issueDto, userIds);
   }
 
   async createContractIssue(user: User, body: CreateContractIssueDto) {

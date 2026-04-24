@@ -11,6 +11,7 @@ import {
   ParseIntPipe,
   Body,
   Query,
+  Response,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IssueService } from './issue.service';
@@ -36,6 +37,7 @@ import {
   UpdateProcurementIssueDto,
   UpdateTransactionIssueDto,
 } from './dto/update-issue';
+import { SendIssueMailDto } from './dto/send-issue-mail';
 @ApiTags('Issue (이슈)')
 @Controller('issue')
 export class IssueController {
@@ -90,6 +92,30 @@ export class IssueController {
   @Get('latest')
   getLatestIssues(@Query() value: GetLatestIssuesDto) {
     return this.issueService.getLatestIssues(value);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '구매 조달 이슈 출력' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+  })
+  @Get('procurement/export/:id')
+  async exportPurchaseRequest(
+    @Param('id', ParseIntPipe) id: number,
+    @Response() res,
+  ) {
+    const { buffer, filename } =
+      await this.issueService.exportPurchaseRequest(id);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+      'Content-Length': buffer.length,
+    });
+
+    res.end(buffer);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -213,8 +239,11 @@ export class IssueController {
     description: 'Successful response',
   })
   @Post('mail/:id')
-  sendMail(@Param('id', ParseIntPipe) id: number) {
-    return this.issueService.sendMail(id);
+  sendMail(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: SendIssueMailDto,
+  ) {
+    return this.issueService.sendMail(id, body.userIds);
   }
 
   // ==================== Create Issue APIs ====================
