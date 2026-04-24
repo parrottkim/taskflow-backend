@@ -23,6 +23,7 @@ import { CreateReportDto } from './dto/create-report';
 import { ReportDto, ReportListDto } from './dto/report';
 import { UpdateReportDto } from './dto/update-report';
 import { GetReportDto } from './dto/get-report';
+import { SendReportMailDto } from './dto/send-report-mail';
 
 @Controller('report')
 export class ReportController {
@@ -121,8 +122,11 @@ export class ReportController {
     description: 'Successful response',
   })
   @Post('mail/:id')
-  sendMail(@Param('id', ParseIntPipe) id: number) {
-    return this.reportService.sendMail(id);
+  sendMail(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: SendReportMailDto,
+  ) {
+    return this.reportService.sendMail(id, body.userIds);
   }
 
   @UseGuards(JwtAccessAuthGuard)

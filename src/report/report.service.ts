@@ -196,9 +196,8 @@ export class ReportService {
   // 🌟 exportReport 함수 수정됨: 요청별 고유 폴더 사용 및 필요한 시트만 남기고 변환
   async exportTrip(id: number) {
     const TEMPLATE_BASE_PATH = path.join(process.cwd(), 'templates');
-    const TEMPLATE_FILE_NAME = 'template.xlsx';
+    const TEMPLATE_FILE_NAME = 'trip_template.xlsx';
 
-    // ❌ 임시 디렉토리/파일 관련 변수 제거 (XLSX_PATH_LOCAL, TEMP_DIR_LOCAL 등)
     const PATH_FILENAME = `report_${id}_filled`;
     const TEMPLATE_PATH = path.join(TEMPLATE_BASE_PATH, TEMPLATE_FILE_NAME);
 
@@ -1225,7 +1224,7 @@ export class ReportService {
     );
   }
 
-  async sendMail(id: number) {
+  async sendMail(id: number, userIds?: number[]) {
     const report = await this.findReportById(id);
     const schedule = report.schedule
       ? await this.scheduleService.getSchedule(report.schedule.id)
@@ -1263,7 +1262,7 @@ export class ReportService {
       },
     );
 
-    await this.mailService.sendReportMail(project, reportDto);
+    await this.mailService.sendReportMail(project, reportDto, userIds);
   }
 
   async createReport(user: any, body: CreateReportDto) {

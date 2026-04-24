@@ -457,8 +457,20 @@ export class MailService {
     return await this.sendEmail(message);
   }
 
-  async sendIssueMail(project: ProjectDto, issue: IssueDto) {
-    const users = await this.userService.getAllUsers();
+  async sendIssueMail(
+    project: ProjectDto,
+    issue: IssueDto,
+    userIds?: number[],
+  ) {
+    let users;
+
+    if (userIds && userIds.length > 0) {
+      // 선택된 ID가 있는 경우 해당 사용자들만 조회
+      users = await this.userService.getUsersByIds(userIds);
+    } else {
+      // 기존처럼 전체 사용자 조회 (기본값)
+      users = await this.userService.getAllUsers();
+    }
     const allowedUsers = users.filter((u) => this.isAllowedEmail(u.email));
     if (!allowedUsers.length) return null;
 
@@ -503,8 +515,20 @@ export class MailService {
     return await this.sendEmail(message);
   }
 
-  async sendReportMail(project: ProjectDto, report: ReportDto) {
-    const users = await this.userService.getAllUsers();
+  async sendReportMail(
+    project: ProjectDto,
+    report: ReportDto,
+    userIds?: number[],
+  ) {
+    let users;
+
+    if (userIds && userIds.length > 0) {
+      // 선택된 ID가 있는 경우 해당 사용자들만 조회
+      users = await this.userService.getUsersByIds(userIds);
+    } else {
+      // 기존처럼 전체 사용자 조회 (기본값)
+      users = await this.userService.getAllUsers();
+    }
     const allowedUsers = users.filter((u) => this.isAllowedEmail(u.email));
     if (!allowedUsers.length) return null;
 
