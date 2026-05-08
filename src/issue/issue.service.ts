@@ -915,6 +915,56 @@ export class IssueService {
       const savedTransaction = await queryRunner.manager.save(transaction);
       savedIssue.transaction = savedTransaction;
 
+      const existingItems = await queryRunner.manager.find(
+        TransactionIssueItem,
+        {
+          where: { project: { id: issue.project.id } },
+        },
+      );
+
+      const toRemove = existingItems.filter(
+        (e) => !body.transactionItems.some((dto) => dto.id === e.id),
+      );
+      if (toRemove.length)
+        await queryRunner.manager.softDelete(
+          TransactionIssueItem,
+          toRemove.map((item) => item.id),
+        );
+
+      const items = await Promise.all(
+        body.transactionItems.map(async (dto) => {
+          const category = await queryRunner.manager.findOne(
+            TransactionIssueItemCategory,
+            { where: { id: dto.categoryId } },
+          );
+
+          if (dto.id) {
+            const existing = existingItems.find((e) => e.id === dto.id);
+            if (existing) {
+              existing.category = category;
+              existing.price = dto.price;
+              existing.ratio = dto.ratio;
+              existing.isPaid = dto.isPaid;
+              existing.paidAt = dto.paidAt ? dayjs(dto.paidAt).toDate() : null;
+              existing.note = dto.note;
+              return existing;
+            }
+          }
+
+          return queryRunner.manager.create(TransactionIssueItem, {
+            project: issue.project,
+            category,
+            price: dto.price,
+            ratio: dto.ratio,
+            isPaid: dto.isPaid ?? false,
+            paidAt: dto.paidAt ?? null,
+            note: dto.note ?? null,
+          });
+        }),
+      );
+
+      await queryRunner.manager.save(items);
+
       await queryRunner.manager.update(
         Project,
         { id: project.id },
