@@ -69,6 +69,8 @@ import FormData from 'form-data';
 import * as ExcelJS from 'exceljs';
 import { ConfigType } from '@nestjs/config';
 import config from '@/config/config';
+import { UpdateProcurementIssueItemDto } from './dto/update-issue-item';
+import { ProcurementIssueRequestedItem } from '@/entity/issue/procurement/procurement-issue-request-item.entity';
 
 @Injectable()
 export class IssueService {
@@ -135,6 +137,12 @@ export class IssueService {
         break;
       case 4: // PROCUREMENT
         payload.procurementItems = issue.procurement?.items ?? [];
+        payload.procurementRequestedItems =
+          issue.procurement?.requestedItems ?? [];
+        payload.isRequested = issue.procurement.isRequested;
+        payload.isOrdered = issue.procurement.isOrdered;
+        payload.requestedUser = issue.procurement.requestedUser;
+        payload.orderedUser = issue.procurement.orderedUser;
         break;
       case 5: // TRANSACTION
         payload.contractItems = contractItems;
@@ -291,10 +299,11 @@ export class IssueService {
         if (currentRow > maxRow) break;
 
         worksheet.getCell(`A${currentRow}`).value = item.item;
-        worksheet.getCell(`D${currentRow}`).value = item.quantity;
-        worksheet.getCell(`E${currentRow}`).value = item.spec;
+        worksheet.getCell(`D${currentRow}`).value = item.spec;
+        worksheet.getCell(`F${currentRow}`).value = item.quantity;
         worksheet.getCell(`G${currentRow}`).value = item.unitPrice;
-        worksheet.getCell(`H${currentRow}`).value =
+        worksheet.getCell(`H${currentRow}`).value = item.totalAmount;
+        worksheet.getCell(`I${currentRow}`).value =
           item.supplier?.name ?? item.purchaseUrl;
 
         currentRow++;
@@ -519,6 +528,10 @@ export class IssueService {
       .innerJoinAndSelect('issue.procurement', 'procurement')
       .leftJoinAndSelect('procurement.items', 'items')
       .leftJoinAndSelect('items.supplier', 'supplier')
+      .leftJoinAndSelect('procurement.requestedItems', 'requestedItems')
+      .leftJoinAndSelect('requestedItems.supplier', 'requesteSupplier')
+      .leftJoinAndSelect('procurement.requestedUser', 'requestedUser')
+      .leftJoinAndSelect('procurement.orderedUser', 'orderedUser')
       .where('project.id = :id', { id: value.projectId })
       .orderBy('issue.createdAt', 'DESC')
       .skip((value.page - 1) * value.limit)
@@ -528,7 +541,15 @@ export class IssueService {
     const items = issues.map((issue) => {
       return plainToInstance(
         ProcurementIssueDto,
-        { ...issue, procurementItems: issue.procurement?.items || [] },
+        {
+          ...issue,
+          procurementItems: issue.procurement?.items || [],
+          procurementRequestedItems: issue.procurement?.requestedItems || [],
+          isRequested: issue.procurement.isRequested,
+          isOrdered: issue.procurement.isOrdered,
+          requestedUser: issue.procurement.requestedUser,
+          orderedUser: issue.procurement.orderedUser,
+        },
         {
           excludeExtraneousValues: true,
         },
@@ -562,8 +583,10 @@ export class IssueService {
       .leftJoinAndSelect('issue.kickoff', 'kickoff')
       .leftJoinAndSelect('issue.payment', 'payment')
       .leftJoinAndSelect('issue.procurement', 'procurement')
-      .leftJoinAndSelect('procurement.items', 'procurementItems')
-      .leftJoinAndSelect('procurementItems.supplier', 'supplier')
+      .leftJoinAndSelect('procurement.items', 'items')
+      .leftJoinAndSelect('items.supplier', 'supplier')
+      .leftJoinAndSelect('procurement.requestedItems', 'requestedItems')
+      .leftJoinAndSelect('requestedItems.supplier', 'requesteSupplier')
       .where('issue.id = :id', { id })
       .getOne();
 
@@ -852,6 +875,22 @@ export class IssueService {
         ),
       );
       savedProcurement.items = items;
+
+      const requestedItems = await Promise.all(
+        body.procurementItems.map(async (dto) =>
+          queryRunner.manager.create(ProcurementIssueItem, {
+            procurement: savedProcurement,
+            ...dto,
+            supplier: dto.supplierId
+              ? await queryRunner.manager.findOne(Supplier, {
+                  where: { id: dto.supplierId },
+                })
+              : null,
+          }),
+        ),
+      );
+      savedProcurement.requestedItems = requestedItems;
+
       await queryRunner.manager.save(savedProcurement);
 
       savedIssue.procurement = savedProcurement;
@@ -914,6 +953,56 @@ export class IssueService {
       });
       const savedTransaction = await queryRunner.manager.save(transaction);
       savedIssue.transaction = savedTransaction;
+
+      const existingItems = await queryRunner.manager.find(
+        TransactionIssueItem,
+        {
+          where: { project: { id: issue.project.id } },
+        },
+      );
+
+      const toRemove = existingItems.filter(
+        (e) => !body.transactionItems.some((dto) => dto.id === e.id),
+      );
+      if (toRemove.length)
+        await queryRunner.manager.softDelete(
+          TransactionIssueItem,
+          toRemove.map((item) => item.id),
+        );
+
+      const items = await Promise.all(
+        body.transactionItems.map(async (dto) => {
+          const category = await queryRunner.manager.findOne(
+            TransactionIssueItemCategory,
+            { where: { id: dto.categoryId } },
+          );
+
+          if (dto.id) {
+            const existing = existingItems.find((e) => e.id === dto.id);
+            if (existing) {
+              existing.category = category;
+              existing.price = dto.price;
+              existing.ratio = dto.ratio;
+              existing.isPaid = dto.isPaid;
+              existing.paidAt = dto.paidAt ? dayjs(dto.paidAt).toDate() : null;
+              existing.note = dto.note;
+              return existing;
+            }
+          }
+
+          return queryRunner.manager.create(TransactionIssueItem, {
+            project: issue.project,
+            category,
+            price: dto.price,
+            ratio: dto.ratio,
+            isPaid: dto.isPaid ?? false,
+            paidAt: dto.paidAt ?? null,
+            note: dto.note ?? null,
+          });
+        }),
+      );
+
+      await queryRunner.manager.save(items);
 
       await queryRunner.manager.update(
         Project,
@@ -1301,6 +1390,113 @@ export class IssueService {
 
         issue.attachments = [...remainingAttachments, ...newAttachments];
       }
+
+      const saved = await queryRunner.manager.save(issue);
+
+      await queryRunner.commitTransaction();
+      return await this.mapIssueToDto(saved);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async setProcurementRequested(
+    user: User,
+    id: number,
+    body: UpdateProcurementIssueItemDto[],
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const issue = await queryRunner.manager.findOne(Issue, {
+        where: { id },
+        relations: [
+          'project',
+          'user',
+          'category',
+          'procurement',
+          'procurement.items',
+          'procurement.requestedItems',
+          'procurement.requestedUser',
+          'procurement.orderedUser',
+          'attachments',
+        ],
+      });
+      if (!issue) throw new NotFoundException('issue_not_found');
+
+      issue.procurement.requestedUser = user;
+      issue.procurement.isRequested = true;
+
+      await queryRunner.manager.save(issue.procurement);
+
+      const existingItems = await queryRunner.manager.find(
+        ProcurementIssueRequestedItem,
+        {
+          where: { procurement: { id: issue.procurement.id } },
+        },
+      );
+
+      const toRemove = existingItems.filter(
+        (e) => !body.some((dto) => dto.id === e.id),
+      );
+      if (toRemove.length) {
+        await queryRunner.manager.softDelete(
+          ProcurementIssueRequestedItem,
+          toRemove.map((item) => item.id),
+        );
+      }
+
+      const items = await Promise.all(
+        body.map(async (dto) => {
+          if (dto.id) {
+            const existing = existingItems.find((e) => e.id === dto.id);
+            if (existing) {
+              existing.item = dto.item;
+              existing.spec = dto.spec;
+              existing.quantity = dto.quantity;
+              existing.unitPrice = dto.unitPrice;
+              existing.totalAmount = dto.totalAmount;
+              existing.isOnlinePurchase = dto.isOnlinePurchase;
+              existing.purchaseUrl = dto.purchaseUrl;
+
+              // ⭐ supplier 유지 / 변경 로직
+              if (dto.supplierId !== undefined) {
+                existing.supplier = dto.supplierId
+                  ? await queryRunner.manager.findOne(Supplier, {
+                      where: { id: dto.supplierId },
+                    })
+                  : null;
+              }
+
+              return existing;
+            }
+          }
+
+          return queryRunner.manager.create(ProcurementIssueRequestedItem, {
+            procurement: issue.procurement,
+            item: dto.item,
+            spec: dto.spec,
+            quantity: dto.quantity,
+            unitPrice: dto.unitPrice,
+            totalAmount: dto.totalAmount,
+            isOnlinePurchase: dto.isOnlinePurchase,
+            purchaseUrl: dto.purchaseUrl,
+            supplier: dto.supplierId
+              ? await queryRunner.manager.findOne(Supplier, {
+                  where: { id: dto.supplierId },
+                })
+              : null,
+          });
+        }),
+      );
+
+      const savedItems = await queryRunner.manager.save(items);
+      issue.procurement.requestedItems = savedItems;
 
       const saved = await queryRunner.manager.save(issue);
 
