@@ -69,6 +69,10 @@ import FormData from 'form-data';
 import * as ExcelJS from 'exceljs';
 import { ConfigType } from '@nestjs/config';
 import config from '@/config/config';
+import { ProcurementIssueRequestItem } from '@/entity/issue/procurement/procurement-issue-request-item.entity';
+import { CreateProcurementRequestDto } from './dto/procurement-issue-request';
+import { ProcurementIssueRequest } from '@/entity/issue/procurement/procurement-issue-request.entity';
+import { convertToKoreanCurrency } from '@/common/utils/converter.util';
 
 @Injectable()
 export class IssueService {
@@ -84,6 +88,8 @@ export class IssueService {
     private readonly transactionCategoryRepository: Repository<TransactionIssueItemCategory>,
     @InjectRepository(IssueCategory)
     private readonly issueCategoryRepository: Repository<IssueCategory>,
+    @InjectRepository(ProcurementIssueRequest)
+    private readonly procurementIssueRequestRepository: Repository<ProcurementIssueRequest>,
     private readonly projectClientService: ProjectClientService,
     private readonly mailService: MailService,
     private readonly sftpService: SftpService,
@@ -100,12 +106,12 @@ export class IssueService {
     });
 
     const contractItems = await this.contractIssueItemRepository.find({
-      where: { project: { id: issue.project.id } },
+      where: { project: { id: issue.project.id }, deletedAt: null },
       relations: ['project'],
     });
 
     const transactionItems = await this.transactionIssueItemRepository.find({
-      where: { project: { id: issue.project.id } },
+      where: { project: { id: issue.project.id }, deletedAt: null },
       relations: ['project', 'category'],
     });
 
@@ -135,6 +141,7 @@ export class IssueService {
         break;
       case 4: // PROCUREMENT
         payload.procurementItems = issue.procurement?.items ?? [];
+        payload.requests = issue.procurement?.requests ?? [];
         break;
       case 5: // TRANSACTION
         payload.contractItems = contractItems;
@@ -238,9 +245,9 @@ export class IssueService {
 
   async exportPurchaseRequest(id: number) {
     const TEMPLATE_BASE_PATH = path.join(process.cwd(), 'templates');
-    const TEMPLATE_FILE_NAME = 'purchase_template.xlsx';
+    const TEMPLATE_FILE_NAME = 'request_template.xlsx';
 
-    const PATH_FILENAME = `purchase_${id}_filled`;
+    const PATH_FILENAME = `request_${id}_filled`;
     const TEMPLATE_PATH = path.join(TEMPLATE_BASE_PATH, TEMPLATE_FILE_NAME);
 
     const issue = await this.issueRepository
@@ -276,29 +283,159 @@ export class IssueService {
         },
       };
 
-      worksheet.pageSetup.printArea = 'A1:K24';
+      worksheet.pageSetup.printArea = 'A1:N32';
 
-      worksheet.getCell('I5').value = issue.user.username;
+      worksheet.getCell('L5').value = issue.user.username;
       worksheet.getCell('C8').value = issue.project.code;
+      worksheet.getCell('J8').value = issue.project.name;
       worksheet.getCell('C9').value = issue.content.trimEnd();
-      worksheet.getCell('H8').value = issue.project.name;
       worksheet.getCell('C10').value = dayjs().format('YYYY-MM-DD');
 
       let currentRow = 12;
       const maxRow = 22;
 
+      let total = 0;
+
       for (const item of issue.procurement.items) {
         if (currentRow > maxRow) break;
 
         worksheet.getCell(`A${currentRow}`).value = item.item;
-        worksheet.getCell(`D${currentRow}`).value = item.quantity;
-        worksheet.getCell(`E${currentRow}`).value = item.spec;
+        worksheet.getCell(`D${currentRow}`).value = item.spec;
+        worksheet.getCell(`F${currentRow}`).value = item.quantity;
         worksheet.getCell(`G${currentRow}`).value = item.unitPrice;
-        worksheet.getCell(`H${currentRow}`).value =
+        worksheet.getCell(`H${currentRow}`).value = item.totalAmount;
+        worksheet.getCell(`I${currentRow}`).value =
           item.supplier?.name ?? item.purchaseUrl;
+        worksheet.getCell(`L${currentRow}`).value = item.note;
 
+        total += item.totalAmount;
         currentRow++;
       }
+
+      worksheet.getCell('L32').value = total;
+
+      const xlsxBuffer = await workbook.xlsx.writeBuffer();
+
+      const form = new FormData();
+      form.append('files', xlsxBuffer, {
+        filename: `${PATH_FILENAME}.xlsx`,
+        contentType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      // PDF 변환 시 여백 제거를 위한 파라미터 추가
+      // nativePdfFormat을 false로 설정하여 LibreOffice의 기본 PDF 엔진 사용
+      form.append('nativePdfFormat', 'false');
+      // singlePageSheets를 true로 설정하여 각 시트를 단일 페이지로 처리
+      form.append('singlePageSheets', 'true');
+
+      const url = this.configService.url.docConverter;
+
+      const response = await axios.post(
+        `${url}/forms/libreoffice/convert`,
+        form,
+        {
+          headers: {
+            ...form.getHeaders(),
+          },
+          responseType: 'arraybuffer',
+          timeout: 30000,
+        },
+      );
+
+      const buffer = response.data;
+      const filename = `${PATH_FILENAME}.pdf`;
+
+      return { buffer, filename };
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  async exportPurchaseOrder(id: number) {
+    const TEMPLATE_BASE_PATH = path.join(process.cwd(), 'templates');
+    const TEMPLATE_FILE_NAME = 'order_template.xlsx';
+
+    const PATH_FILENAME = `order_${id}_filled`;
+    const TEMPLATE_PATH = path.join(TEMPLATE_BASE_PATH, TEMPLATE_FILE_NAME);
+
+    const request = await this.procurementIssueRequestRepository.findOne({
+      where: { id },
+      relations: ['items', 'supplier', 'procurement', 'procurement.project'],
+    });
+    if (!request) throw new NotFoundException('request_not_found');
+
+    try {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(TEMPLATE_PATH);
+
+      const worksheet = workbook.worksheets[0];
+
+      worksheet.pageSetup = {
+        paperSize: 9,
+        orientation: 'portrait',
+        fitToPage: true,
+        horizontalCentered: true,
+        verticalCentered: true,
+        margins: {
+          left: 0.5 / 2.54,
+          right: 0.5 / 2.54,
+          top: 0.5 / 2.54,
+          bottom: 0.5 / 2.54,
+          header: 0,
+          footer: 0,
+        },
+      };
+
+      worksheet.pageSetup.printArea = 'A1:N32';
+
+      worksheet.getCell('D6').value = dayjs(request.orderDate).format(
+        'YYYY/MM/DD',
+      );
+      worksheet.getCell('D7').value = request.supplier.name;
+      if (request.deliveryDate !== null)
+        worksheet.getCell('D8').value = dayjs(request.deliveryDate).format(
+          'YYYY/MM/DD',
+        );
+      else worksheet.getCell('D8').value = '별도 협의';
+      worksheet.getCell('D9').value = request.paymentTerms ?? '별도 협의';
+      worksheet.getCell('D10').value = request.supplier.phone;
+      worksheet.getCell('D11').value = request.supplier.fax;
+      worksheet.getCell('D12').value = request.serialNumber;
+
+      const subtotal = request.items.reduce(
+        (sum, item) => sum + (item.totalAmount ?? 0),
+        0,
+      );
+      const vatAmount = request.hasFee ? subtotal / 10 : 0;
+      const total = subtotal + vatAmount;
+      const formattedTotal = new Intl.NumberFormat('ko-KR').format(total);
+      const items = request.items.map((e) => e.item).join(', ');
+
+      worksheet.getCell('A14').value =
+        `금 액 : ${convertToKoreanCurrency(total)} 정`;
+      if (request.hasFee)
+        worksheet.getCell('G14').value = `(₩ ${formattedTotal}) / VAT 포함)`;
+      else
+        worksheet.getCell('G14').value = `(₩ ${formattedTotal}) / VAT 미포함)`;
+
+      worksheet.getCell('B17').value = request.procurement.project.code;
+      worksheet.getCell('D17').value = request.procurement.project.name;
+      worksheet.getCell('F17').value = items;
+      worksheet.getCell('J17').value = subtotal;
+      worksheet.getCell('L17').value = subtotal;
+      worksheet.getCell('N17').value = vatAmount;
+
+      worksheet.getCell('E27').value = subtotal;
+      worksheet.getCell('H27').value = vatAmount;
+      worksheet.getCell('K27').value = total;
+
+      const noteCell = worksheet.getCell('A32');
+      noteCell.value = (request.note ?? '').replace(/\r\n/g, '\n');
+      noteCell.alignment = {
+        ...(noteCell.alignment ?? {}),
+        wrapText: true,
+      };
 
       const xlsxBuffer = await workbook.xlsx.writeBuffer();
 
@@ -343,6 +480,7 @@ export class IssueService {
       .createQueryBuilder('item')
       .leftJoinAndSelect('item.project', 'project')
       .where('project.id = :id', { id })
+      .andWhere('item.deletedAt IS NULL')
       .orderBy('item.createdAt', 'ASC')
       .getMany();
 
@@ -357,6 +495,7 @@ export class IssueService {
       .leftJoinAndSelect('item.project', 'project')
       .leftJoinAndSelect('item.category', 'category')
       .where('project.id = :id', { id })
+      .andWhere('item.deletedAt IS NULL')
       .orderBy('item.createdAt', 'ASC')
       .getMany();
 
@@ -519,6 +658,10 @@ export class IssueService {
       .innerJoinAndSelect('issue.procurement', 'procurement')
       .leftJoinAndSelect('procurement.items', 'items')
       .leftJoinAndSelect('items.supplier', 'supplier')
+      .leftJoinAndSelect('procurement.requests', 'requests')
+      .leftJoinAndSelect('requests.user', 'requestUser')
+      .leftJoinAndSelect('requests.items', 'requestItem')
+      .leftJoinAndSelect('requests.supplier', 'requestSupplier')
       .where('project.id = :id', { id: value.projectId })
       .orderBy('issue.createdAt', 'DESC')
       .skip((value.page - 1) * value.limit)
@@ -528,7 +671,11 @@ export class IssueService {
     const items = issues.map((issue) => {
       return plainToInstance(
         ProcurementIssueDto,
-        { ...issue, procurementItems: issue.procurement?.items || [] },
+        {
+          ...issue,
+          procurementItems: issue.procurement?.items || [],
+          requests: issue.procurement?.requests,
+        },
         {
           excludeExtraneousValues: true,
         },
@@ -562,8 +709,12 @@ export class IssueService {
       .leftJoinAndSelect('issue.kickoff', 'kickoff')
       .leftJoinAndSelect('issue.payment', 'payment')
       .leftJoinAndSelect('issue.procurement', 'procurement')
-      .leftJoinAndSelect('procurement.items', 'procurementItems')
-      .leftJoinAndSelect('procurementItems.supplier', 'supplier')
+      .leftJoinAndSelect('procurement.items', 'items')
+      .leftJoinAndSelect('items.supplier', 'supplier')
+      .leftJoinAndSelect('procurement.requests', 'requests')
+      .leftJoinAndSelect('requests.user', 'requestUser')
+      .leftJoinAndSelect('requests.items', 'requestItem')
+      .leftJoinAndSelect('requests.supplier', 'requestSupplier')
       .where('issue.id = :id', { id })
       .getOne();
 
@@ -807,6 +958,91 @@ export class IssueService {
     }
   }
 
+  async createProcurementIssueRequest(
+    user: User,
+    id: number,
+    body: CreateProcurementRequestDto,
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const issue = await queryRunner.manager.findOne(Issue, {
+        where: { id },
+        relations: [
+          'project',
+          'user',
+          'category',
+          'procurement',
+          'procurement.items',
+          'procurement.items.supplier',
+          'procurement.requests',
+          'procurement.requests.user',
+          'procurement.requests.items',
+          'procurement.requests.supplier',
+          'attachments',
+        ],
+      });
+      if (!issue) throw new NotFoundException('issue_not_found');
+
+      await queryRunner.manager.save(issue.procurement);
+
+      const request = await queryRunner.manager.create(
+        ProcurementIssueRequest,
+        {
+          user: user,
+          procurement: issue.procurement,
+          orderDate: dayjs().toDate(),
+          deliveryDate: body.deliveryDate,
+          paymentTerms: body.paymentTerms,
+          serialNumber: dayjs().format('YYYYMMDDHHmmss'),
+          supplier: body.supplierId
+            ? await queryRunner.manager.findOne(Supplier, {
+                where: { id: body.supplierId },
+              })
+            : null,
+          hasFee: body.hasFee,
+          note: body.note,
+        },
+      );
+
+      const savedRequest = await queryRunner.manager.save(request);
+
+      const items = await Promise.all(
+        body.items.map(async (dto) =>
+          queryRunner.manager.create(ProcurementIssueRequestItem, {
+            request: savedRequest,
+            ...dto,
+            supplier: dto.supplierId
+              ? await queryRunner.manager.findOne(Supplier, {
+                  where: { id: dto.supplierId },
+                })
+              : null,
+          }),
+        ),
+      );
+      savedRequest.items = items;
+
+      await queryRunner.manager.save(savedRequest);
+
+      issue.procurement.requests = [
+        ...(issue.procurement.requests ?? []),
+        savedRequest,
+      ];
+
+      const saved = await queryRunner.manager.save(issue);
+
+      await queryRunner.commitTransaction();
+      return await this.mapIssueToDto(saved);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
   async createProcurementIssue(user: User, body: CreateProcurementIssueDto) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -852,6 +1088,7 @@ export class IssueService {
         ),
       );
       savedProcurement.items = items;
+
       await queryRunner.manager.save(savedProcurement);
 
       savedIssue.procurement = savedProcurement;
@@ -1461,6 +1698,7 @@ export class IssueService {
                 existing.totalAmount = dto.totalAmount;
                 existing.isOnlinePurchase = dto.isOnlinePurchase;
                 existing.purchaseUrl = dto.purchaseUrl;
+                existing.note = dto.note;
 
                 // ⭐ supplier 유지 / 변경 로직
                 if (dto.supplierId !== undefined) {
@@ -1489,6 +1727,7 @@ export class IssueService {
                     where: { id: dto.supplierId },
                   })
                 : null,
+              note: dto.note,
             });
           }),
         );
@@ -1713,287 +1952,6 @@ export class IssueService {
       await queryRunner.release();
     }
   }
-
-  // async updateIssue(user: any, id: number, body: UpdateIssueDto) {
-  //   const queryRunner = this.dataSource.createQueryRunner();
-  //   await queryRunner.connect();
-  //   await queryRunner.startTransaction();
-
-  //   try {
-  //     // Issue 조회 (relations 포함)
-  //     const issue = await queryRunner.manager.findOne(Issue, {
-  //       where: { id },
-  //       relations: [
-  //         'project',
-  //         'user',
-  //         'category',
-  //         'attachments',
-  //         'contract',
-  //         'kickoff',
-  //         'approval',
-  //         'procurement',
-  //         'procurement.items',
-  //         'transaction',
-  //         'approval',
-  //         'payment',
-  //       ],
-  //     });
-
-  //     if (!issue) throw new NotFoundException('issue_not_found');
-
-  //     if (issue.user.id !== user.id && !user.isAdmin) {
-  //       throw new ForbiddenException('no_permission');
-  //     }
-
-  //     if (body.currencyId) {
-  //       const currency = await queryRunner.manager.findOne(Currency, {
-  //         where: { id: body.currencyId },
-  //       });
-  //       if (currency) {
-  //         // 현재 객체 업데이트
-  //         issue.currency = currency;
-  //         // [핵심] 같은 프로젝트의 모든 이슈 통화를 한꺼번에 변경하여 정합성 유지
-  //         await queryRunner.manager.update(
-  //           Issue,
-  //           { project: { id: issue.project.id } },
-  //           { currency: currency },
-  //         );
-  //       }
-  //     }
-
-  //     // 1️⃣ content 업데이트
-  //     if (typeof body.content === 'string') issue.content = body.content;
-
-  //     // 2️⃣ attachments 업데이트
-  //     if (body.attachments) {
-  //       const oldAttachments = issue.attachments || [];
-  //       const toRemove = oldAttachments.filter(
-  //         (oldAtt) =>
-  //           !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
-  //       );
-
-  //       for (const att of toRemove) {
-  //         try {
-  //           await this.sftpService.deleteFileByPath(att.path);
-  //         } catch (e) {
-  //           console.warn(`SFTP 삭제 실패: ${att.path}`, e);
-  //         }
-  //       }
-
-  //       if (toRemove.length > 0) {
-  //         await queryRunner.manager.remove(IssueAttachment, toRemove);
-  //       }
-
-  //       const remainingAttachments = oldAttachments.filter(
-  //         (att) => !toRemove.includes(att),
-  //       );
-  //       const newAttachments = body.attachments
-  //         .filter((att) => !issue.attachments?.some((old) => old.id === att.id))
-  //         .map((att) =>
-  //           queryRunner.manager.create(IssueAttachment, {
-  //             filename: att.filename,
-  //             path: att.path,
-  //             size: att.size,
-  //             issue: issue,
-  //           }),
-  //         );
-
-  //       issue.attachments = [...remainingAttachments, ...newAttachments];
-  //     }
-
-  //     // 3️⃣ OneToOne 관계 생성 및 업데이트
-  //     if (issue.category.id === 1) {
-  //       // CONTRACT
-  //       if (!issue.contract) {
-  //         issue.contract = await queryRunner.manager.save(
-  //           queryRunner.manager.create(ContractIssue, { issue }),
-  //         );
-  //       }
-  //       if (body.currencyId) {
-  //         const currency = await queryRunner.manager.findOne(Currency, {
-  //           where: { id: body.currencyId },
-  //         });
-  //         if (currency) issue.currency = currency;
-  //       }
-  //     } else if (issue.category.id === 2) {
-  //       // KICKOFF
-  //       if (!issue.kickoff) {
-  //         issue.kickoff = await queryRunner.manager.save(
-  //           queryRunner.manager.create(KickoffIssue, { issue }),
-  //         );
-  //       }
-  //       if (body.kickoffDate) issue.kickoff.kickoffDate = body.kickoffDate;
-  //     } else if (issue.category.id === 4) {
-  //       // PROCUREMENT
-  //       if (!issue.procurement) {
-  //         issue.procurement = await queryRunner.manager.save(
-  //           queryRunner.manager.create(ProcurementIssue, { issue }),
-  //         );
-  //       }
-  //       if (body.procurementItems) {
-  //         const existingItems = issue.procurement.items ?? [];
-
-  //         // 삭제 처리
-  //         const toRemove = existingItems.filter(
-  //           (e) => !body.procurementItems.some((dto) => dto.id === e.id),
-  //         );
-  //         if (toRemove.length) {
-  //           await queryRunner.manager.remove(toRemove);
-  //         }
-
-  //         const items = await Promise.all(
-  //           body.procurementItems.map(async (dto) => {
-  //             if (dto.id) {
-  //               const existing = existingItems.find((e) => e.id === dto.id);
-  //               if (existing) {
-  //                 existing.item = dto.item;
-  //                 existing.spec = dto.spec;
-  //                 existing.quantity = dto.quantity;
-  //                 existing.unitPrice = dto.unitPrice;
-  //                 existing.totalAmount = dto.totalAmount;
-  //                 existing.isOnlinePurchase = dto.isOnlinePurchase;
-  //                 existing.purchaseUrl = dto.purchaseUrl;
-
-  //                 // ⭐ supplier 유지 / 변경 로직
-  //                 if (dto.supplierId !== undefined) {
-  //                   existing.supplier = dto.supplierId
-  //                     ? await queryRunner.manager.findOne(Supplier, {
-  //                         where: { id: dto.supplierId },
-  //                       })
-  //                     : null;
-  //                 }
-
-  //                 return existing;
-  //               }
-  //             }
-
-  //             // 신규 생성
-  //             return queryRunner.manager.create(ProcurementIssueItem, {
-  //               procurement: issue.procurement,
-  //               item: dto.item,
-  //               spec: dto.spec,
-  //               quantity: dto.quantity,
-  //               unitPrice: dto.unitPrice,
-  //               totalAmount: dto.totalAmount,
-  //               isOnlinePurchase: dto.isOnlinePurchase,
-  //               purchaseUrl: dto.purchaseUrl,
-  //               supplier: dto.supplierId
-  //                 ? await queryRunner.manager.findOne(Supplier, {
-  //                     where: { id: dto.supplierId },
-  //                   })
-  //                 : null,
-  //             });
-  //           }),
-  //         );
-
-  //         issue.procurement.items = items;
-  //         await queryRunner.manager.save(issue.procurement);
-  //       }
-  //     } else if (issue.category.id === 5) {
-  //       // TRANSACTION
-  //       if (!issue.transaction) {
-  //         issue.transaction = await queryRunner.manager.save(
-  //           queryRunner.manager.create(TransactionIssue, { issue }),
-  //         );
-  //       }
-  //     }
-
-  //     // 4️⃣ contractItems (독립 컬렉션) 업데이트
-  //     if (body.contractItems) {
-  //       const existingItems = await queryRunner.manager.find(
-  //         ContractIssueItem,
-  //         {
-  //           where: { project: { id: issue.project.id } },
-  //         },
-  //       );
-
-  //       const toRemove = existingItems.filter(
-  //         (e) => !body.contractItems.some((dto) => dto.id === e.id),
-  //       );
-  //       if (toRemove.length) await queryRunner.manager.remove(toRemove);
-
-  //       const items = body.contractItems.map((dto) => {
-  //         if (dto.id) {
-  //           const existing = existingItems.find((e) => e.id === dto.id);
-  //           if (existing) {
-  //             existing.item = dto.item;
-  //             existing.price = dto.price;
-  //             return existing;
-  //           }
-  //         }
-  //         return queryRunner.manager.create(ContractIssueItem, {
-  //           project: issue.project,
-  //           item: dto.item,
-  //           price: dto.price,
-  //         });
-  //       });
-
-  //       await queryRunner.manager.save(items);
-  //     }
-
-  //     // 5️⃣ transactionItems (독립 컬렉션) 업데이트
-  //     if (body.transactionItems) {
-  //       const existingItems = await queryRunner.manager.find(
-  //         TransactionIssueItem,
-  //         {
-  //           where: { project: { id: issue.project.id } },
-  //         },
-  //       );
-
-  //       const toRemove = existingItems.filter(
-  //         (e) => !body.transactionItems.some((dto) => dto.id === e.id),
-  //       );
-  //       if (toRemove.length) await queryRunner.manager.remove(toRemove);
-
-  //       const items = await Promise.all(
-  //         body.transactionItems.map(async (dto) => {
-  //           const category = await queryRunner.manager.findOne(
-  //             TransactionIssueItemCategory,
-  //             { where: { id: dto.categoryId } },
-  //           );
-
-  //           if (dto.id) {
-  //             const existing = existingItems.find((e) => e.id === dto.id);
-  //             if (existing) {
-  //               existing.category = category;
-  //               existing.price = dto.price;
-  //               existing.ratio = dto.ratio;
-  //               existing.isPaid = dto.isPaid;
-  //               existing.paidAt = dto.paidAt
-  //                 ? dayjs(dto.paidAt).toDate()
-  //                 : null;
-  //               existing.note = dto.note;
-  //               return existing;
-  //             }
-  //           }
-
-  //           return queryRunner.manager.create(TransactionIssueItem, {
-  //             project: issue.project,
-  //             category,
-  //             price: dto.price,
-  //             ratio: dto.ratio,
-  //             isPaid: dto.isPaid ?? false,
-  //             paidAt: dto.paidAt ?? null,
-  //             note: dto.note ?? null,
-  //           });
-  //         }),
-  //       );
-
-  //       await queryRunner.manager.save(items);
-  //     }
-
-  //     // 6️⃣ 최종 issue 저장
-  //     const saved = await queryRunner.manager.save(issue);
-  //     await queryRunner.commitTransaction();
-
-  //     return await this.mapIssueToDto(saved);
-  //   } catch (err) {
-  //     await queryRunner.rollbackTransaction();
-  //     throw err;
-  //   } finally {
-  //     await queryRunner.release();
-  //   }
-  // }
 
   async deleteIssue(user: User, id: number) {
     const queryRunner = this.dataSource.createQueryRunner();

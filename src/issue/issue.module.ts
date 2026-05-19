@@ -22,6 +22,8 @@ import { ProjectClientModule } from '@/project/project-client.module';
 import { PaymentIssue } from '@/entity/issue/payment/payment-issue.entity';
 import { ApprovalIssue } from '@/entity/issue/approval/approval-issue.entity';
 import { Supplier } from '@/entity/supplier/supplier.entity';
+import { ProcurementIssueRequestItem } from '@/entity/issue/procurement/procurement-issue-request-item.entity';
+import { ProcurementIssueRequest } from '@/entity/issue/procurement/procurement-issue-request.entity';
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { Supplier } from '@/entity/supplier/supplier.entity';
       ApprovalIssue,
       ProcurementIssue,
       ProcurementIssueItem,
+      ProcurementIssueRequest,
+      ProcurementIssueRequestItem,
       IssueCategory,
       IssueAttachment,
       Currency,
