@@ -8,11 +8,10 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { DecimalColumnTransformer } from '@/common/utils/transformer.utils';
-import { Supplier } from '@/entity/supplier/supplier.entity';
-import { ProcurementIssue } from './procurement-issue.entity';
+import { ProcurementIssueRequest } from './procurement-issue-request.entity';
 
 @Entity()
-export class ProcurementIssueItem {
+export class ProcurementIssueRequestItem {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -43,20 +42,17 @@ export class ProcurementIssueItem {
   })
   totalAmount: number;
 
+  @Column({ nullable: true })
+  note: string;
+
   @Column({ default: false })
   isOnlinePurchase: boolean;
 
   @Column({ nullable: true })
   purchaseUrl: string;
 
-  @ManyToOne(() => Supplier, { nullable: true })
-  supplier: Supplier;
-
-  @Column({ nullable: true })
-  note: string;
-
-  @ManyToOne(() => ProcurementIssue, (procurement) => procurement.items)
-  procurement: ProcurementIssue;
+  @ManyToOne(() => ProcurementIssueRequest, (request) => request.items)
+  request: ProcurementIssueRequest;
 
   @CreateDateColumn()
   createdAt: Date;

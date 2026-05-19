@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { Expose, Transform, Type } from 'class-transformer';
 import {
   IsOptional,
@@ -16,6 +16,7 @@ import { IssueAttachmentDto } from './issue-attachment';
 import { IssueCategoryDto } from './issue-category';
 import { CurrencyDto } from '@/currency/dto/currency';
 import { SupplierDto } from '@/supplier/dto/supplier';
+import { ProcurementIssueRequestDto } from './procurement-issue-request';
 
 export class ContractIssueItemDto {
   @ApiProperty()
@@ -200,10 +201,10 @@ export class ProcurementIssueItemDto {
   supplier?: SupplierDto;
 
   @ApiProperty()
-  @Type(() => Number)
-  @IsInt()
+  @IsString()
   @IsOptional()
-  supplierId?: number;
+  @Expose()
+  note: string;
 }
 
 export class KickoffIssueDto extends IssueDto {
@@ -265,6 +266,12 @@ export class ProcurementIssueDto extends IssueDto {
   @Type(() => ProcurementIssueItemDto)
   @Expose()
   procurementItems: ProcurementIssueItemDto[];
+
+  @ApiProperty()
+  @ValidateNested({ each: true })
+  @Type(() => ProcurementIssueRequestDto)
+  @Expose()
+  requests: ProcurementIssueRequestDto[];
 }
 
 export class IssueListDto {

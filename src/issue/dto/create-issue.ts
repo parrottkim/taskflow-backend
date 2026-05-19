@@ -1,15 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
-  IsOptional,
   IsString,
   ValidateNested,
   IsDate,
-  Min,
-  IsBoolean,
-  ValidateIf,
 } from 'class-validator';
 import { IssueAttachmentDto } from './issue-attachment';
 import {

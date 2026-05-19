@@ -75,6 +75,11 @@ export class CreateProcurementIssueItemDto {
   totalAmount: number;
 
   @ApiProperty()
+  @IsString()
+  @IsOptional()
+  note?: string;
+
+  @ApiProperty()
   @IsBoolean()
   @Type(() => Boolean)
   isOnlinePurchase: boolean = false;

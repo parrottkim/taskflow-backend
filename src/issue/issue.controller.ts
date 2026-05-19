@@ -12,6 +12,7 @@ import {
   Body,
   Query,
   Response,
+  ParseArrayPipe,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IssueService } from './issue.service';
@@ -38,6 +39,8 @@ import {
   UpdateTransactionIssueDto,
 } from './dto/update-issue';
 import { SendIssueMailDto } from './dto/send-issue-mail';
+import { CreateProcurementRequestDto } from './dto/procurement-issue-request';
+
 @ApiTags('Issue (이슈)')
 @Controller('issue')
 export class IssueController {
@@ -95,13 +98,13 @@ export class IssueController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '구매 조달 이슈 출력' })
+  @ApiOperation({ summary: '구매 요청서 출력' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
   })
-  @Get('procurement/export/:id')
+  @Get('procurement/request/export/:id')
   async exportPurchaseRequest(
     @Param('id', ParseIntPipe) id: number,
     @Response() res,
@@ -119,7 +122,31 @@ export class IssueController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '계약 이슈 조회' })
+  @ApiOperation({ summary: '발주서 출력' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+  })
+  @Get('procurement/order/export/:id')
+  async exportPurchaseOrder(
+    @Param('id', ParseIntPipe) id: number,
+    @Response() res,
+  ) {
+    const { buffer, filename } =
+      await this.issueService.exportPurchaseOrder(id);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+      'Content-Length': buffer.length,
+    });
+
+    res.end(buffer);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '계약 목록 조회' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -132,7 +159,7 @@ export class IssueController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '계약 이슈 조회' })
+  @ApiOperation({ summary: '거래 명세 목록 조회' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -281,6 +308,23 @@ export class IssueController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '구매 요청' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+  })
+  @Patch(':id/procurement/request')
+  async createProcurementIssueRequest(
+    @Request() req,
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: CreateProcurementRequestDto,
+  ) {
+    return this.issueService.createProcurementIssueRequest(req.user, id, body);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '구매 조달 이슈 등록' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @Post('procurement')
@@ -313,7 +357,7 @@ export class IssueController {
     return this.issueService.createPaymentIssue(req.user, body);
   }
 
-  // // ==================== Update Issue APIs ====================
+  // ==================== Update Issue APIs ====================
   @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '계약 이슈 수정' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })

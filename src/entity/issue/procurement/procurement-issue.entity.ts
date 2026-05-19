@@ -13,6 +13,7 @@ import {
 import { ProcurementIssueItem } from './procurement-issue-item.entity';
 import { Issue } from '@/entity/issue/issue.entity';
 import { Project } from '@/entity/project/project.entity';
+import { ProcurementIssueRequest } from './procurement-issue-request.entity';
 
 @Entity()
 export class ProcurementIssue {
@@ -32,6 +33,12 @@ export class ProcurementIssue {
     orphanedRowAction: 'delete',
   })
   items: ProcurementIssueItem[];
+
+  @OneToMany(() => ProcurementIssueRequest, (request) => request.procurement, {
+    cascade: true,
+    orphanedRowAction: 'delete',
+  })
+  requests: ProcurementIssueRequest[];
 
   @CreateDateColumn()
   createdAt: Date;
