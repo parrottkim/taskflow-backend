@@ -1,8 +1,11 @@
 import {
+  Body,
   Controller,
   Get,
   HttpStatus,
   Param,
+  ParseIntPipe,
+  Patch,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -11,6 +14,7 @@ import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { UserDto, UserListDto } from './dto/user';
 import { UserService } from './user.service';
 import { GetUsersDto } from './dto/get-users';
+import { UpdateUserDto } from './dto/update-user';
 
 @ApiTags('User (사용자)')
 @Controller('user')
@@ -80,5 +84,21 @@ export class UserController {
   @Get()
   getUsers(@Query() query: GetUsersDto) {
     return this.userService.getUsers(query);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '사용자 정보 수정' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: UserDto,
+  })
+  @Patch(':id')
+  updateUser(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateUserDto,
+  ) {
+    return this.userService.update(id, body);
   }
 }

@@ -13,12 +13,17 @@ import {
   Query,
   Response,
   ParseArrayPipe,
+  HttpCode,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IssueService } from './issue.service';
 import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { IssueCategoryDto } from './dto/issue-category';
-import { IssueDto } from './dto/issue';
+import {
+  IssueDto,
+  IssueListDto,
+  TransactionIssueItemCategoryDto,
+} from './dto/issue';
 import { LatestIssueDto } from './dto/latest-issue';
 import { GetLatestIssuesDto } from './dto/get-latest-issues';
 import { GetIssuesDto } from './dto/get-issues';
@@ -78,6 +83,7 @@ export class IssueController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
+    type: [TransactionIssueItemCategoryDto],
   })
   @Get('transaction/categories')
   async getAllTransactionCategories() {
@@ -103,14 +109,18 @@ export class IssueController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
+    type: String,
   })
   @Get('procurement/request/export/:id')
   async exportPurchaseRequest(
+    @Request() req,
     @Param('id', ParseIntPipe) id: number,
     @Response() res,
   ) {
-    const { buffer, filename } =
-      await this.issueService.exportPurchaseRequest(id);
+    const { buffer, filename } = await this.issueService.exportPurchaseRequest(
+      id,
+      req.user,
+    );
 
     res.set({
       'Content-Type': 'application/pdf',
@@ -127,6 +137,7 @@ export class IssueController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
+    type: String,
   })
   @Get('procurement/order/export/:id')
   async exportPurchaseOrder(
@@ -239,7 +250,11 @@ export class IssueController {
   @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '구매 조달 이슈 조회' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Successful response' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: IssueListDto,
+  })
   @Get('procurement')
   getProcurementIssues(@Query() query: GetIssuesDto) {
     return this.issueService.getProcurementIssues(query);
@@ -264,6 +279,7 @@ export class IssueController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
+    type: String,
   })
   @Post('mail/:id')
   sendMail(
@@ -313,6 +329,7 @@ export class IssueController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
+    type: IssueDto,
   })
   @Patch(':id/procurement/request')
   async createProcurementIssueRequest(
@@ -322,6 +339,22 @@ export class IssueController {
     body: CreateProcurementRequestDto,
   ) {
     return this.issueService.createProcurementIssueRequest(req.user, id, body);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '구매 요청 승인권자 승인' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+  })
+  @Patch('procurement/request/:id/approve')
+  @HttpCode(200)
+  async approveProcurementIssueRequest(
+    @Request() req,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.issueService.approveProcurementIssueRequest(req.user, id);
   }
 
   @UseGuards(JwtAccessAuthGuard)

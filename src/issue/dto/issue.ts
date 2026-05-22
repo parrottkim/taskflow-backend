@@ -207,6 +207,56 @@ export class ProcurementIssueItemDto {
   note: string;
 }
 
+export class ProcurementIssueRequestItemDto {
+  @ApiProperty()
+  @IsInt()
+  @IsOptional()
+  @Expose()
+  id?: number;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @Expose()
+  item: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @Expose()
+  spec: string;
+
+  @ApiProperty()
+  @Transform(({ value }) => value.toLocaleString('ko-KR'))
+  @IsInt()
+  @IsNotEmpty()
+  @Min(0)
+  @Expose()
+  quantity: number;
+
+  @ApiProperty()
+  @Transform(({ value }) => value.toLocaleString('ko-KR'))
+  @IsInt()
+  @IsNotEmpty()
+  @Min(0)
+  @Expose()
+  unitPrice: number;
+
+  @ApiProperty()
+  @Transform(({ value }) => value.toLocaleString('ko-KR'))
+  @IsInt()
+  @IsNotEmpty()
+  @Min(0)
+  @Expose()
+  totalAmount: number;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  @Expose()
+  note: string;
+}
+
 export class KickoffIssueDto extends IssueDto {
   @ApiProperty()
   @Type(() => Date)

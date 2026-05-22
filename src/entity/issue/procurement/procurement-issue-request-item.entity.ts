@@ -45,12 +45,6 @@ export class ProcurementIssueRequestItem {
   @Column({ nullable: true })
   note: string;
 
-  @Column({ default: false })
-  isOnlinePurchase: boolean;
-
-  @Column({ nullable: true })
-  purchaseUrl: string;
-
   @ManyToOne(() => ProcurementIssueRequest, (request) => request.items)
   request: ProcurementIssueRequest;
 
