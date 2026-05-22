@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  JoinColumn,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
@@ -19,7 +20,7 @@ export class ProcurementIssueRequest {
   id: number;
 
   @ManyToOne(() => User)
-  user: User;
+  requestedBy: User;
 
   @ManyToOne(() => ProcurementIssue, (procurement) => procurement.requests)
   procurement: ProcurementIssue;
@@ -44,6 +45,19 @@ export class ProcurementIssueRequest {
 
   @Column({ type: 'bool', default: 'false' })
   hasFee: boolean;
+
+  @Column({ type: 'bool', default: 'false' })
+  requiresApproval: boolean;
+
+  @Column({ type: 'bool', default: 'false' })
+  isApproved: boolean;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn()
+  approvedBy?: User;
+
+  @Column({ type: 'timestamp', nullable: true })
+  approvedAt?: Date;
 
   @ManyToOne(() => Supplier, { nullable: true })
   supplier: Supplier;

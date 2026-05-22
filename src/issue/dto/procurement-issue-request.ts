@@ -10,7 +10,7 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { CreateProcurementIssueItemDto } from './create-issue-item';
-import { ProcurementIssueItemDto } from './issue';
+import { ProcurementIssueRequestItemDto } from './issue';
 import { UserDto } from '@/user/dto/user';
 import { SupplierDto } from '@/supplier/dto/supplier';
 
@@ -22,7 +22,7 @@ export class ProcurementIssueRequestDto {
   @ApiProperty()
   @Type(() => UserDto)
   @Expose()
-  user: UserDto;
+  requestedBy: UserDto;
 
   @ApiProperty()
   @Type(() => Date)
@@ -56,14 +56,37 @@ export class ProcurementIssueRequestDto {
   hasFee: boolean = false;
 
   @ApiProperty()
+  @IsBoolean()
+  @Type(() => Boolean)
+  @Expose()
+  requiresApproval: boolean = false;
+
+  @ApiProperty()
+  @IsBoolean()
+  @Type(() => Boolean)
+  @Expose()
+  isApproved: boolean = false;
+
+  @ApiProperty({ required: false })
+  @Type(() => UserDto)
+  @Expose()
+  approvedBy?: UserDto;
+
+  @ApiProperty({ required: false })
+  @Type(() => Date)
+  @IsDate()
+  @Expose()
+  approvedAt?: Date;
+
+  @ApiProperty()
   @Expose()
   note?: string;
 
   @ApiProperty()
   @ValidateNested({ each: true })
-  @Type(() => ProcurementIssueItemDto)
+  @Type(() => ProcurementIssueRequestItemDto)
   @Expose()
-  items: ProcurementIssueItemDto[];
+  items: ProcurementIssueRequestItemDto[];
 
   @ApiProperty()
   @Expose()

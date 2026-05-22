@@ -243,7 +243,7 @@ export class IssueService {
     return latestIssueListDto;
   }
 
-  async exportPurchaseRequest(id: number) {
+  async exportPurchaseRequest(id: number, user: User) {
     const TEMPLATE_BASE_PATH = path.join(process.cwd(), 'templates');
     const TEMPLATE_FILE_NAME = 'request_template.xlsx';
 
@@ -260,6 +260,22 @@ export class IssueService {
       .where('issue.id = :id', { id })
       .getOne();
     if (!issue) throw new NotFoundException('issue_not_found');
+
+    const totalAmount = issue.procurement.items.reduce(
+      (sum, item) => sum + (item.totalAmount ?? 0),
+      0,
+    );
+
+    if (totalAmount > 500000) {
+      const requester = await this.dataSource.manager.findOne(User, {
+        where: { id: user.id },
+        relations: ['position'],
+      });
+
+      if (!requester || requester.position?.id !== 1) {
+        throw new ForbiddenException('ceo_approval_required');
+      }
+    }
 
     try {
       const workbook = new ExcelJS.Workbook();
@@ -326,7 +342,7 @@ export class IssueService {
       // PDF 변환 시 여백 제거를 위한 파라미터 추가
       // nativePdfFormat을 false로 설정하여 LibreOffice의 기본 PDF 엔진 사용
       form.append('nativePdfFormat', 'false');
-      // singlePageSheets를 true로 설정하여 각 시트를 단일 페이지로 처리
+      // singlePageSheets=true는 강제 스케일링되어 중앙 정렬이 무력화될 수 있음
       form.append('singlePageSheets', 'true');
 
       const url = this.configService.url.docConverter;
@@ -361,9 +377,13 @@ export class IssueService {
 
     const request = await this.procurementIssueRequestRepository.findOne({
       where: { id },
-      relations: ['items', 'supplier', 'procurement', 'procurement.project'],
+      relations: ['items', 'supplier', 'approvedBy', 'approvedBy.position'],
     });
     if (!request) throw new NotFoundException('request_not_found');
+
+    if (!request.requiresApproval || !request.isApproved) {
+      throw new ForbiddenException('ceo_approval_required');
+    }
 
     try {
       const workbook = new ExcelJS.Workbook();
@@ -387,7 +407,7 @@ export class IssueService {
         },
       };
 
-      worksheet.pageSetup.printArea = 'A1:N32';
+      worksheet.pageSetup.printArea = 'A1:N40';
 
       worksheet.getCell('D6').value = dayjs(request.orderDate).format(
         'YYYY/MM/DD',
@@ -410,27 +430,43 @@ export class IssueService {
       const vatAmount = request.hasFee ? subtotal / 10 : 0;
       const total = subtotal + vatAmount;
       const formattedTotal = new Intl.NumberFormat('ko-KR').format(total);
-      const items = request.items.map((e) => e.item).join(', ');
 
       worksheet.getCell('A14').value =
         `금 액 : ${convertToKoreanCurrency(total)} 정`;
       if (request.hasFee)
-        worksheet.getCell('G14').value = `(₩ ${formattedTotal}) / VAT 포함)`;
-      else
-        worksheet.getCell('G14').value = `(₩ ${formattedTotal}) / VAT 미포함)`;
+        worksheet.getCell('H14').value = `(₩ ${formattedTotal}) / VAT 포함)`;
+      else worksheet.getCell('H14').value = `(₩ ${formattedTotal}) / VAT 제외)`;
 
-      worksheet.getCell('B17').value = request.procurement.project.code;
-      worksheet.getCell('D17').value = request.procurement.project.name;
-      worksheet.getCell('F17').value = items;
-      worksheet.getCell('J17').value = subtotal;
-      worksheet.getCell('L17').value = subtotal;
-      worksheet.getCell('N17').value = vatAmount;
+      let currentRow = 18;
+      const maxRow = 33;
 
-      worksheet.getCell('E27').value = subtotal;
-      worksheet.getCell('H27').value = vatAmount;
-      worksheet.getCell('K27').value = total;
+      let index = 1;
+      let quantity = 0;
 
-      const noteCell = worksheet.getCell('A32');
+      for (const item of request.items) {
+        if (currentRow > maxRow) break;
+
+        worksheet.getCell(`A${currentRow}`).value = index;
+        worksheet.getCell(`B${currentRow}`).value = item.item;
+        worksheet.getCell(`F${currentRow}`).value = item.spec;
+        worksheet.getCell(`I${currentRow}`).value = item.quantity;
+        worksheet.getCell(`J${currentRow}`).value = item.totalAmount;
+        worksheet.getCell(`L${currentRow}`).value = item.totalAmount;
+        worksheet.getCell(`N${currentRow}`).value = request.hasFee
+          ? item.totalAmount / 10
+          : 0;
+
+        index++;
+        quantity = quantity + item.quantity;
+        currentRow++;
+      }
+
+      worksheet.getCell('C35').value = quantity;
+      worksheet.getCell('E35').value = subtotal;
+      worksheet.getCell('H35').value = vatAmount;
+      worksheet.getCell('K35').value = total;
+
+      const noteCell = worksheet.getCell('A40');
       noteCell.value = (request.note ?? '').replace(/\r\n/g, '\n');
       noteCell.alignment = {
         ...(noteCell.alignment ?? {}),
@@ -449,7 +485,7 @@ export class IssueService {
       // PDF 변환 시 여백 제거를 위한 파라미터 추가
       // nativePdfFormat을 false로 설정하여 LibreOffice의 기본 PDF 엔진 사용
       form.append('nativePdfFormat', 'false');
-      // singlePageSheets를 true로 설정하여 각 시트를 단일 페이지로 처리
+      // singlePageSheets=true는 강제 스케일링되어 중앙 정렬이 무력화될 수 있음
       form.append('singlePageSheets', 'true');
 
       const url = this.configService.url.docConverter;
@@ -659,7 +695,7 @@ export class IssueService {
       .leftJoinAndSelect('procurement.items', 'items')
       .leftJoinAndSelect('items.supplier', 'supplier')
       .leftJoinAndSelect('procurement.requests', 'requests')
-      .leftJoinAndSelect('requests.user', 'requestUser')
+      .leftJoinAndSelect('requests.requestedBy', 'requestedBy')
       .leftJoinAndSelect('requests.items', 'requestItem')
       .leftJoinAndSelect('requests.supplier', 'requestSupplier')
       .where('project.id = :id', { id: value.projectId })
@@ -712,7 +748,7 @@ export class IssueService {
       .leftJoinAndSelect('procurement.items', 'items')
       .leftJoinAndSelect('items.supplier', 'supplier')
       .leftJoinAndSelect('procurement.requests', 'requests')
-      .leftJoinAndSelect('requests.user', 'requestUser')
+      .leftJoinAndSelect('requests.requestedBy', 'requestedBy')
       .leftJoinAndSelect('requests.items', 'requestItem')
       .leftJoinAndSelect('requests.supplier', 'requestSupplier')
       .where('issue.id = :id', { id })
@@ -978,7 +1014,7 @@ export class IssueService {
           'procurement.items',
           'procurement.items.supplier',
           'procurement.requests',
-          'procurement.requests.user',
+          'procurement.requests.requestedBy',
           'procurement.requests.items',
           'procurement.requests.supplier',
           'attachments',
@@ -988,10 +1024,16 @@ export class IssueService {
 
       await queryRunner.manager.save(issue.procurement);
 
+      const totalAmount = body.items.reduce(
+        (sum, item) => sum + (item.totalAmount ?? 0),
+        0,
+      );
+      const requiresApproval = totalAmount > 500000;
+
       const request = await queryRunner.manager.create(
         ProcurementIssueRequest,
         {
-          user: user,
+          requestedBy: user,
           procurement: issue.procurement,
           orderDate: dayjs().toDate(),
           deliveryDate: body.deliveryDate,
@@ -1003,6 +1045,10 @@ export class IssueService {
               })
             : null,
           hasFee: body.hasFee,
+          requiresApproval,
+          isApproved: false,
+          approvedBy: null,
+          approvedAt: null,
           note: body.note,
         },
       );
@@ -1034,7 +1080,92 @@ export class IssueService {
       const saved = await queryRunner.manager.save(issue);
 
       await queryRunner.commitTransaction();
+
+      if (requiresApproval) {
+        try {
+          await this.mailService.sendProcurementApprovalRequestMail({
+            projectCode: issue.project.code,
+            projectName: issue.project.name,
+            projectId: issue.project.id,
+            issueId: issue.id,
+            serialNumber: savedRequest.serialNumber,
+            requesterName: user.username,
+            requesterEmail: user.email,
+            totalAmount,
+          });
+        } catch (e) {
+          console.warn('발주서 승인 요청 메일 전송 실패', e);
+        }
+      }
+
       return await this.mapIssueToDto(saved);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async approveProcurementIssueRequest(user: User, id: number) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const approver = await queryRunner.manager.findOne(User, {
+        where: { id: user.id },
+        relations: ['position'],
+      });
+
+      if (!approver || approver.position?.id !== 1) {
+        throw new ForbiddenException('no_permission');
+      }
+
+      const request = await queryRunner.manager.findOne(
+        ProcurementIssueRequest,
+        {
+          where: { id },
+          relations: [
+            'requestedBy',
+            'procurement',
+            'procurement.project',
+            'procurement.issue',
+          ],
+        },
+      );
+
+      if (!request) throw new NotFoundException('request_not_found');
+
+      if (!request.requiresApproval) {
+        await queryRunner.commitTransaction();
+        return true;
+      }
+
+      request.isApproved = true;
+      request.approvedBy = approver;
+      request.approvedAt = dayjs().toDate();
+
+      await queryRunner.manager.save(request);
+      await queryRunner.commitTransaction();
+
+      try {
+        await this.mailService.sendProcurementApprovedMail({
+          projectCode: request.procurement.project.code,
+          projectName: request.procurement.project.name,
+          projectId: request.procurement.project.id,
+          issueId: request.procurement.issue.id,
+          serialNumber: request.serialNumber,
+          requesterName: request.requestedBy.username,
+          requesterEmail: request.requestedBy.email,
+          approverName: approver.username,
+          approvedAt: request.approvedAt,
+        });
+      } catch (e) {
+        console.warn('발주서 승인 완료 메일 전송 실패', e);
+      }
+
+      return true;
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
