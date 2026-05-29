@@ -25,6 +25,10 @@ export class ProcurementIssueRequestDto {
   requestedBy: UserDto;
 
   @ApiProperty()
+  @Expose()
+  title: string;
+
+  @ApiProperty()
   @Type(() => Date)
   @IsDate()
   @Expose()
@@ -103,6 +107,11 @@ export class ProcurementIssueRequestDto {
 }
 
 export class CreateProcurementRequestDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+
   @ApiProperty()
   @Type(() => Date)
   @IsDate()

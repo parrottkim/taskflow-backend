@@ -11,6 +11,7 @@ import {
   Patch,
   Delete,
   Query,
+  HttpCode,
 } from '@nestjs/common';
 import { ScheduleService } from './schedule.service';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -115,6 +116,7 @@ export class ScheduleController {
     description: 'Successful response',
   })
   @Delete(':id')
+  @HttpCode(200)
   async deleteSchedule(@Param('id', ParseIntPipe) id: number) {
     return this.scheduleService.deleteSchedule(id);
   }

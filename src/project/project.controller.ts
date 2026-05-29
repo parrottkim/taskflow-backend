@@ -11,6 +11,7 @@ import {
   Delete,
   ParseIntPipe,
   Body,
+  HttpCode,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
 import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
@@ -116,6 +117,7 @@ export class ProjectController {
     description: 'Successful response',
   })
   @Delete(':id')
+  @HttpCode(200)
   async deleteProject(@Param('id', ParseIntPipe) id: number) {
     return this.projectService.deleteProject(id);
   }

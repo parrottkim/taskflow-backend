@@ -27,9 +27,6 @@ export class Supplier {
   phone?: string;
 
   @Column({ nullable: true })
-  fax?: string;
-
-  @Column({ nullable: true })
   email?: string;
 
   @Column({ nullable: true })
