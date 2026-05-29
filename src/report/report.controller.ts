@@ -12,6 +12,7 @@ import {
   Delete,
   Query,
   Response,
+  HttpCode,
 } from '@nestjs/common';
 import { ReportService } from './report.service';
 import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
@@ -167,6 +168,7 @@ export class ReportController {
     description: 'Successful response',
   })
   @Delete(':id')
+  @HttpCode(200)
   async deleteReport(@Param('id', ParseIntPipe) id: number) {
     return this.reportService.deleteReport(id);
   }

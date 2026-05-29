@@ -69,8 +69,7 @@ export class AuthService {
       throw new ForbiddenException('not_approved');
     }
 
-    user.refreshToken = refreshToken;
-    await this.userService.update(user.id, user);
+    await this.userService.update(user.id, { refreshToken: refreshToken });
 
     return {
       accessToken,
@@ -117,8 +116,7 @@ export class AuthService {
       expiresIn: refreshTokenExpiresIn,
     });
 
-    user.refreshToken = newRefreshToken;
-    await this.userService.update(user.id, user);
+    await this.userService.update(user.id, { refreshToken: newRefreshToken });
 
     return {
       accessToken: newAccessToken,
@@ -188,8 +186,7 @@ export class AuthService {
     // 3. 새 비밀번호 해싱 및 업데이트
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(value.newPassword, salt);
-    user.password = hashedPassword;
-    await this.userService.update(userId, user);
+    await this.userService.update(userId, { password: hashedPassword });
 
     // 4. 토큰 무효화: 비밀번호 업데이트 후 Redis에서 토큰 삭제 (DEL key)
     await this.redisClient.del(redisKey);

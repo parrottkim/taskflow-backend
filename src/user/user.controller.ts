@@ -8,13 +8,16 @@ import {
   Patch,
   Query,
   UseGuards,
+  Request,
+  Delete,
+  HttpCode,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { UserDto, UserListDto } from './dto/user';
 import { UserService } from './user.service';
 import { GetUsersDto } from './dto/get-users';
-import { UpdateUserDto } from './dto/update-user';
+import { UpdateUserDto, UpdateUserPermissionDto } from './dto/update-user';
 
 @ApiTags('User (사용자)')
 @Controller('user')
@@ -69,7 +72,7 @@ export class UserController {
     type: UserDto,
   })
   @Get(':id')
-  getUser(@Param('id') id: number) {
+  getUser(@Param('id', ParseIntPipe) id: number) {
     return this.userService.getUser(id);
   }
 
@@ -87,6 +90,23 @@ export class UserController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '사용자 권한 수정' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: UserDto,
+  })
+  @Patch(':id/permission')
+  updateUserPermission(
+    @Request() req,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateUserPermissionDto,
+  ) {
+    return this.userService.updatePermission(req.user, id, body);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '사용자 정보 수정' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -100,5 +120,18 @@ export class UserController {
     @Body() body: UpdateUserDto,
   ) {
     return this.userService.update(id, body);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '사용자 삭제' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+  })
+  @Delete(':id')
+  @HttpCode(200)
+  async deleteUser(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    return this.userService.delete(req.user, id);
   }
 }

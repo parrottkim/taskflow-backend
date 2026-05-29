@@ -381,7 +381,7 @@ export class IssueService {
     });
     if (!request) throw new NotFoundException('request_not_found');
 
-    if (!request.requiresApproval || !request.isApproved) {
+    if (request.requiresApproval != request.isApproved) {
       throw new ForbiddenException('ceo_approval_required');
     }
 
@@ -420,7 +420,7 @@ export class IssueService {
       else worksheet.getCell('D8').value = '별도 협의';
       worksheet.getCell('D9').value = request.paymentTerms ?? '별도 협의';
       worksheet.getCell('D10').value = request.supplier.phone;
-      worksheet.getCell('D11').value = request.supplier.fax;
+      worksheet.getCell('D11').value = request.title;
       worksheet.getCell('D12').value = request.serialNumber;
 
       const subtotal = request.items.reduce(
@@ -472,6 +472,31 @@ export class IssueService {
         ...(noteCell.alignment ?? {}),
         wrapText: true,
       };
+
+      if (request.requiresApproval && request.isApproved) {
+        try {
+          const signatureImagePath = path.join(
+            TEMPLATE_BASE_PATH,
+            'signature.png',
+          );
+
+          // 1. 통합 문서(Workbook)에 이미지 추가
+          const imageId = workbook.addImage({
+            filename: signatureImagePath,
+            extension: 'png',
+          });
+
+          worksheet.addImage(imageId, {
+            // N2 셀 내부 여백을 위해 소수점 추가 (col: 13은 N열, row: 1은 2행)
+            tl: { col: 13, row: 1.3 },
+            ext: { width: 150, height: 150 },
+            editAs: 'oneCell', // 셀 크기가 바뀌어도 이미지 크기 유지
+          });
+        } catch (error) {
+          // 파일이 없거나 에러가 나도 PDF 생성 자체는 중단되지 않도록 로그만 출력
+          console.error('대표이사 서명 이미지 삽입 실패:', error);
+        }
+      }
 
       const xlsxBuffer = await workbook.xlsx.writeBuffer();
 
@@ -1035,6 +1060,7 @@ export class IssueService {
         {
           requestedBy: user,
           procurement: issue.procurement,
+          title: body.title,
           orderDate: dayjs().toDate(),
           deliveryDate: body.deliveryDate,
           paymentTerms: body.paymentTerms,

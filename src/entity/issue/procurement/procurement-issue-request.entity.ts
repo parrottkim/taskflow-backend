@@ -31,6 +31,9 @@ export class ProcurementIssueRequest {
   })
   items: ProcurementIssueRequestItem[];
 
+  @Column()
+  title: string;
+
   @Column({ type: 'date' })
   orderDate: Date;
 

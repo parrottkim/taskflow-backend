@@ -190,6 +190,6 @@ export class SupplierService {
       .delete()
       .execute();
 
-    return { success: true };
+    return true;
   }
 }
