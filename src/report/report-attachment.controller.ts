@@ -11,6 +11,7 @@ import {
   Delete,
   Request,
   HttpStatus,
+  HttpCode,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
@@ -55,6 +56,7 @@ export class ReportAttachmentController {
   @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '첨부 파일 삭제' })
   @Delete(':file_id')
+  @HttpCode(200)
   deleteAttachment(
     @Request() req,
     @Param('report_id', ParseIntPipe) reportId: number,

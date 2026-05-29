@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   HttpStatus,
   Param,
   ParseIntPipe,
@@ -73,6 +74,7 @@ export class SupplierController {
     description: 'Successful response',
   })
   @Delete(':id')
+  @HttpCode(200)
   async deleteSupplier(@Param('id', ParseIntPipe) id: number) {
     return this.supplierService.deleteSupplier(id);
   }

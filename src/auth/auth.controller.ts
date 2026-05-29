@@ -77,6 +77,7 @@ export class AuthController {
 
   @ApiOperation({ summary: '새로운 비밀번호 설정' })
   @Post('reset-password')
+  @HttpCode(200)
   async resetPassword(@Body() value: ResetPasswordDto) {
     return await this.authService.resetPassword(value);
   }

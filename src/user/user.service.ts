@@ -1,8 +1,12 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { UpdateUserDto } from './dto/update-user';
+import { UpdateUserDto, UpdateUserPermissionDto } from './dto/update-user';
 import { UserDto, UserListDto } from './dto/user';
 import { CreateUserDto } from './dto/create-user';
 import { User } from '@/entity/user/user.entity';
@@ -138,7 +142,6 @@ export class UserService {
       excludeExtraneousValues: true,
     });
   }
-  ㅋ;
 
   async create(dto: CreateUserDto) {
     const hashedPassword = await bcrypt.hash(dto.password, 10);
@@ -150,9 +153,49 @@ export class UserService {
   }
 
   async update(id: number, dto: UpdateUserDto) {
-    const user = await this.userRepository.findOneBy({ id });
-    if (!user) throw new UnauthorizedException('user_not_found');
+    const existingUser = await this.userRepository.findOneBy({ id });
+    if (!existingUser) {
+      throw new UnauthorizedException('user_not_found');
+    }
 
-    return this.userRepository.save({ ...user, ...dto });
+    await this.userRepository.update(id, dto);
+  }
+
+  async updatePermission(user: User, id: number, dto: UpdateUserPermissionDto) {
+    if (!user.isAdmin) throw new ForbiddenException('no_permission');
+
+    const existingUser = await this.userRepository.findOneBy({ id });
+    if (!existingUser) throw new UnauthorizedException('user_not_found');
+
+    // dto에서 undefined나 null이 아닌 값이 들어온 필드만 기존 유저 정보에 갱신
+    if (dto.isAdmin !== undefined && dto.isAdmin !== null)
+      existingUser.isAdmin = dto.isAdmin;
+    if (dto.isAuthorized !== undefined && dto.isAuthorized !== null)
+      existingUser.isAuthorized = dto.isAuthorized;
+
+    // position이나 department 관계(Relation) 처리가 필요하다면 아래처럼 id 객체로 할당
+    if (dto.positionId) existingUser.position = { id: dto.positionId } as any;
+    if (dto.departmentId)
+      existingUser.department = { id: dto.departmentId } as any;
+
+    // 1. 먼저 변경된 내용을 데이터베이스에 저장
+    await this.userRepository.save(existingUser);
+
+    // 2. [핵심] 조인 관계(relations)를 명시하여 최신 전체 데이터를 다시 조회 후 반환
+    return this.userRepository.findOne({
+      where: { id },
+      relations: ['position', 'department'],
+    });
+  }
+
+  async delete(user: User, id: number) {
+    if (!user.isAdmin) throw new ForbiddenException('no_permission');
+
+    const existingUser = await this.userRepository.findOneBy({ id });
+    if (!existingUser) throw new UnauthorizedException('user_not_found');
+
+    await this.userRepository.delete({ id });
+
+    return true;
   }
 }

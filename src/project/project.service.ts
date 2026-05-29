@@ -541,7 +541,7 @@ export class ProjectService {
 
     await this.projectRepository.softDelete(id);
 
-    return { success: true };
+    return true;
   }
 
   async restoreProject(id: number) {
