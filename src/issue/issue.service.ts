@@ -261,22 +261,6 @@ export class IssueService {
       .getOne();
     if (!issue) throw new NotFoundException('issue_not_found');
 
-    const totalAmount = issue.procurement.items.reduce(
-      (sum, item) => sum + (item.totalAmount ?? 0),
-      0,
-    );
-
-    if (totalAmount > 500000) {
-      const requester = await this.dataSource.manager.findOne(User, {
-        where: { id: user.id },
-        relations: ['position'],
-      });
-
-      if (!requester || requester.position?.id !== 1) {
-        throw new ForbiddenException('ceo_approval_required');
-      }
-    }
-
     try {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.readFile(TEMPLATE_PATH);
@@ -1776,6 +1760,11 @@ export class IssueService {
           'category',
           'procurement',
           'procurement.items',
+          'procurement.items.supplier',
+          'procurement.requests',
+          'procurement.requests.requestedBy',
+          'procurement.requests.items',
+          'procurement.requests.supplier',
           'attachments',
         ],
       });
