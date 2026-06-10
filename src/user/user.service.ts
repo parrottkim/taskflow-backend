@@ -16,6 +16,7 @@ import { DepartmentDto } from './dto/department';
 import { UserDepartment } from '@/entity/user/user-department.entity';
 import { PositionDto } from './dto/position';
 import { UserPosition } from '@/entity/user/user-position.entity';
+import { UserDepartmentClosure } from '@/entity/user/user-department-closure.entity';
 
 @Injectable()
 export class UserService {
@@ -25,7 +26,42 @@ export class UserService {
     private readonly userDepartmentRepository: Repository<UserDepartment>,
     @InjectRepository(UserPosition)
     private readonly userPositionRepository: Repository<UserPosition>,
+    @InjectRepository(UserDepartmentClosure)
+    private readonly userDepartmentClosureRepository: Repository<UserDepartmentClosure>,
   ) {}
+
+  private async mapToUserDtos(users: User[]): Promise<UserDto[]> {
+    if (!users.length) return [];
+
+    const departmentIds = [
+      ...new Set(users.map((u) => u.department?.id).filter(Boolean)),
+    ];
+
+    const closures = departmentIds.length
+      ? await this.userDepartmentClosureRepository.find({
+          where: { descendant: In(departmentIds) },
+          order: { depth: 'DESC' },
+        })
+      : [];
+
+    const rootMap = new Map<number, number>();
+    closures.forEach((c) => {
+      if (!rootMap.has(c.descendant)) {
+        rootMap.set(c.descendant, c.ancestor);
+      }
+    });
+
+    return users.map((user) => {
+      const dto = plainToInstance(UserDto, user, {
+        excludeExtraneousValues: true,
+      });
+      if (dto.department) {
+        dto.department.root =
+          rootMap.get(user.department.id) || user.department.id;
+      }
+      return dto;
+    });
+  }
 
   async findByEmail(email: string): Promise<User | null> {
     return await this.userRepository.findOne({
@@ -59,18 +95,34 @@ export class UserService {
     });
   }
 
-  // 2. 유저 상세 조회 (ID 또는 Email 공용화 가능하지만 명확성을 위해 분리)
   async getUser(id: number) {
+    // [1] 유저 및 기본 관계 조회
     const user = await this.userRepository.findOne({
       where: { id },
       relations: ['position', 'department'],
     });
 
     if (!user) throw new UnauthorizedException('user_not_found');
-    return plainToInstance(UserDto, user, { excludeExtraneousValues: true });
+
+    // [2] DTO 기본 변환
+    const dto = plainToInstance(UserDto, user, {
+      excludeExtraneousValues: true,
+    });
+
+    // [3] 부서 정보가 존재할 경우 최상위(Root) 부서 조회 후 직접 매핑
+    if (dto.department) {
+      const closure = await this.userDepartmentClosureRepository.findOne({
+        where: { descendant: user.department.id },
+        order: { depth: 'DESC' },
+      });
+
+      dto.department.root = closure ? closure.ancestor : user.department.id;
+    }
+
+    return dto;
   }
 
-  // 3. 질문하신 ID별 선택 조회 (In 연산자 활용)
+  // 2. ID별 선택 조회
   async getUsersByIds(ids: number[]) {
     if (!ids?.length) return [];
 
@@ -79,12 +131,12 @@ export class UserService {
       relations: ['position', 'department'],
     });
 
-    return plainToInstance(UserDto, users, { excludeExtraneousValues: true });
+    return this.mapToUserDtos(users);
   }
 
-  // 4. 검색 로직 (QueryBuilder가 필요한 유일한 곳)
+  // 3. 검색 및 페이징 로직
   async getUsers(query: GetUsersDto) {
-    let queryBuilder = this.userRepository
+    const queryBuilder = this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.position', 'position')
       .leftJoinAndSelect('user.department', 'department');
@@ -94,13 +146,11 @@ export class UserService {
         departmentId: query.departmentId,
       });
     }
-
     if (query.positionId) {
       queryBuilder.andWhere('position.id = :positionId', {
         positionId: query.positionId,
       });
     }
-
     if (query.search) {
       queryBuilder.andWhere(
         new Brackets((qb) => {
@@ -129,18 +179,23 @@ export class UserService {
       .take(query.limit)
       .getManyAndCount();
 
-    return plainToInstance(UserListDto, { items, total, page: query.page });
+    const mappedItems = await this.mapToUserDtos(items);
+
+    return plainToInstance(UserListDto, {
+      items: mappedItems,
+      total,
+      page: query.page,
+    });
   }
 
+  // 4. 전체 조회
   async getAllUsers() {
     const users = await this.userRepository.find({
       relations: ['position', 'department'],
       order: { username: 'ASC' },
     });
 
-    return plainToInstance(UserDto, users, {
-      excludeExtraneousValues: true,
-    });
+    return this.mapToUserDtos(users);
   }
 
   async create(dto: CreateUserDto) {
