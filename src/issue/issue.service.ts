@@ -434,7 +434,7 @@ export class IssueService {
         worksheet.getCell(`B${currentRow}`).value = item.item;
         worksheet.getCell(`F${currentRow}`).value = item.spec;
         worksheet.getCell(`I${currentRow}`).value = item.quantity;
-        worksheet.getCell(`J${currentRow}`).value = item.totalAmount;
+        worksheet.getCell(`J${currentRow}`).value = item.unitPrice;
         worksheet.getCell(`L${currentRow}`).value = item.totalAmount;
         worksheet.getCell(`N${currentRow}`).value = request.hasFee
           ? item.totalAmount / 10
