@@ -6,7 +6,6 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { SupplierKeyword } from './supplier-keyword.entity';
 import { ProcurementIssueItem } from '../issue/procurement/procurement-issue-item.entity';
 
 @Entity()
@@ -21,7 +20,16 @@ export class Supplier {
   number: string;
 
   @Column({ nullable: true })
-  address?: string;
+  zipcode?: string;
+
+  @Column({ nullable: true })
+  roadAddress?: string;
+
+  @Column({ nullable: true })
+  roadAddressReference?: string;
+
+  @Column({ nullable: true })
+  detailAddress?: string;
 
   @Column({ nullable: true })
   phone?: string;
@@ -31,14 +39,6 @@ export class Supplier {
 
   @Column({ nullable: true })
   logo?: string;
-
-  @ManyToMany(() => SupplierKeyword, { cascade: true })
-  @JoinTable({
-    name: 'supplier_keywords',
-    joinColumn: { name: 'supplier_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'keyword_id', referencedColumnName: 'id' },
-  })
-  keywords: SupplierKeyword[];
 
   @OneToMany(() => ProcurementIssueItem, (procurement) => procurement.supplier)
   procurements: ProcurementIssueItem[];

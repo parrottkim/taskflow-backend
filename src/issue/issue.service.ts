@@ -73,6 +73,7 @@ import { ProcurementIssueRequestItem } from '@/entity/issue/procurement/procurem
 import { CreateProcurementRequestDto } from './dto/procurement-issue-request';
 import { ProcurementIssueRequest } from '@/entity/issue/procurement/procurement-issue-request.entity';
 import { convertToKoreanCurrency } from '@/common/utils/converter.util';
+import { extractImages } from '@/common/utils/markdown.util';
 
 @Injectable()
 export class IssueService {
@@ -268,16 +269,23 @@ export class IssueService {
       const worksheet = workbook.worksheets[0];
 
       worksheet.pageSetup = {
-        paperSize: 9,
+        paperSize: 9, // A4
         orientation: 'portrait',
+
+        // fitToPage를 true로 하되, 가로/세로 페이지 수를 명시하여 템플릿 규격에 맞춤
         fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 1,
+
         horizontalCentered: true,
         verticalCentered: true,
+
+        // 여백을 원하는 크기로 조정 (예: 상하좌우 1.5cm 정도 여백을 원할 경우 1.5 / 2.54)
         margins: {
-          left: 0.5 / 2.54,
-          right: 0.5 / 2.54,
-          top: 0.5 / 2.54,
-          bottom: 0.5 / 2.54,
+          left: 1.5 / 2.54,
+          right: 1.5 / 2.54,
+          top: 1.5 / 2.54,
+          bottom: 1.5 / 2.54,
           header: 0,
           footer: 0,
         },
@@ -327,7 +335,7 @@ export class IssueService {
       // nativePdfFormat을 false로 설정하여 LibreOffice의 기본 PDF 엔진 사용
       form.append('nativePdfFormat', 'false');
       // singlePageSheets=true는 강제 스케일링되어 중앙 정렬이 무력화될 수 있음
-      form.append('singlePageSheets', 'true');
+      form.append('singlePageSheets', 'false');
 
       const url = this.configService.url.docConverter;
 
@@ -376,16 +384,23 @@ export class IssueService {
       const worksheet = workbook.worksheets[0];
 
       worksheet.pageSetup = {
-        paperSize: 9,
+        paperSize: 9, // A4
         orientation: 'portrait',
+
+        // fitToPage를 true로 하되, 가로/세로 페이지 수를 명시하여 템플릿 규격에 맞춤
         fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 1,
+
         horizontalCentered: true,
         verticalCentered: true,
+
+        // 여백을 원하는 크기로 조정 (예: 상하좌우 1.5cm 정도 여백을 원할 경우 1.5 / 2.54)
         margins: {
-          left: 0.5 / 2.54,
-          right: 0.5 / 2.54,
-          top: 0.5 / 2.54,
-          bottom: 0.5 / 2.54,
+          left: 1.5 / 2.54,
+          right: 1.5 / 2.54,
+          top: 1.5 / 2.54,
+          bottom: 1.5 / 2.54,
           header: 0,
           footer: 0,
         },
@@ -419,7 +434,7 @@ export class IssueService {
         `금 액 : ${convertToKoreanCurrency(total)} 정`;
       if (request.hasFee)
         worksheet.getCell('H14').value = `(₩ ${formattedTotal}) / VAT 포함)`;
-      else worksheet.getCell('H14').value = `(₩ ${formattedTotal}) / VAT 제외)`;
+      else worksheet.getCell('H14').value = `(₩ ${formattedTotal}) / VAT 별도)`;
 
       let currentRow = 18;
       const maxRow = 33;
@@ -472,8 +487,8 @@ export class IssueService {
 
           worksheet.addImage(imageId, {
             // N2 셀 내부 여백을 위해 소수점 추가 (col: 13은 N열, row: 1은 2행)
-            tl: { col: 13, row: 1.3 },
-            ext: { width: 150, height: 150 },
+            tl: { col: 13, row: 1.5 },
+            ext: { width: 90, height: 90 },
             editAs: 'oneCell', // 셀 크기가 바뀌어도 이미지 크기 유지
           });
         } catch (error) {
@@ -495,7 +510,7 @@ export class IssueService {
       // nativePdfFormat을 false로 설정하여 LibreOffice의 기본 PDF 엔진 사용
       form.append('nativePdfFormat', 'false');
       // singlePageSheets=true는 강제 스케일링되어 중앙 정렬이 무력화될 수 있음
-      form.append('singlePageSheets', 'true');
+      form.append('singlePageSheets', 'false');
 
       const url = this.configService.url.docConverter;
 
@@ -1448,6 +1463,18 @@ export class IssueService {
 
       // Content 업데이트
       if (body.content) {
+        const oldUrls = extractImages(issue.content);
+        const newUrls = extractImages(body.content);
+        const removedUrls = oldUrls.filter((url) => !newUrls.includes(url));
+
+        for (const url of removedUrls) {
+          try {
+            await this.sftpService.deleteFileByUrl(url);
+          } catch (e) {
+            console.warn(`삭제 실패: ${url}`, e);
+          }
+        }
+
         issue.content = body.content;
       }
 
@@ -1619,6 +1646,18 @@ export class IssueService {
       }
 
       if (body.content) {
+        const oldUrls = extractImages(issue.content);
+        const newUrls = extractImages(body.content);
+        const removedUrls = oldUrls.filter((url) => !newUrls.includes(url));
+
+        for (const url of removedUrls) {
+          try {
+            await this.sftpService.deleteFileByUrl(url);
+          } catch (e) {
+            console.warn(`삭제 실패: ${url}`, e);
+          }
+        }
+
         issue.content = body.content;
       }
 
@@ -1691,6 +1730,18 @@ export class IssueService {
       }
 
       if (body.content) {
+        const oldUrls = extractImages(issue.content);
+        const newUrls = extractImages(body.content);
+        const removedUrls = oldUrls.filter((url) => !newUrls.includes(url));
+
+        for (const url of removedUrls) {
+          try {
+            await this.sftpService.deleteFileByUrl(url);
+          } catch (e) {
+            console.warn(`삭제 실패: ${url}`, e);
+          }
+        }
+
         issue.content = body.content;
       }
 
@@ -1775,6 +1826,18 @@ export class IssueService {
       }
 
       if (body.content) {
+        const oldUrls = extractImages(issue.content);
+        const newUrls = extractImages(body.content);
+        const removedUrls = oldUrls.filter((url) => !newUrls.includes(url));
+
+        for (const url of removedUrls) {
+          try {
+            await this.sftpService.deleteFileByUrl(url);
+          } catch (e) {
+            console.warn(`삭제 실패: ${url}`, e);
+          }
+        }
+
         issue.content = body.content;
       }
 
@@ -1921,6 +1984,18 @@ export class IssueService {
       }
 
       if (body.content) {
+        const oldUrls = extractImages(issue.content);
+        const newUrls = extractImages(body.content);
+        const removedUrls = oldUrls.filter((url) => !newUrls.includes(url));
+
+        for (const url of removedUrls) {
+          try {
+            await this.sftpService.deleteFileByUrl(url);
+          } catch (e) {
+            console.warn(`삭제 실패: ${url}`, e);
+          }
+        }
+
         issue.content = body.content;
       }
 
@@ -2048,6 +2123,18 @@ export class IssueService {
       }
 
       if (body.content) {
+        const oldUrls = extractImages(issue.content);
+        const newUrls = extractImages(body.content);
+        const removedUrls = oldUrls.filter((url) => !newUrls.includes(url));
+
+        for (const url of removedUrls) {
+          try {
+            await this.sftpService.deleteFileByUrl(url);
+          } catch (e) {
+            console.warn(`삭제 실패: ${url}`, e);
+          }
+        }
+
         issue.content = body.content;
       }
 
