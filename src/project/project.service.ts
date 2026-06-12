@@ -66,7 +66,6 @@ export class ProjectService {
   }
 
   async findProjects(user: User, value: GetProjectsDto) {
-    // 1. 공통 연관 엔티티만 먼저 leftJoin 수행 (bookmark는 조건에 따라 분기)
     let queryBuilder = this.projectRepository
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.user', 'user')
@@ -76,7 +75,7 @@ export class ProjectService {
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('project.client', 'client');
 
-    // 2. 검색어 필터링
+    // 1. 검색어 필터링
     if (value.search) {
       queryBuilder.andWhere(
         new Brackets((qb) => {
@@ -86,9 +85,6 @@ export class ProjectService {
             .orWhere('project.name ILIKE :search', {
               search: `%${value.search}%`,
             })
-            // .orWhere('user.username ILIKE :search', {
-            //   search: `%${value.search}%`,
-            // })
             .orWhere('manager.username ILIKE :search', {
               search: `%${value.search}%`,
             })
@@ -99,38 +95,30 @@ export class ProjectService {
       );
     }
 
-    // 3. 북마크 필터링 및 조인 분기 (Left Join의 Inner Join화 현상 방지)
-    if (value.bookmark !== undefined && value.bookmark !== null) {
-      if (value.bookmark === true || String(value.bookmark) === 'true') {
-        // 북마크된 프로젝트만 조회할 때는 innerJoin으로 격리
-        queryBuilder.innerJoinAndSelect(
-          'project.bookmarks',
-          'bookmark',
-          'bookmark.user_id = :id',
-          { id: user.id },
-        );
-      } else {
-        // 북마크되지 않은 프로젝트만 조회할 때는 leftJoin 후 IS NULL 체크
-        queryBuilder
-          .leftJoinAndSelect(
-            'project.bookmarks',
-            'bookmark',
-            'bookmark.user_id = :id',
-            { id: user.id },
-          )
-          .andWhere('bookmark.id IS NULL');
-      }
+    // 2. 북마크 필터링 분기 리팩토링 (서브쿼리 도입으로 페이징 버그 차단)
+    const isBookmarkTrue =
+      value.bookmark === true || String(value.bookmark) === 'true';
+
+    if (isBookmarkTrue) {
+      // 북마크된 프로젝트만 조회: 기존 innerJoin 방식 유지 (안전함)
+      queryBuilder.innerJoinAndSelect(
+        'project.bookmarks',
+        'bookmark',
+        'bookmark.user_id = :currentUserId',
+        { currentUserId: user.id },
+      );
     } else {
-      // 북마크 필터링 조건이 없을 경우, 데이터 조회를 위해 기본 leftJoin 적용
+      // [수정] bookmark가 false이거나 없을(undefined) 때는 필터링을 하지 않음 (모든 프로젝트 노출)
+      // 대신 로그인한 유저의 북마크 여부 데이터는 leftJoin으로 매핑해서 가져옴
       queryBuilder.leftJoinAndSelect(
         'project.bookmarks',
         'bookmark',
-        'bookmark.user_id = :id',
-        { id: user.id },
+        'bookmark.user_id = :currentUserId',
+        { currentUserId: user.id },
       );
     }
 
-    // 4. 고객사 필터링
+    // 3. 고객사 필터링
     if (value.clients) {
       let clients = value.clients
         .split(',')
@@ -146,7 +134,7 @@ export class ProjectService {
       });
     }
 
-    // 5. 카테고리 필터링
+    // 4. 카테고리 필터링
     if (value.categories) {
       let categories = value.categories
         .split(',')
@@ -158,7 +146,7 @@ export class ProjectService {
       });
     }
 
-    // 6. 프로젝트 상태 필터링 (isClosed 조건 결합)
+    // 5. 프로젝트 상태 필터링
     switch (value.view) {
       case 'active':
         queryBuilder.andWhere('project.isClosed = false');
@@ -171,7 +159,7 @@ export class ProjectService {
         break;
     }
 
-    // 7. 정렬 조건 설정
+    // 6. 정렬 조건 설정
     const orderType = value.order?.toUpperCase() as 'ASC' | 'DESC';
 
     switch (value.sort) {
@@ -192,7 +180,7 @@ export class ProjectService {
         break;
     }
 
-    // 8. 페이징 및 결과 반환
+    // 7. 페이징 및 결과 반환
     return queryBuilder
       .skip((value.page - 1) * value.limit)
       .take(value.limit)
