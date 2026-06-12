@@ -66,6 +66,7 @@ export class ProjectService {
   }
 
   async findProjects(user: User, value: GetProjectsDto) {
+    // 1. 공통 연관 엔티티만 먼저 leftJoin 수행 (bookmark는 조건에 따라 분기)
     let queryBuilder = this.projectRepository
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.user', 'user')
@@ -73,14 +74,9 @@ export class ProjectService {
       .leftJoinAndSelect('project.latestCategory', 'latestCategory')
       .leftJoinAndSelect('user.position', 'position')
       .leftJoinAndSelect('user.department', 'department')
-      .leftJoinAndSelect('project.client', 'client')
-      .leftJoinAndSelect(
-        'project.bookmarks',
-        'bookmark',
-        'bookmark.user_id = :id',
-        { id: user.id },
-      );
+      .leftJoinAndSelect('project.client', 'client');
 
+    // 2. 검색어 필터링
     if (value.search) {
       queryBuilder.andWhere(
         new Brackets((qb) => {
@@ -103,14 +99,38 @@ export class ProjectService {
       );
     }
 
-    if (value.bookmark) {
-      if (value.bookmark === true) {
-        queryBuilder.andWhere('bookmark.id IS NOT NULL');
+    // 3. 북마크 필터링 및 조인 분기 (Left Join의 Inner Join화 현상 방지)
+    if (value.bookmark !== undefined && value.bookmark !== null) {
+      if (value.bookmark === true || String(value.bookmark) === 'true') {
+        // 북마크된 프로젝트만 조회할 때는 innerJoin으로 격리
+        queryBuilder.innerJoinAndSelect(
+          'project.bookmarks',
+          'bookmark',
+          'bookmark.user_id = :id',
+          { id: user.id },
+        );
       } else {
-        queryBuilder.andWhere('bookmark.id IS NULL');
+        // 북마크되지 않은 프로젝트만 조회할 때는 leftJoin 후 IS NULL 체크
+        queryBuilder
+          .leftJoinAndSelect(
+            'project.bookmarks',
+            'bookmark',
+            'bookmark.user_id = :id',
+            { id: user.id },
+          )
+          .andWhere('bookmark.id IS NULL');
       }
+    } else {
+      // 북마크 필터링 조건이 없을 경우, 데이터 조회를 위해 기본 leftJoin 적용
+      queryBuilder.leftJoinAndSelect(
+        'project.bookmarks',
+        'bookmark',
+        'bookmark.user_id = :id',
+        { id: user.id },
+      );
     }
 
+    // 4. 고객사 필터링
     if (value.clients) {
       let clients = value.clients
         .split(',')
@@ -126,6 +146,7 @@ export class ProjectService {
       });
     }
 
+    // 5. 카테고리 필터링
     if (value.categories) {
       let categories = value.categories
         .split(',')
@@ -137,6 +158,7 @@ export class ProjectService {
       });
     }
 
+    // 6. 프로젝트 상태 필터링 (isClosed 조건 결합)
     switch (value.view) {
       case 'active':
         queryBuilder.andWhere('project.isClosed = false');
@@ -149,6 +171,7 @@ export class ProjectService {
         break;
     }
 
+    // 7. 정렬 조건 설정
     const orderType = value.order?.toUpperCase() as 'ASC' | 'DESC';
 
     switch (value.sort) {
@@ -169,6 +192,7 @@ export class ProjectService {
         break;
     }
 
+    // 8. 페이징 및 결과 반환
     return queryBuilder
       .skip((value.page - 1) * value.limit)
       .take(value.limit)
@@ -533,26 +557,66 @@ export class ProjectService {
   }
 
   async deleteProject(id: number) {
-    const project = await this.findProjectById(id);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (!project) {
-      throw new NotFoundException('project_not_found');
+    try {
+      const project = await queryRunner.manager.findOne(Project, {
+        where: { id },
+      });
+
+      if (!project) {
+        throw new NotFoundException('project_not_found');
+      }
+
+      await queryRunner.manager.softDelete(Project, id);
+
+      await queryRunner.commitTransaction();
+
+      return true;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-
-    await this.projectRepository.softDelete(id);
-
-    return true;
   }
 
   async restoreProject(id: number) {
-    await this.projectRepository.restore(id);
-    const project = await this.findProjectById(id);
-    if (!project) {
-      throw new NotFoundException('project_not_found');
-    }
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    return plainToInstance(ProjectDto, project, {
-      excludeExtraneousValues: true,
-    });
+    try {
+      await queryRunner.manager.restore(Project, id);
+
+      const project = await queryRunner.manager.findOne(Project, {
+        where: { id },
+        relations: [
+          'user',
+          'manager',
+          'latestCategory',
+          'user.position',
+          'user.department',
+          'client',
+        ],
+      });
+
+      if (!project) {
+        throw new NotFoundException('project_not_found');
+      }
+
+      await queryRunner.commitTransaction();
+
+      return plainToInstance(ProjectDto, project, {
+        excludeExtraneousValues: true,
+      });
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 }
