@@ -7,7 +7,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Supplier } from '@/entity/supplier/supplier.entity';
 import { Brackets, Repository } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
-import { SupplierKeyword } from '@/entity/supplier/supplier-keyword.entity';
 import { CreateSupplierDto } from './dto/create-supplier';
 import { GetSuppliersDto } from './dto/get-suppliers';
 import { SupplierDto, SupplierListDto } from './dto/supplier';
@@ -19,15 +18,12 @@ export class SupplierService {
   constructor(
     @InjectRepository(Supplier)
     private readonly supplierRepository: Repository<Supplier>,
-    @InjectRepository(SupplierKeyword)
-    private readonly supplierKeywordRepository: Repository<SupplierKeyword>,
     private readonly sftpService: SftpService,
   ) {}
 
   async findSupplierById(id: number) {
     return await this.supplierRepository
       .createQueryBuilder('supplier')
-      .leftJoinAndSelect('supplier.keywords', 'keywords')
       .where('supplier.id = :id', { id })
       .getOne();
   }
@@ -35,22 +31,17 @@ export class SupplierService {
   async findSupplierByName(name: string) {
     return await this.supplierRepository
       .createQueryBuilder('supplier')
-      .leftJoinAndSelect('supplier.keywords', 'keywords')
       .where('supplier.name = :name', { name })
       .getOne();
   }
 
   async findSuppliers(value: GetSuppliersDto) {
-    let queryBuilder = this.supplierRepository
-      .createQueryBuilder('supplier')
-      .leftJoinAndSelect('supplier.keywords', 'keywords');
+    let queryBuilder = this.supplierRepository.createQueryBuilder('supplier');
 
     if (value.search) {
       queryBuilder.andWhere(
         new Brackets((qb) => {
           qb.orWhere('supplier.name ILIKE :search', {
-            search: `%${value.search}%`,
-          }).orWhere('keywords.name ILIKE :search', {
             search: `%${value.search}%`,
           });
         }),
@@ -58,15 +49,10 @@ export class SupplierService {
     }
 
     return queryBuilder
+      .orderBy('id', 'DESC')
       .skip((value.page - 1) * value.limit)
       .take(value.limit)
       .getManyAndCount();
-  }
-
-  async findKeywordByName(name: string) {
-    return await this.supplierKeywordRepository
-      .createQueryBuilder('keyword')
-      .leftJoinAndSelect('keyword.supplier', 'supplier');
   }
 
   async getSupplier(id: number) {
@@ -97,7 +83,7 @@ export class SupplierService {
 
   async createSupplier(body: CreateSupplierDto) {
     const existingSupplier = await this.supplierRepository.findOne({
-      where: { name: body.name },
+      where: { number: body.number },
     });
 
     if (existingSupplier) {
@@ -107,28 +93,14 @@ export class SupplierService {
     const supplier = this.supplierRepository.create({
       name: body.name,
       number: body.number,
-      address: body.address,
+      zipcode: body.zipcode,
+      roadAddress: body.roadAddress,
+      roadAddressReference: body.roadAddressReference,
+      detailAddress: body.detailAddress,
       phone: body.phone,
       email: body.email,
       logo: body.logo,
     });
-
-    if (body.keywords?.length) {
-      supplier.keywords = [];
-
-      for (const name of body.keywords) {
-        let keyword = await this.supplierKeywordRepository.findOne({
-          where: { name },
-        });
-
-        if (!keyword) {
-          keyword = this.supplierKeywordRepository.create({ name });
-          await this.supplierKeywordRepository.save(keyword);
-        }
-
-        supplier.keywords.push(keyword);
-      }
-    }
 
     const saved = await this.supplierRepository.save(supplier);
 
@@ -142,26 +114,34 @@ export class SupplierService {
   async updateSupplier(id: number, body: UpdateSupplierDto) {
     const supplier = await this.findSupplierById(id);
 
+    if (!supplier) {
+      throw new NotFoundException('supplier_not_found');
+    }
+
+    if (body.logo !== undefined && supplier.logo !== body.logo) {
+      if (supplier.logo) {
+        try {
+          // 기존 파일 URL을 이용해 SFTP 스토리지에서 삭제 처리
+          // 💡 보유 중이신 SFTP 서비스의 URL 삭제 메서드명(예: deleteFileByUrl)으로 맞춰주세요.
+          await this.sftpService.deleteFileByUrl(supplier.logo);
+        } catch (e) {
+          // 파일 삭제 실패가 전체 업데이트 트랜잭션을 롤백하지 않도록 예외 완화(Warning) 처리
+          console.warn(`기존 공급업체 로고 삭제 실패: ${supplier.logo}`, e);
+        }
+      }
+      supplier.logo = body.logo;
+    }
+
     supplier.name = body.name ?? supplier.name;
     supplier.number = body.number ?? supplier.number;
-    supplier.address = body.address ?? supplier.address;
+    supplier.zipcode = body.zipcode ?? supplier.zipcode;
+    supplier.roadAddress = body.roadAddress ?? supplier.roadAddress;
+    supplier.roadAddressReference =
+      body.roadAddressReference ?? supplier.roadAddressReference;
+    supplier.detailAddress = body.detailAddress ?? supplier.detailAddress;
     supplier.phone = body.phone ?? supplier.phone;
     supplier.email = body.email ?? supplier.email;
     supplier.logo = body.logo ?? supplier.logo;
-
-    if (body.keywords) {
-      supplier.keywords = [];
-      for (const name of body.keywords) {
-        let keyword = await this.supplierKeywordRepository.findOne({
-          where: { name },
-        });
-        if (!keyword) {
-          keyword = this.supplierKeywordRepository.create({ name });
-          await this.supplierKeywordRepository.save(keyword);
-        }
-        supplier.keywords.push(keyword);
-      }
-    }
 
     const saved = await this.supplierRepository.save(supplier);
 
@@ -181,14 +161,6 @@ export class SupplierService {
 
     await this.sftpService.deleteFileByUrl(supplier.logo);
     await this.supplierRepository.remove(supplier);
-
-    // 사용되지 않는 키워드 삭제
-    await this.supplierKeywordRepository
-      .createQueryBuilder('keyword')
-      .leftJoin('keyword.suppliers', 'supplier')
-      .where('supplier.id IS NULL')
-      .delete()
-      .execute();
 
     return true;
   }

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateSupplierDto {
   @ApiProperty()
@@ -15,7 +15,22 @@ export class CreateSupplierDto {
   @ApiProperty()
   @IsString()
   @IsOptional()
-  address?: string;
+  zipcode?: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  roadAddress?: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  roadAddressReference?: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  detailAddress?: string;
 
   @ApiProperty()
   @IsString()
@@ -31,10 +46,4 @@ export class CreateSupplierDto {
   @IsString()
   @IsOptional()
   logo?: string;
-
-  @ApiProperty({ type: [String] })
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  keywords: string[];
 }

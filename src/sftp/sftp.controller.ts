@@ -63,9 +63,9 @@ export class SftpController {
     description: 'Successful response',
     type: UploadInlineImageDto,
   })
-  @Post('supplier')
+  @Post('supplier-logo')
   @UseInterceptors(FileInterceptor('file'))
-  async uploadInlinImage(
+  async uploadSupplierLogo(
     @Request() req,
     @UploadedFile(
       new ParseFilePipe({
