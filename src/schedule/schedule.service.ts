@@ -550,32 +550,42 @@ export class ScheduleService {
   }
 
   async deleteSchedule(id: number) {
-    const schedule = await this.scheduleRepository.findOne({
-      where: { id },
-      select: ['id', 'eventId'], // 필요한 필드만 선택
-    });
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (!schedule) {
-      throw new NotFoundException('schedule_not_found');
-    }
-
-    // 2️⃣ Google Calendar 이벤트 삭제
     try {
-      await this.calendarClient.events.delete({
-        calendarId: this.scheduleCalendarId,
-        eventId: schedule.eventId,
+      const schedule = await queryRunner.manager.findOne(Schedule, {
+        where: { id },
+        select: ['id', 'eventId'],
       });
-    } catch (error: any) {
-      // 404 에러(이벤트가 이미 캘린더에서 삭제된 경우)는 무시하고 계속 진행
-      if (error.code !== 404 && error.code !== 410) {
-        // 다른 유형의 에러는 throw
-        console.error(`Google Calendar Event Deletion Error: ${error.message}`);
-        throw error;
-      }
-      // 404인 경우: 캘린더에는 없지만 DB에는 있는 상황이므로 DB 삭제는 계속 진행
-    }
 
-    // 3️⃣ DB에서 Schedule 논리적 삭제 (softDelete)
-    await this.scheduleRepository.softDelete(id);
+      if (!schedule) {
+        throw new NotFoundException('schedule_not_found');
+      }
+
+      // 2️⃣ Google Calendar 이벤트 삭제
+      try {
+        await this.calendarClient.events.delete({
+          calendarId: this.scheduleCalendarId,
+          eventId: schedule.eventId,
+        });
+      } catch (error: any) {
+        if (error.code !== 404 && error.code !== 410) {
+          console.error(`Google Calendar Event Deletion Error: ${error.message}`);
+          throw error;
+        }
+      }
+
+      // 3️⃣ DB에서 Schedule 논리적 삭제 (softDelete)
+      await queryRunner.manager.softDelete(Schedule, id);
+
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 }
