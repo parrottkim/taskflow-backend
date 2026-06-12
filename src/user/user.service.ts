@@ -4,7 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, In, Repository } from 'typeorm';
+import { Brackets, DataSource, In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { UpdateUserDto, UpdateUserPermissionDto } from './dto/update-user';
 import { UserDto, UserListDto } from './dto/user';
@@ -21,6 +21,7 @@ import { UserDepartmentClosure } from '@/entity/user/user-department-closure.ent
 @Injectable()
 export class UserService {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     @InjectRepository(UserDepartment)
     private readonly userDepartmentRepository: Repository<UserDepartment>,
@@ -199,58 +200,107 @@ export class UserService {
   }
 
   async create(dto: CreateUserDto) {
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
-    const user = this.userRepository.create({
-      ...dto,
-      password: hashedPassword,
-    });
-    return this.userRepository.save(user);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const hashedPassword = await bcrypt.hash(dto.password, 10);
+      const user = queryRunner.manager.create(User, {
+        ...dto,
+        password: hashedPassword,
+      });
+      const saved = await queryRunner.manager.save(user);
+
+      await queryRunner.commitTransaction();
+      return saved;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async update(id: number, dto: UpdateUserDto) {
-    const existingUser = await this.userRepository.findOneBy({ id });
-    if (!existingUser) {
-      throw new UnauthorizedException('user_not_found');
-    }
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    await this.userRepository.update(id, dto);
+    try {
+      const existingUser = await queryRunner.manager.findOneBy(User, { id });
+      if (!existingUser) {
+        throw new UnauthorizedException('user_not_found');
+      }
+
+      await queryRunner.manager.update(User, id, dto);
+
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async updatePermission(user: User, id: number, dto: UpdateUserPermissionDto) {
     if (!user.isAdmin) throw new ForbiddenException('no_permission');
 
-    const existingUser = await this.userRepository.findOneBy({ id });
-    if (!existingUser) throw new UnauthorizedException('user_not_found');
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // dto에서 undefined나 null이 아닌 값이 들어온 필드만 기존 유저 정보에 갱신
-    if (dto.isAdmin !== undefined && dto.isAdmin !== null)
-      existingUser.isAdmin = dto.isAdmin;
-    if (dto.isAuthorized !== undefined && dto.isAuthorized !== null)
-      existingUser.isAuthorized = dto.isAuthorized;
+    try {
+      const existingUser = await queryRunner.manager.findOneBy(User, { id });
+      if (!existingUser) throw new UnauthorizedException('user_not_found');
 
-    // position이나 department 관계(Relation) 처리가 필요하다면 아래처럼 id 객체로 할당
-    if (dto.positionId) existingUser.position = { id: dto.positionId } as any;
-    if (dto.departmentId)
-      existingUser.department = { id: dto.departmentId } as any;
+      if (dto.isAdmin !== undefined && dto.isAdmin !== null)
+        existingUser.isAdmin = dto.isAdmin;
+      if (dto.isAuthorized !== undefined && dto.isAuthorized !== null)
+        existingUser.isAuthorized = dto.isAuthorized;
 
-    // 1. 먼저 변경된 내용을 데이터베이스에 저장
-    await this.userRepository.save(existingUser);
+      if (dto.positionId) existingUser.position = { id: dto.positionId } as any;
+      if (dto.departmentId)
+        existingUser.department = { id: dto.departmentId } as any;
 
-    // 2. [핵심] 조인 관계(relations)를 명시하여 최신 전체 데이터를 다시 조회 후 반환
-    return this.userRepository.findOne({
-      where: { id },
-      relations: ['position', 'department'],
-    });
+      await queryRunner.manager.save(existingUser);
+
+      const result = await queryRunner.manager.findOne(User, {
+        where: { id },
+        relations: ['position', 'department'],
+      });
+
+      await queryRunner.commitTransaction();
+      return result;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async delete(user: User, id: number) {
     if (!user.isAdmin) throw new ForbiddenException('no_permission');
 
-    const existingUser = await this.userRepository.findOneBy({ id });
-    if (!existingUser) throw new UnauthorizedException('user_not_found');
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    await this.userRepository.delete({ id });
+    try {
+      const existingUser = await queryRunner.manager.findOneBy(User, { id });
+      if (!existingUser) throw new UnauthorizedException('user_not_found');
 
-    return true;
+      await queryRunner.manager.softDelete(User, { id });
+
+      await queryRunner.commitTransaction();
+      return true;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 }
