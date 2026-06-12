@@ -46,13 +46,13 @@ export class ProcurementIssueRequest {
   @Column()
   serialNumber: string;
 
-  @Column({ type: 'bool', default: 'false' })
+  @Column({ type: 'bool', default: false })
   hasFee: boolean;
 
-  @Column({ type: 'bool', default: 'false' })
+  @Column({ type: 'bool', default: false })
   requiresApproval: boolean;
 
-  @Column({ type: 'bool', default: 'false' })
+  @Column({ type: 'bool', default: false })
   isApproved: boolean;
 
   @ManyToOne(() => User, { nullable: true })

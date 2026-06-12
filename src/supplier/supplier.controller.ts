@@ -25,6 +25,22 @@ export class SupplierController {
   constructor(private readonly supplierService: SupplierService) {}
 
   @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '일정 가져오기' })
+  @ApiHeader({
+    name: 'Authorization',
+    description: 'Refresh Token',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: SupplierDto,
+  })
+  @Get(':id')
+  async getSupplier(@Param('id', ParseIntPipe) id: number) {
+    return await this.supplierService.getSupplier(id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '공급처 목록 조회' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({

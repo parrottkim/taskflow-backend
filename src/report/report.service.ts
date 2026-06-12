@@ -222,11 +222,18 @@ export class ReportService {
       }
 
       worksheet.pageSetup = {
-        paperSize: 9,
+        paperSize: 9, // A4
         orientation: 'portrait',
+
+        // fitToPage를 true로 하되, 가로/세로 페이지 수를 명시하여 템플릿 규격에 맞춤
         fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 1,
+
         horizontalCentered: true,
         verticalCentered: true,
+
+        // 여백을 원하는 크기로 조정 (예: 상하좌우 1.5cm 정도 여백을 원할 경우 1.5 / 2.54)
         margins: {
           left: 0.5 / 2.54,
           right: 0.5 / 2.54,
@@ -238,7 +245,7 @@ export class ReportService {
       };
 
       // 3) 인쇄 영역 지정 (여백 반영 안정화)
-      worksheet.pageSetup.printArea = 'A1:M60';
+      worksheet.pageSetup.printArea = 'A1:L53';
 
       const startDate = dayjs(report.schedule.start);
       const endDate = dayjs(report.schedule.end);
@@ -1462,7 +1469,7 @@ export class ReportService {
       if (report.user.id !== user.id && !user.isAdmin)
         throw new ForbiddenException('no_permission');
 
-      if (typeof body.content === 'string') {
+      if (body.content) {
         const oldUrls = extractImages(report.content);
         const newUrls = extractImages(body.content);
         const removedUrls = oldUrls.filter((url) => !newUrls.includes(url));

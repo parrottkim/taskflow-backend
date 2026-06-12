@@ -15,7 +15,7 @@ export class GetSuppliersDto {
   @IsInt()
   @Min(20)
   @IsOptional()
-  limit?: number = 100;
+  limit?: number = 20;
 
   @ApiProperty()
   @IsNotEmpty()
