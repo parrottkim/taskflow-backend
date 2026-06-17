@@ -21,6 +21,7 @@ import { GetProjectsDto } from './dto/get-projects';
 import { CreateProjectDto } from './dto/create-project';
 import { UpdateProjectDto } from './dto/update-project';
 import { ProjectItemCountDto } from './dto/project-item-count';
+import { ProjectEditGuard } from '@/common/guards/project-edit.guard';
 
 @ApiTags('Project (프로젝트)')
 @Controller('project')
@@ -40,8 +41,8 @@ export class ProjectController {
     return this.projectService.getProjectItemCount(id);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '프로젝트 수정용 데이터 조회 (권한 강화)' })
+  @UseGuards(JwtAccessAuthGuard, ProjectEditGuard)
+  @ApiOperation({ summary: '프로젝트 수정용 데이터 조회' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -50,7 +51,7 @@ export class ProjectController {
   })
   @Get(':id/edit')
   getProjectForEdit(@Request() req, @Param('id', ParseIntPipe) id: number) {
-    return this.projectService.getProjectForEdit(req.user, id);
+    return this.projectService.getProject(req.user, id);
   }
 
   @UseGuards(JwtAccessAuthGuard)

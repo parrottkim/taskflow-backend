@@ -21,6 +21,7 @@ import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { ScheduleCategoryDto } from './dto/schedule-category';
 import { UpdateScheduleDto } from './dto/update-schedule';
 import { GetSchedulesDto } from './dto/get-schedules';
+import { ScheduleEditGuard } from '@/common/guards/schedule-edit.guard';
 
 @ApiTags('Schedule (일정)')
 @Controller('schedule')
@@ -40,8 +41,24 @@ export class ScheduleController {
     return this.scheduleService.getAllCategories();
   }
 
+  @UseGuards(JwtAccessAuthGuard, ScheduleEditGuard)
+  @ApiOperation({ summary: '일정 수정용 데이터 조회' })
+  @ApiHeader({
+    name: 'Authorization',
+    description: 'Refresh Token',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: ScheduleDto,
+  })
+  @Get(':id/edit')
+  async getScheduleForEdit(@Param('id', ParseIntPipe) id: number) {
+    return await this.scheduleService.getSchedule(id);
+  }
+
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '일정 가져오기' })
+  @ApiOperation({ summary: '일정 단일 조회' })
   @ApiHeader({
     name: 'Authorization',
     description: 'Refresh Token',
@@ -52,8 +69,8 @@ export class ScheduleController {
     type: ScheduleDto,
   })
   @Get(':id')
-  async getSchedule(@Request() req, @Param('id', ParseIntPipe) id: number) {
-    return await this.scheduleService.getScheduleWithUser(req.user, id);
+  async getSchedule(@Param('id', ParseIntPipe) id: number) {
+    return await this.scheduleService.getSchedule(id);
   }
 
   @UseGuards(JwtAccessAuthGuard)

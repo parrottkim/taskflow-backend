@@ -12,7 +12,6 @@ import { UserModule } from '@/user/user.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Bookmark, User, Project]),
-    forwardRef(() => ProjectModule),
     ProjectClientModule,
     UserModule,
   ],

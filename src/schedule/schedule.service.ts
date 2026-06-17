@@ -145,38 +145,15 @@ export class ScheduleService {
 
   async getSchedule(id: number) {
     const schedule = await this.findScheduleById(id);
-    const project = await this.projectService.getProjectWithoutUser(
-      schedule.project.id,
-    );
 
-    const scheduleDto = plainToInstance(ScheduleDto, schedule, {
-      excludeExtraneousValues: true,
-    });
-
-    scheduleDto.projectId = project.id;
-    scheduleDto.projectCode = project.code;
-    scheduleDto.projectName = project.name;
-    scheduleDto.projectClientId = project.clients[0].id;
-    scheduleDto.projectClientName =
-      project.clients[project.clients.length - 1].name;
-
-    return scheduleDto;
-  }
-
-  async getScheduleWithUser(user: User, id: number) {
-    const schedule = await this.findScheduleById(id);
-    const project = await this.projectService.getProjectWithoutUser(
-      schedule.project.id,
-    );
-
+    // findScheduleById 내부에서 예외 처리를 하지 않는 경우를 대비한 방어 코드
     if (!schedule) {
       throw new NotFoundException('schedule_not_found');
     }
 
-    // 2️⃣ 권한 체크: 본인 일정이거나 관리자만 접근 가능
-    if (schedule.user.id !== user.id && !user.isAdmin) {
-      throw new ForbiddenException('no_permission');
-    }
+    const project = await this.projectService.getProjectWithoutUser(
+      schedule.project.id,
+    );
 
     const scheduleDto = plainToInstance(ScheduleDto, schedule, {
       excludeExtraneousValues: true,
@@ -572,7 +549,9 @@ export class ScheduleService {
         });
       } catch (error: any) {
         if (error.code !== 404 && error.code !== 410) {
-          console.error(`Google Calendar Event Deletion Error: ${error.message}`);
+          console.error(
+            `Google Calendar Event Deletion Error: ${error.message}`,
+          );
           throw error;
         }
       }
