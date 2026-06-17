@@ -8,6 +8,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProjectModule } from '@/project/project.module';
 import { MailModule } from '@/mail/mail.module';
 import { ProjectClientModule } from '@/project/project-client.module';
+import { ScheduleEditGuard } from '@/common/guards/schedule-edit.guard';
 
 @Module({
   imports: [
@@ -17,8 +18,8 @@ import { ProjectClientModule } from '@/project/project-client.module';
     UserModule,
     MailModule,
   ],
-  providers: [ScheduleService],
   controllers: [ScheduleController],
-  exports: [ScheduleService],
+  providers: [ScheduleService, ScheduleEditGuard],
+  exports: [ScheduleService, ScheduleEditGuard],
 })
 export class ScheduleModule {}

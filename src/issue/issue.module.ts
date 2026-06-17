@@ -24,6 +24,8 @@ import { ApprovalIssue } from '@/entity/issue/approval/approval-issue.entity';
 import { Supplier } from '@/entity/supplier/supplier.entity';
 import { ProcurementIssueRequestItem } from '@/entity/issue/procurement/procurement-issue-request-item.entity';
 import { ProcurementIssueRequest } from '@/entity/issue/procurement/procurement-issue-request.entity';
+import { IssueEditGuard } from '@/common/guards/issue-edit.guard';
+import { IssueProcurementRequestGuard } from '@/common/guards/issue-procurement-request.guard';
 
 @Module({
   imports: [
@@ -50,8 +52,18 @@ import { ProcurementIssueRequest } from '@/entity/issue/procurement/procurement-
     MailModule,
     SftpModule,
   ],
-  providers: [IssueService, IssueAttachmentService],
   controllers: [IssueController, IssueAttachmentController],
-  exports: [IssueService, IssueAttachmentService],
+  providers: [
+    IssueService,
+    IssueAttachmentService,
+    IssueEditGuard,
+    IssueProcurementRequestGuard,
+  ],
+  exports: [
+    IssueService,
+    IssueAttachmentService,
+    IssueEditGuard,
+    IssueProcurementRequestGuard,
+  ],
 })
 export class IssueModule {}

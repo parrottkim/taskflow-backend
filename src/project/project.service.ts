@@ -295,36 +295,6 @@ export class ProjectService {
     return projectDto;
   }
 
-  async getProjectForEdit(user: User, id: number) {
-    const project = await this.findProjectById(id, user);
-
-    if (!project) {
-      throw new NotFoundException('project_not_found');
-    }
-
-    if (project.user.id !== user.id && !user.isAdmin) {
-      throw new ForbiddenException('no_permission');
-    }
-
-    const ancestors = await this.projectClientService.findAncestors(
-      project.client.id,
-    );
-
-    const projectDto = plainToInstance(
-      ProjectDto,
-      {
-        ...project,
-        clients: ancestors,
-        isBookmarked: project.bookmarks && project.bookmarks.length > 0,
-      },
-      {
-        excludeExtraneousValues: true,
-      },
-    );
-
-    return projectDto;
-  }
-
   async getProjects(user: User, query: GetProjectsDto) {
     const [projects, total] = await this.findProjects(user, query);
 
