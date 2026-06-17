@@ -25,6 +25,7 @@ import { ReportDto, ReportListDto } from './dto/report';
 import { UpdateReportDto } from './dto/update-report';
 import { GetReportDto } from './dto/get-report';
 import { SendReportMailDto } from './dto/send-report-mail';
+import { ReportEditGuard } from '@/common/guards/report-edit.guard';
 
 @Controller('report')
 export class ReportController {
@@ -89,6 +90,19 @@ export class ReportController {
     res.end(buffer);
   }
 
+  @UseGuards(JwtAccessAuthGuard, ReportEditGuard)
+  @ApiOperation({ summary: '출장 명령서 수정용 데이터 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: ReportDto,
+  })
+  @Get(':id/edit')
+  getReportForEdit(@Param('id', ParseIntPipe) id: number) {
+    return this.reportService.getReport(id);
+  }
+
   @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '출장 명령서 단일 조회' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
@@ -98,8 +112,8 @@ export class ReportController {
     type: ReportDto,
   })
   @Get(':id')
-  getReport(@Request() req, @Param('id', ParseIntPipe) id: number) {
-    return this.reportService.getReportWithUser(req.user, id);
+  getReport(@Param('id', ParseIntPipe) id: number) {
+    return this.reportService.getReport(id);
   }
 
   @UseGuards(JwtAccessAuthGuard)

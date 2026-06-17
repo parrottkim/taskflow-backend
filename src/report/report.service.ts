@@ -855,18 +855,15 @@ export class ReportService {
     }
   }
 
-  async getReportWithoutUser(id: number) {
+  async getReport(id: number) {
+    // 1. 공통 조회 및 예외 처리 (통합된 getReport 활용)
     const report = await this.findReportById(id);
-
-    if (!report) {
-      throw new NotFoundException('report_not_found');
-    }
 
     const schedule = report.schedule
       ? await this.scheduleService.getSchedule(report.schedule.id)
       : null;
 
-    // 계산된 값들 추가
+    // 2. 계산된 값들 추가
     let calculations = null;
     if (report.trip && schedule) {
       const isDomestic = schedule.category.id === 1;
@@ -875,69 +872,12 @@ export class ReportService {
         : await this.calculateOverseasTripCosts(report);
     }
 
+    // 3. plainToInstance 변환 (user가 주어지면 덮어쓰고, 없으면 기존 report.user 유지)
     const reportDto = plainToInstance(
       ReportDto,
       {
         ...report,
         schedule,
-        trip: report.trip
-          ? {
-              ...report.trip,
-              expenses:
-                report.trip.expenses?.map((expense) => ({
-                  ...expense,
-                  price: expense.price !== null ? expense.price : null,
-                  stepId: expense.step?.id,
-                })) ?? [],
-              rates:
-                report.trip.rates?.map((rate) => ({
-                  ...rate,
-                  stepId: rate.step?.id,
-                })) ?? [],
-              fuel: report.trip.fuel ?? null,
-              exchangeRate: report.trip.exchangeRate ?? null,
-              calculations,
-            }
-          : null,
-      },
-      {
-        excludeExtraneousValues: true,
-      },
-    );
-
-    return reportDto;
-  }
-
-  async getReportWithUser(user: User, id: number) {
-    const report = await this.findReportById(id);
-
-    if (!report) {
-      throw new NotFoundException('report_not_found');
-    }
-
-    if (report.user.id !== user.id && !user.isAdmin) {
-      throw new ForbiddenException('no_permission');
-    }
-
-    const schedule = report.schedule
-      ? await this.scheduleService.getSchedule(report.schedule.id)
-      : null;
-
-    // 계산된 값들 추가
-    let calculations = null;
-    if (report.trip && schedule) {
-      const isDomestic = schedule.category.id === 1;
-      calculations = isDomestic
-        ? await this.calculateDomesticTripCosts(report)
-        : await this.calculateOverseasTripCosts(report);
-    }
-
-    const reportDto = plainToInstance(
-      ReportDto,
-      {
-        ...report,
-        schedule,
-        user,
         trip: report.trip
           ? {
               ...report.trip,

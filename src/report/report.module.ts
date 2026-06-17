@@ -18,6 +18,7 @@ import { SftpModule } from '@/sftp/sftp.module';
 import { ReportAttachmentSubscriber } from '@/common/subscribers/report-attachment.subscriber';
 import { MailModule } from '@/mail/mail.module';
 import { ProjectModule } from '@/project/project.module';
+import { ReportEditGuard } from '@/common/guards/report-edit.guard';
 
 @Module({
   imports: [
@@ -40,7 +41,7 @@ import { ProjectModule } from '@/project/project.module';
     MailModule,
   ],
   controllers: [ReportController],
-  providers: [ReportService, ReportAttachmentSubscriber],
-  exports: [ReportService],
+  providers: [ReportService, ReportAttachmentSubscriber, ReportEditGuard],
+  exports: [ReportService, ReportEditGuard],
 })
 export class ReportModule {}

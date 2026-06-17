@@ -19,8 +19,8 @@ export class BookmarkService {
   constructor(
     @InjectRepository(Bookmark)
     private readonly bookmarkRepository: Repository<Bookmark>,
-    @Inject(forwardRef(() => ProjectService))
-    private readonly projectService: ProjectService,
+    @InjectRepository(Project)
+    private readonly projectRepository: Repository<Project>,
   ) {}
 
   async create(user: User, project: Project) {
@@ -43,7 +43,9 @@ export class BookmarkService {
   }
 
   async addBookmark(user: User, id: number) {
-    const project = await this.projectService.findProjectById(id, user);
+    const project = await this.projectRepository.findOne({
+      where: { id },
+    });
 
     if (!project) {
       throw new NotFoundException('project_not_found');

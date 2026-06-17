@@ -36,6 +36,8 @@ import {
 } from './dto/update-issue';
 import { SendIssueMailDto } from './dto/send-issue-mail';
 import { CreateProcurementRequestDto } from './dto/procurement-issue-request';
+import { IssueEditGuard } from '@/common/guards/issue-edit.guard';
+import { IssueProcurementRequestGuard } from '@/common/guards/issue-procurement-request.guard';
 
 @ApiTags('Issue (이슈)')
 @Controller('issue')
@@ -345,6 +347,21 @@ export class IssueController {
     @Body() body: SendIssueMailDto,
   ) {
     return this.issueService.sendMail(id, body.userIds);
+  }
+
+  @UseGuards(JwtAccessAuthGuard, IssueProcurementRequestGuard)
+  @ApiOperation({ summary: '발주 요청용 데이터 조회' })
+  @Get(':id/procurement/request')
+  getIssueForProcurementRequest(@Param('id', ParseIntPipe) id: number) {
+    return this.issueService.getIssue(id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard, IssueEditGuard)
+  @ApiOperation({ summary: '이슈 수정용 데이터 조회' })
+  @Get(':id/edit')
+  getIssueForEdit(@Param('id', ParseIntPipe) id: number) {
+    // 가드를 통과했으므로 안전하게 동일한 조회 메서드 호출
+    return this.issueService.getIssue(id);
   }
 
   @UseGuards(JwtAccessAuthGuard)
