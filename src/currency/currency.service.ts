@@ -18,8 +18,6 @@ import dayjs from 'dayjs';
 
 @Injectable()
 export class CurrencyService {
-  private readonly BASE_URL =
-    'https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON';
   private readonly MAX_FALLBACK_DAYS = 10;
 
   constructor(
@@ -75,12 +73,8 @@ export class CurrencyService {
   }
 
   async getExchangeRate(date: string) {
+    const url = this.configService.exchange.url;
     const apiKey = this.configService.exchange.key;
-    if (!apiKey) {
-      throw new InternalServerErrorException(
-        '환율 API 키가 설정되지 않았습니다.',
-      );
-    }
 
     try {
       let cursor = this.toDateCursor(date);
@@ -92,7 +86,7 @@ export class CurrencyService {
         attemptedDates.push(searchDate);
 
         const response = await firstValueFrom(
-          this.httpService.get(this.BASE_URL, {
+          this.httpService.get(url, {
             params: {
               authkey: apiKey,
               searchdate: searchDate,

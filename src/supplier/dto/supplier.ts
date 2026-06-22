@@ -10,50 +10,34 @@ import {
 
 export class SupplierDto {
   @ApiProperty()
-  @IsInt()
-  @IsNotEmpty()
   @Expose()
   id: number;
 
   @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
   @Expose()
   name: string;
 
   @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
   @Expose()
   number: string;
 
   @ApiProperty()
-  @IsString()
-  @IsOptional()
   @Expose()
   phone?: string;
 
   @ApiProperty()
-  @IsString()
-  @IsOptional()
   @Expose()
   zipcode?: string;
 
   @ApiProperty()
-  @IsString()
-  @IsOptional()
   @Expose()
   roadAddress?: string;
 
   @ApiProperty()
-  @IsString()
-  @IsOptional()
   @Expose()
   roadAddressReference?: string;
 
   @ApiProperty()
-  @IsString()
-  @IsOptional()
   @Expose()
   @Transform(({ obj }) => {
     const road = obj.roadAddress || '';
@@ -71,20 +55,14 @@ export class SupplierDto {
   address?: string | null;
 
   @ApiProperty()
-  @IsString()
-  @IsOptional()
   @Expose()
   detailAddress?: string;
 
   @ApiProperty()
-  @IsString()
-  @IsOptional()
   @Expose()
   email?: string;
 
   @ApiProperty()
-  @IsString()
-  @IsOptional()
   @Expose()
   logo?: string;
 }

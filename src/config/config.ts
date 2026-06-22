@@ -39,13 +39,18 @@ export default registerAs('config', () => {
       url: process.env.SFTP_URL,
       path: process.env.SFTP_PATH,
     },
-    exchange: {
-      key: process.env.EXCHANGE_API_KEY,
-    },
     url: {
       frontend: process.env.FRONTEND_URL,
       redis: process.env.REDIS_URL,
       docConverter: process.env.DOC_CONVERTER_URL,
+    },
+    exchange: {
+      url: process.env.EXCHANGE_API_URL,
+      key: process.env.EXCHANGE_API_KEY,
+    },
+    address: {
+      url: process.env.ADDRESS_API_URL,
+      key: process.env.ADDRESS_API_KEY,
     },
   };
 });
