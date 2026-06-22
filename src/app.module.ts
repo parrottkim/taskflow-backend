@@ -24,6 +24,7 @@ import { IssueAttachmentModule } from './issue/issue-attachment.module';
 import { ReportAttachmentModule } from './report/report-attachment.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { CleanupModule } from './common/cleanup/cleanup.module';
+import { AddressModule } from './address/address.module';
 import config from '@/config/config';
 
 @Module({
@@ -70,6 +71,7 @@ import config from '@/config/config';
       },
     }),
     NestScheduleModule.forRoot(),
+    AddressModule,
     AuthModule,
     BookmarkModule,
     CleanupModule,
@@ -87,6 +89,7 @@ import config from '@/config/config';
     ReportAttachmentModule,
     UserDepartmentModule,
     UserModule,
+    AddressModule,
   ],
   controllers: [AppController],
   providers: [AppService],

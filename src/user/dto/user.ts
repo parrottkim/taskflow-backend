@@ -30,13 +30,13 @@ export class UserDto {
   isAuthorized: boolean;
 
   @ApiProperty({ type: PositionDto })
-  @Expose()
   @Type(() => PositionDto)
+  @Expose()
   position: PositionDto;
 
   @ApiProperty({ type: DepartmentDto })
-  @Expose()
   @Type(() => DepartmentDto)
+  @Expose()
   department: DepartmentDto;
 }
 
@@ -44,15 +44,14 @@ export class UserListDto {
   @ApiProperty({ type: [UserDto] })
   @ValidateNested({ each: true })
   @Type(() => UserDto)
+  @Expose()
   items: UserDto[];
 
   @ApiProperty()
-  @IsInt()
-  @IsNotEmpty()
+  @Expose()
   page: number;
 
   @ApiProperty()
-  @IsInt()
-  @IsNotEmpty()
+  @Expose()
   total: number;
 }
