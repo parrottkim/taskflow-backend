@@ -159,6 +159,12 @@ export class ProjectService {
         break;
     }
 
+    if (value.isMine) {
+      queryBuilder.andWhere('manager.id = :currentUserId', {
+        currentUserId: user.id,
+      });
+    }
+
     // 6. 정렬 조건 설정
     const orderType = value.order?.toUpperCase() as 'ASC' | 'DESC';
 

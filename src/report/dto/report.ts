@@ -15,8 +15,6 @@ import { ReportAttachmentDto } from './report-attachment';
 
 export class ReportDto {
   @ApiProperty()
-  @IsInt()
-  @IsNotEmpty()
   @Expose()
   id: number;
 
@@ -37,8 +35,6 @@ export class ReportDto {
   trip?: TripReportDto;
 
   @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
   @Expose()
   content: string;
 
@@ -50,19 +46,16 @@ export class ReportDto {
 
   @ApiProperty()
   @Type(() => Date)
-  @IsDate()
   @Expose()
   createdAt: Date;
 
   @ApiProperty()
   @Type(() => Date)
-  @IsDate()
   @Expose()
   updatedAt: Date;
 
   @ApiProperty({ required: false, nullable: true })
   @Type(() => Date)
-  @IsDate()
   @Expose()
   deletedAt: Date | null;
 }
@@ -75,14 +68,10 @@ export class ReportListDto {
   items: ReportDto[];
 
   @ApiProperty()
-  @IsInt()
-  @IsNotEmpty()
   @Expose()
   page: number;
 
   @ApiProperty()
-  @IsInt()
-  @IsNotEmpty()
   @Expose()
   total: number;
 }
