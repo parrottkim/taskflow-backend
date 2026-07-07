@@ -21,8 +21,8 @@ export class ReportAttachmentService {
     files: Express.Multer.File[],
   ) {
     const uploadedFiles = await this.sftpService.uploadAttachments(
-      user,
       'report',
+      reportId,
       files,
     );
 
