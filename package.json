@@ -25,13 +25,11 @@
     "typeorm:revert": "npm run typeorm -- migration:revert -d ./dist/data-source.js",
     "typeorm:local": "cross-env DOTENV_CONFIG_PATH=.local.env ts-node -r dotenv/config --files ./node_modules/typeorm/cli.js",
     "typeorm:local:create": "npm run typeorm:local -- migration:create",
-    "typeorm:local:generate": "npm run typeorm:local -- migration:generate -d ./src/data-source.ts",
+    "typeorm:local:generate": "npm run typeorm:local -- migration:generate ./src/migrations/$npm_config_name -d ./src/data-source.ts",
     "typeorm:local:migrate": "npm run typeorm:local -- migration:run -d ./src/data-source.ts",
     "typeorm:local:revert": "npm run typeorm:local -- migration:revert -d ./src/data-source.ts",
-    "backfill:trip-exchange-rate": "cross-env NODE_ENV=local ts-node -r tsconfig-paths/register src/report/backfill-trip-exchange-rates.ts",
-    "backfill:trip-exchange-rate:write": "npm run backfill:trip-exchange-rate -- --write",
-    "backfill:trip-exchange-rate:dist": "node dist/report/backfill-trip-exchange-rates.js",
-    "backfill:trip-exchange-rate:dist:write": "npm run backfill:trip-exchange-rate:dist -- --write"
+    "migrate:attachment-paths": "cross-env DOTENV_CONFIG_PATH=.local.env ts-node -r dotenv/config -r tsconfig-paths/register src/sftp/migrate-attachment-paths.ts",
+    "migrate:attachment-paths:write": "npm run migrate:attachment-paths -- --write"
   },
   "dependencies": {
     "@nestjs-modules/ioredis": "^2.0.2",

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -50,6 +51,29 @@ export class SftpService {
         // 무시: Windows에서 발생하는 ECONNRESET 방지
       }
     }
+  }
+
+  private normalizeRemoteSegment(segment: string) {
+    const normalized = segment.trim().replace(/^\/+|\/+$/g, '');
+
+    if (
+      !normalized ||
+      normalized.includes('..') ||
+      /^[a-z]+:\/\//i.test(normalized)
+    ) {
+      throw new BadRequestException('invalid_sftp_path');
+    }
+
+    return normalized;
+  }
+
+  private buildRemotePath(...segments: string[]) {
+    const basePath = this.configService.sftp.path.trim().replace(/\/+$/g, '');
+    const normalizedSegments = segments.map((segment) =>
+      this.normalizeRemoteSegment(segment),
+    );
+
+    return [basePath, ...normalizedSegments].filter(Boolean).join('/');
   }
 
   async uploadFile(buffer: Buffer, path: string) {
@@ -132,11 +156,11 @@ export class SftpService {
 
   async uploadInlineImages(
     user: User,
-    path: string,
+    namespace: string,
     files: Express.Multer.File[],
   ) {
     const directory = 'inline-images';
-    const basePath = `${this.configService.sftp.path}/${directory}/${path}/${user.id}`;
+    const basePath = this.buildRemotePath(directory, namespace, String(user.id));
     const date = `${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
     const images = await Promise.all(
@@ -158,12 +182,16 @@ export class SftpService {
   }
 
   async uploadAttachments(
-    user: User,
-    path: string,
+    namespace: string,
+    resourceId: number,
     files: Express.Multer.File[],
   ) {
     const directory = 'attachments';
-    const basePath = `${this.configService.sftp.path}/${directory}/${path}/${user.id}`;
+    const basePath = this.buildRemotePath(
+      directory,
+      namespace,
+      String(resourceId),
+    );
     const date = `${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
     const attachments = await Promise.all(

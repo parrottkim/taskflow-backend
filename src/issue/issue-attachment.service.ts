@@ -21,8 +21,8 @@ export class IssueAttachmentService {
     files: Express.Multer.File[],
   ) {
     const uploadedFiles = await this.sftpService.uploadAttachments(
-      user,
       'issue',
+      issueId,
       files,
     );
 
