@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { GetDocumentsDto } from './dto/get-documents';
 import { DocumentDto, DocumentListDto } from './dto/document';
 import { plainToInstance } from 'class-transformer';
@@ -24,6 +24,31 @@ export class DocumentService {
     @InjectRepository(DocumentFolder)
     private readonly documentFolderRepository: Repository<DocumentFolder>,
   ) {}
+
+  private async ensureFixedDocumentLimit(
+    manager: EntityManager,
+    folderId: number,
+    excludeDocumentId?: number,
+  ) {
+    const queryBuilder = manager
+      .getRepository(Document)
+      .createQueryBuilder('document')
+      .leftJoin('document.folder', 'folder')
+      .where('folder.id = :folderId', { folderId })
+      .andWhere('document.fixed = true');
+
+    if (excludeDocumentId) {
+      queryBuilder.andWhere('document.id != :excludeDocumentId', {
+        excludeDocumentId,
+      });
+    }
+
+    const fixedCount = await queryBuilder.getCount();
+
+    if (fixedCount >= 5) {
+      throw new ConflictException('fixed_document_limit_exceeded');
+    }
+  }
 
   async findDocumentById(id: number) {
     return this.documentRepository
@@ -164,13 +189,7 @@ export class DocumentService {
       }
 
       if (body.fixed) {
-        const fixedCount = await queryRunner.manager.count(Document, {
-          where: { fixed: true },
-        });
-
-        if (fixedCount >= 5) {
-          throw new ConflictException('fixed_document_limit_exceeded');
-        }
+        await this.ensureFixedDocumentLimit(queryRunner.manager, folder.id);
       }
 
       const document = queryRunner.manager.create(Document, {
@@ -216,6 +235,8 @@ export class DocumentService {
         throw new ForbiddenException('no_permission');
       }
 
+      const originalFolderId = document.folder.id;
+
       if (body.folderId && body.folderId !== document.folder.id) {
         const folder = await queryRunner.manager.findOne(DocumentFolder, {
           where: { id: body.folderId },
@@ -228,14 +249,18 @@ export class DocumentService {
         document.folder = folder;
       }
 
-      if (!document.fixed && body.fixed === true) {
-        const fixedCount = await queryRunner.manager.count(Document, {
-          where: { fixed: true },
-        });
+      const targetFolderId = document.folder.id;
+      const willBeFixed = body.fixed ?? document.fixed;
 
-        if (fixedCount >= 5) {
-          throw new ConflictException('fixed_document_limit_exceeded');
-        }
+      if (
+        willBeFixed &&
+        (!document.fixed || targetFolderId !== originalFolderId)
+      ) {
+        await this.ensureFixedDocumentLimit(
+          queryRunner.manager,
+          targetFolderId,
+          document.id,
+        );
       }
 
       document.title = body.title ?? document.title;
