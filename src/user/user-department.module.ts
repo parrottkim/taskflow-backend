@@ -9,6 +9,5 @@ import { UserDepartmentService } from './user-department.service';
   imports: [TypeOrmModule.forFeature([UserDepartment, UserDepartmentClosure])],
   providers: [UserDepartmentService],
   controllers: [UserDepartmentController],
-  exports: [UserDepartmentService],
 })
 export class UserDepartmentModule {}

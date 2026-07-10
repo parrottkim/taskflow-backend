@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, OmitType, PartialType } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
 import {
   ValidateNested,
@@ -10,6 +10,7 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { CreateProcurementIssueItemDto } from './create-issue-item';
+import { UpdateProcurementIssueItemDto } from './update-issue-item';
 import { ProcurementIssueRequestItemDto } from './issue';
 import { UserDto } from '@/user/dto/user';
 import { SupplierDto } from '@/supplier/dto/supplier';
@@ -144,4 +145,14 @@ export class CreateProcurementRequestDto {
   @Type(() => CreateProcurementIssueItemDto)
   @IsNotEmpty()
   items: CreateProcurementIssueItemDto[];
+}
+
+export class UpdateProcurementRequestDto extends PartialType(
+  OmitType(CreateProcurementRequestDto, ['items']),
+) {
+  @ApiProperty({ type: [UpdateProcurementIssueItemDto] })
+  @ValidateNested({ each: true })
+  @Type(() => UpdateProcurementIssueItemDto)
+  @IsNotEmpty()
+  items: UpdateProcurementIssueItemDto[];
 }

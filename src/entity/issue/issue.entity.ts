@@ -34,8 +34,11 @@ export class Issue {
   @ManyToOne(() => IssueCategory, (category) => category.issues)
   category: IssueCategory;
 
-  @ManyToOne(() => User, (user) => user.issues)
-  user: User;
+  @ManyToOne(() => User, (user) => user.createdIssues)
+  createdBy: User;
+
+  @ManyToOne(() => User, (user) => user.updatedIssues, { nullable: true })
+  updatedBy?: User;
 
   @Column({ type: 'text' })
   content: string;

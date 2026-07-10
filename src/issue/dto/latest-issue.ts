@@ -19,12 +19,6 @@ export class LatestIssueDto {
   id: number;
 
   @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  @Expose()
-  content: string;
-
-  @ApiProperty()
   @IsInt()
   @IsNotEmpty()
   @Expose()
@@ -56,7 +50,7 @@ export class LatestIssueDto {
   @ApiProperty({ type: UserDto })
   @Type(() => UserDto)
   @Expose()
-  user: UserDto;
+  createdBy: UserDto;
 
   @ApiProperty()
   @Type(() => Date)

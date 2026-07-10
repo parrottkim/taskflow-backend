@@ -37,11 +37,14 @@ export class ProjectService {
   async findProjectById(id: number, user?: User) {
     const queryBuilder = this.projectRepository
       .createQueryBuilder('project')
-      .leftJoinAndSelect('project.user', 'user')
+      .leftJoinAndSelect('project.createdBy', 'createdBy')
+      .leftJoinAndSelect('project.updatedBy', 'updatedBy')
       .leftJoinAndSelect('project.manager', 'manager')
       .leftJoinAndSelect('project.latestCategory', 'latestCategory')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.department', 'department')
+      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('project.client', 'client');
 
     if (user) {
@@ -68,11 +71,14 @@ export class ProjectService {
   async findProjects(user: User, value: GetProjectsDto) {
     let queryBuilder = this.projectRepository
       .createQueryBuilder('project')
-      .leftJoinAndSelect('project.user', 'user')
+      .leftJoinAndSelect('project.createdBy', 'createdBy')
+      .leftJoinAndSelect('project.updatedBy', 'updatedBy')
       .leftJoinAndSelect('project.manager', 'manager')
       .leftJoinAndSelect('project.latestCategory', 'latestCategory')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.department', 'department')
+      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('project.client', 'client');
 
     // 1. 검색어 필터링
@@ -378,7 +384,8 @@ export class ProjectService {
         code: body.projectCode,
         name: body.projectName,
         isPreexecuted: body.isPreexecuted,
-        user: user,
+        createdBy: user,
+        updatedBy: user,
         manager: manager,
         client: client,
       });
@@ -422,11 +429,14 @@ export class ProjectService {
       const project = await queryRunner.manager
         .getRepository(Project)
         .createQueryBuilder('project')
-        .leftJoinAndSelect('project.user', 'user')
+        .leftJoinAndSelect('project.createdBy', 'createdBy')
+        .leftJoinAndSelect('project.updatedBy', 'updatedBy')
         .leftJoinAndSelect('project.manager', 'manager')
         .leftJoinAndSelect('project.latestCategory', 'latestCategory')
-        .leftJoinAndSelect('user.position', 'position')
-        .leftJoinAndSelect('user.department', 'department')
+        .leftJoinAndSelect('createdBy.position', 'position')
+        .leftJoinAndSelect('createdBy.department', 'department')
+        .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+        .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
         .leftJoinAndSelect('project.client', 'client')
         .leftJoinAndSelect(
           'project.bookmarks',
@@ -439,7 +449,7 @@ export class ProjectService {
 
       if (!project) throw new NotFoundException('project_not_found');
 
-      if (project.user.id !== user.id && !user.isAdmin) {
+      if (project.createdBy.id !== user.id && !user.isAdmin) {
         throw new ForbiddenException('no_permission');
       }
 
@@ -480,6 +490,7 @@ export class ProjectService {
         where: { id: body.categoryId },
       });
       project.latestCategory = category;
+      project.updatedBy = user;
 
       const saved = await queryRunner.manager.save(project);
 
@@ -552,11 +563,14 @@ export class ProjectService {
       const project = await queryRunner.manager.findOne(Project, {
         where: { id },
         relations: [
-          'user',
+          'createdBy',
+          'updatedBy',
           'manager',
           'latestCategory',
-          'user.position',
-          'user.department',
+          'createdBy.position',
+          'createdBy.department',
+          'updatedBy.position',
+          'updatedBy.department',
           'client',
         ],
       });

@@ -1,14 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Exclude, Expose, Type } from 'class-transformer';
-import {
-  IsBoolean,
-  IsDate,
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  ValidateNested,
-} from 'class-validator';
+import { Expose, Type } from 'class-transformer';
+import { ValidateNested } from 'class-validator';
 import { UserDto } from '@/user/dto/user';
 import { ProjectClientDto } from './project-client';
 import { IssueCategoryDto } from '../../issue/dto/issue-category';
@@ -33,7 +25,12 @@ export class ProjectDto {
   @ApiProperty({ type: UserDto })
   @Type(() => UserDto)
   @Expose()
-  user: UserDto;
+  createdBy: UserDto;
+
+  @ApiProperty({ type: UserDto, required: false })
+  @Type(() => UserDto)
+  @Expose()
+  updatedBy?: UserDto;
 
   @ApiProperty({ type: UserDto })
   @Type(() => UserDto)

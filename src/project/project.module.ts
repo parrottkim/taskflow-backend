@@ -15,6 +15,6 @@ import { ProjectEditGuard } from '@/common/guards/project-edit.guard';
   ],
   controllers: [ProjectController],
   providers: [ProjectService, ProjectEditGuard],
-  exports: [ProjectService, ProjectEditGuard],
+  exports: [ProjectService],
 })
 export class ProjectModule {}

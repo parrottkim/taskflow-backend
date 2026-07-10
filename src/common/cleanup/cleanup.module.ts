@@ -11,6 +11,5 @@ import { CleanupService } from './cleanup.service';
     SftpModule,
   ],
   providers: [CleanupService],
-  exports: [CleanupService],
 })
 export class CleanupModule {}

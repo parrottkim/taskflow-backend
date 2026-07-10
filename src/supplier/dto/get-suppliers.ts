@@ -18,7 +18,7 @@ export class GetSuppliersDto {
   limit?: number = 20;
 
   @ApiProperty()
-  @IsNotEmpty()
   @IsOptional()
+  @IsString()
   search?: string;
 }

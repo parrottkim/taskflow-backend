@@ -12,11 +12,15 @@ export class ProjectClientClosure {
   @Column()
   depth: number;
 
-  @ManyToOne(() => ProjectClient, (client) => client.ancestorClosures)
+  @ManyToOne(() => ProjectClient, (client) => client.ancestorClosures, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'ancestor' })
   ancestorClient: ProjectClient;
 
-  @ManyToOne(() => ProjectClient, (client) => client.descendantClosures)
+  @ManyToOne(() => ProjectClient, (client) => client.descendantClosures, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'descendant' })
   descendantClient: ProjectClient;
 }
