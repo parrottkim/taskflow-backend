@@ -12,7 +12,7 @@ import { CreateUserDto } from './dto/create-user';
 import { User } from '@/entity/user/user.entity';
 import { plainToInstance } from 'class-transformer';
 import { GetUsersDto } from './dto/get-users';
-import { DepartmentDto } from './dto/department';
+import { DepartmentDto, DepartmentGroupDto } from './dto/department';
 import { UserDepartment } from '@/entity/user/user-department.entity';
 import { PositionDto } from './dto/position';
 import { UserPosition } from '@/entity/user/user-position.entity';
@@ -78,13 +78,94 @@ export class UserService {
     });
   }
 
+  async findRootDepartments() {
+    return await this.userDepartmentRepository
+      .createQueryBuilder('department')
+      .leftJoin(
+        UserDepartmentClosure,
+        'closure',
+        'department.id = closure.descendant AND department.id != closure.ancestor',
+      )
+      .where('closure.ancestor IS NULL')
+      .getMany();
+  }
+
+  async findAllDepartments() {
+    const roots = await this.findRootDepartments();
+    const rootIds = roots.map((department) => department.id);
+
+    if (!rootIds.length) return [];
+
+    return await this.userDepartmentRepository
+      .createQueryBuilder('department')
+      .select('department.id', 'id')
+      .addSelect('department.name', 'name')
+      .addSelect('MIN(closure.depth)', 'depth')
+      .addSelect('parent.ancestor', 'parentId')
+      .innerJoin(
+        UserDepartmentClosure,
+        'closure',
+        'department.id = closure.descendant',
+      )
+      .leftJoin(
+        UserDepartmentClosure,
+        'parent',
+        'parent.descendant = department.id AND parent.depth = 1',
+      )
+      .where('closure.ancestor IN (:...rootIds)', { rootIds })
+      .groupBy('department.id')
+      .addGroupBy('parent.ancestor')
+      .orderBy('depth', 'ASC')
+      .addOrderBy('parent.ancestor', 'ASC')
+      .addOrderBy('department.id', 'ASC')
+      .getRawMany();
+  }
+
   async getAllDepartments() {
-    const departments = await this.userDepartmentRepository.find({
-      order: { id: 'ASC' },
-    });
-    return plainToInstance(DepartmentDto, departments, {
-      excludeExtraneousValues: true,
-    });
+    const departments = await this.findAllDepartments();
+
+    const groupMap = new Map<string, DepartmentDto[]>();
+
+    for (const department of departments) {
+      const depth = parseInt(department.depth, 10);
+      const parentId = department.parentId
+        ? parseInt(department.parentId, 10)
+        : null;
+      const key = `${depth}|${parentId}`;
+
+      if (!groupMap.has(key)) {
+        groupMap.set(key, []);
+      }
+
+      const dto = plainToInstance(DepartmentDto, department, {
+        excludeExtraneousValues: true,
+      });
+
+      groupMap.get(key)!.push(dto);
+    }
+
+    return Array.from(groupMap.entries())
+      .sort((a, b) => {
+        const [depthA, parentA] = a[0]
+          .split('|')
+          .map((x) => (x === 'null' ? null : parseInt(x, 10)));
+        const [depthB, parentB] = b[0]
+          .split('|')
+          .map((x) => (x === 'null' ? null : parseInt(x, 10)));
+
+        if (depthA! !== depthB!) return depthA! - depthB!;
+        if (parentA === null) return -1;
+        if (parentB === null) return 1;
+        return parentA - parentB;
+      })
+      .map(([key, items]) => {
+        const [depthStr, parentStr] = key.split('|');
+        return plainToInstance(DepartmentGroupDto, {
+          depth: parseInt(depthStr, 10),
+          parentId: parentStr === 'null' ? null : parseInt(parentStr, 10),
+          items,
+        });
+      });
   }
 
   async getAllPositions() {
@@ -143,8 +224,15 @@ export class UserService {
       .leftJoinAndSelect('user.department', 'department');
 
     if (query.departmentId) {
-      queryBuilder.andWhere('department.id = :departmentId', {
-        departmentId: query.departmentId,
+      const closures = await this.userDepartmentClosureRepository.find({
+        where: { ancestor: query.departmentId },
+      });
+      const departmentIds = closures.length
+        ? closures.map((closure) => closure.descendant)
+        : [query.departmentId];
+
+      queryBuilder.andWhere('department.id IN (:...departmentIds)', {
+        departmentIds,
       });
     }
     if (query.positionId) {
@@ -193,7 +281,7 @@ export class UserService {
   async getAllUsers() {
     const users = await this.userRepository.find({
       relations: ['position', 'department'],
-      order: { username: 'ASC' },
+      order: { position: { id: 'ASC' }, username: 'ASC' },
     });
 
     return this.mapToUserDtos(users);

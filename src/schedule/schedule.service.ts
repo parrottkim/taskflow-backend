@@ -26,6 +26,7 @@ import dayjs from 'dayjs';
 import { Project } from '@/entity/project/project.entity';
 import { ProjectClientService } from '@/project/project-client.service';
 import { ProjectDto } from '@/project/dto/project';
+import { UserDepartmentClosure } from '@/entity/user/user-department-closure.entity';
 
 @Injectable()
 export class ScheduleService {
@@ -40,6 +41,8 @@ export class ScheduleService {
     private readonly scheduleRepository: Repository<Schedule>,
     @InjectRepository(ScheduleCategory)
     private readonly scheduleCategoryRepository: Repository<ScheduleCategory>,
+    @InjectRepository(UserDepartmentClosure)
+    private readonly userDepartmentClosureRepository: Repository<UserDepartmentClosure>,
     private readonly projectService: ProjectService,
     private readonly projectClientService: ProjectClientService,
     private readonly mailService: MailService,
@@ -169,7 +172,7 @@ export class ScheduleService {
     return scheduleDto;
   }
 
-  async getScheduleWithUsers(user: User, query: GetSchedulesDto) {
+  async getScheduleWithUsers(query: GetSchedulesDto) {
     const start = query.start
       ? dayjs(query.start).startOf('day')
       : dayjs().subtract(28, 'day').startOf('day');
@@ -182,11 +185,42 @@ export class ScheduleService {
       .leftJoinAndSelect('schedule.project', 'project')
       .leftJoinAndSelect('schedule.category', 'category')
       .leftJoinAndSelect('schedule.user', 'user')
+      .leftJoinAndSelect('user.department', 'department')
       .where('schedule.start <= :end AND schedule.end >= :start', {
         start: start.toDate(),
         end: end.toDate(),
-      })
-      .andWhere('user.id = :userId', { userId: user.id });
+      });
+
+    if (query.userId) {
+      queryBuilder = queryBuilder.andWhere('user.id = :userId', {
+        userId: query.userId,
+      });
+    }
+
+    if (query.departmentId) {
+      const closures = await this.userDepartmentClosureRepository.find({
+        where: { ancestor: query.departmentId },
+      });
+      const departmentIds = closures.length
+        ? closures.map((closure) => closure.descendant)
+        : [query.departmentId];
+
+      queryBuilder = queryBuilder.andWhere(
+        'department.id IN (:...departmentIds)',
+        {
+          departmentIds,
+        },
+      );
+    }
+
+    if (query.search) {
+      queryBuilder = queryBuilder.andWhere(
+        '(schedule.summary ILIKE :search OR schedule.description ILIKE :search)',
+        {
+          search: `%${query.search}%`,
+        },
+      );
+    }
 
     // value.projectId가 있을 때만 필터링 조건을 추가합니다.
     if (query.projectId) {

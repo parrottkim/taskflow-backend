@@ -23,14 +23,14 @@ export class ProjectEditGuard implements CanActivate {
 
     const project = await this.projectRepository.findOne({
       where: { id: projectId },
-      relations: ['user'],
+      relations: ['createdBy'],
     });
 
     if (!project) {
       throw new NotFoundException('project_not_found');
     }
 
-    if (project.user.id !== user.id && !user.isAdmin) {
+    if (project.createdBy.id !== user.id && !user.isAdmin) {
       throw new ForbiddenException('no_permission');
     }
 

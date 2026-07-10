@@ -48,11 +48,17 @@ export class User {
   @ManyToOne(() => UserDepartment, (department) => department.users)
   department: UserDepartment;
 
-  @OneToMany(() => Project, (project) => project.user)
-  projects: Project[];
+  @OneToMany(() => Project, (project) => project.createdBy)
+  createdProjects: Project[];
 
-  @OneToMany(() => Issue, (issue) => issue.user)
-  issues: Issue[];
+  @OneToMany(() => Project, (project) => project.updatedBy)
+  updatedProjects: Project[];
+
+  @OneToMany(() => Issue, (issue) => issue.createdBy)
+  createdIssues: Issue[];
+
+  @OneToMany(() => Issue, (issue) => issue.updatedBy)
+  updatedIssues: Issue[];
 
   @OneToMany(() => Bookmark, (bookmark) => bookmark.user)
   bookmarks: Bookmark[];
@@ -60,8 +66,11 @@ export class User {
   @OneToMany(() => Schedule, (schedule) => schedule.user)
   schedules: Schedule[];
 
-  @OneToMany(() => Report, (report) => report.user)
-  reports: Report[];
+  @OneToMany(() => Report, (report) => report.createdBy)
+  createdReports: Report[];
+
+  @OneToMany(() => Report, (report) => report.updatedBy)
+  updatedReports: Report[];
 
   @CreateDateColumn()
   createdAt: Date;

@@ -25,7 +25,9 @@ import { ReportAttachmentModule } from './report/report-attachment.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { CleanupModule } from './common/cleanup/cleanup.module';
 import { AddressModule } from './address/address.module';
+import { DocumentModule } from './document/document.module';
 import config from '@/config/config';
+import { DocumentFolderModule } from './document/document-folder.module';
 
 @Module({
   imports: [
@@ -76,6 +78,8 @@ import config from '@/config/config';
     BookmarkModule,
     CleanupModule,
     CurrencyModule,
+    DocumentFolderModule,
+    DocumentModule,
     DashboardModule,
     ScheduleModule,
     IssueModule,
@@ -89,7 +93,6 @@ import config from '@/config/config';
     ReportAttachmentModule,
     UserDepartmentModule,
     UserModule,
-    AddressModule,
   ],
   controllers: [AppController],
   providers: [AppService],

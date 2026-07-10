@@ -3,12 +3,11 @@ import { IssueAttachmentController } from './issue-attachment.controller';
 import { IssueAttachmentService } from './issue-attachment.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { IssueAttachment } from '@/entity/issue/issue-attachment.entity';
-import { SftpService } from '@/sftp/sftp.service';
+import { SftpModule } from '@/sftp/sftp.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([IssueAttachment])],
-  providers: [IssueAttachmentService, SftpService],
+  imports: [TypeOrmModule.forFeature([IssueAttachment]), SftpModule],
+  providers: [IssueAttachmentService],
   controllers: [IssueAttachmentController],
-  exports: [IssueAttachmentService],
 })
 export class IssueAttachmentModule {}

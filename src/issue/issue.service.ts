@@ -70,7 +70,10 @@ import * as ExcelJS from 'exceljs';
 import { ConfigType } from '@nestjs/config';
 import config from '@/config/config';
 import { ProcurementIssueRequestItem } from '@/entity/issue/procurement/procurement-issue-request-item.entity';
-import { CreateProcurementRequestDto } from './dto/procurement-issue-request';
+import {
+  CreateProcurementRequestDto,
+  UpdateProcurementRequestDto,
+} from './dto/procurement-issue-request';
 import { ProcurementIssueRequest } from '@/entity/issue/procurement/procurement-issue-request.entity';
 import { convertToKoreanCurrency } from '@/common/utils/converter.util';
 import { extractImages } from '@/common/utils/markdown.util';
@@ -207,7 +210,7 @@ export class IssueService {
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('issue.user', 'user')
+      .leftJoinAndSelect('issue.createdBy', 'createdBy')
       .leftJoinAndSelect('project.client', 'client')
       .orderBy('issue.createdAt', 'DESC')
       .skip((value.page - 1) * value.limit)
@@ -254,7 +257,7 @@ export class IssueService {
     const issue = await this.issueRepository
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
-      .leftJoinAndSelect('issue.user', 'user')
+      .leftJoinAndSelect('issue.createdBy', 'createdBy')
       .innerJoinAndSelect('issue.procurement', 'procurement')
       .leftJoinAndSelect('procurement.items', 'items')
       .leftJoinAndSelect('items.supplier', 'supplier')
@@ -293,7 +296,7 @@ export class IssueService {
 
       worksheet.pageSetup.printArea = 'A1:N32';
 
-      worksheet.getCell('L5').value = issue.user.username;
+      worksheet.getCell('L5').value = issue.createdBy.username;
       worksheet.getCell('C8').value = issue.project.code;
       worksheet.getCell('J8').value = issue.project.name;
       worksheet.getCell('C9').value = issue.content.trimEnd();
@@ -569,9 +572,12 @@ export class IssueService {
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.createdBy', 'createdBy')
+      .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
+      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.department', 'department')
+      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachments')
       .innerJoinAndSelect('issue.contract', 'contract')
       .leftJoinAndSelect('contract.currency', 'currency')
@@ -596,9 +602,12 @@ export class IssueService {
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.createdBy', 'createdBy')
+      .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
+      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.department', 'department')
+      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachments')
       .innerJoinAndSelect('issue.kickoff', 'kickoff')
       .where('project.id = :id', { id })
@@ -622,9 +631,12 @@ export class IssueService {
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.createdBy', 'createdBy')
+      .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
+      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.department', 'department')
+      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachments')
       .innerJoinAndSelect('issue.transaction', 'transaction')
       .where('project.id = :id', { id })
@@ -656,9 +668,12 @@ export class IssueService {
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.createdBy', 'createdBy')
+      .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
+      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.department', 'department')
+      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachments')
       .innerJoinAndSelect('issue.payment', 'payment')
       .where('project.id = :id', { id })
@@ -678,9 +693,12 @@ export class IssueService {
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.createdBy', 'createdBy')
+      .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
+      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.department', 'department')
+      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachments')
       .innerJoinAndSelect('issue.approval', 'approval')
       .where('project.id = :id', { id: value.projectId })
@@ -711,9 +729,12 @@ export class IssueService {
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.createdBy', 'createdBy')
+      .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
+      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.department', 'department')
+      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachments')
       .innerJoinAndSelect('issue.procurement', 'procurement')
       .leftJoinAndSelect('procurement.items', 'items')
@@ -760,9 +781,12 @@ export class IssueService {
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.createdBy', 'createdBy')
+      .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
+      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.department', 'department')
+      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachments')
       .leftJoinAndSelect('issue.contract', 'contract')
       .leftJoinAndSelect('issue.transaction', 'transaction')
@@ -788,9 +812,12 @@ export class IssueService {
       .leftJoinAndSelect('project.client', 'client')
       .leftJoinAndSelect('project.manager', 'manager')
       .leftJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('issue.user', 'user')
-      .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('issue.createdBy', 'createdBy')
+      .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
+      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.department', 'department')
+      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachments')
       .leftJoinAndSelect('issue.contract', 'contract')
       .leftJoinAndSelect('contract.currency', 'currency')
@@ -855,7 +882,8 @@ export class IssueService {
       const issue = await queryRunner.manager.create(Issue, {
         project,
         category,
-        user,
+        createdBy: user,
+        updatedBy: user,
         content: body.content,
       });
       const savedIssue = await queryRunner.manager.save(issue);
@@ -941,7 +969,8 @@ export class IssueService {
       const issue = await queryRunner.manager.create(Issue, {
         project,
         category,
-        user,
+        createdBy: user,
+        updatedBy: user,
         content: body.content,
       });
       const savedIssue = await queryRunner.manager.save(issue);
@@ -990,7 +1019,8 @@ export class IssueService {
       const issue = await queryRunner.manager.create(Issue, {
         project,
         category,
-        user,
+        createdBy: user,
+        updatedBy: user,
         content: body.content,
       });
       const savedIssue = await queryRunner.manager.save(issue);
@@ -1032,7 +1062,7 @@ export class IssueService {
         where: { id },
         relations: [
           'project',
-          'user',
+          'createdBy',
           'category',
           'procurement',
           'procurement.items',
@@ -1102,6 +1132,7 @@ export class IssueService {
         savedRequest,
       ];
 
+      issue.updatedBy = user;
       const saved = await queryRunner.manager.save(issue);
 
       await queryRunner.commitTransaction();
@@ -1130,6 +1161,121 @@ export class IssueService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  async updateProcurementIssueRequest(
+    user: User,
+    id: number,
+    body: UpdateProcurementRequestDto,
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    let issueId: number;
+
+    try {
+      const request = await queryRunner.manager.findOne(
+        ProcurementIssueRequest,
+        {
+          where: { id },
+          relations: [
+            'requestedBy',
+            'items',
+            'procurement',
+            'procurement.issue',
+            'procurement.issue.createdBy',
+          ],
+        },
+      );
+
+      if (!request) throw new NotFoundException('request_not_found');
+
+      if (
+        request.requestedBy.id !== user.id &&
+        request.procurement.issue.createdBy.id !== user.id &&
+        !user.isAdmin
+      ) {
+        throw new ForbiddenException('no_permission');
+      }
+
+      issueId = request.procurement.issue.id;
+
+      if (body.title !== undefined) request.title = body.title;
+      if (body.deliveryDate !== undefined) {
+        request.deliveryDate = body.deliveryDate;
+      }
+      if (body.paymentTerms !== undefined) {
+        request.paymentTerms = body.paymentTerms;
+      }
+      if (body.hasFee !== undefined) request.hasFee = body.hasFee;
+      if (body.note !== undefined) request.note = body.note;
+
+      if (body.supplierId !== undefined) {
+        request.supplier = body.supplierId
+          ? await queryRunner.manager.findOne(Supplier, {
+              where: { id: body.supplierId },
+            })
+          : null;
+      }
+
+      const existingItems = await queryRunner.manager.find(
+        ProcurementIssueRequestItem,
+        {
+          where: { request: { id: request.id } },
+        },
+      );
+
+      const items = body.items.map((dto) => {
+        if (dto.id) {
+          const existing = existingItems.find((e) => e.id === dto.id);
+          if (existing) {
+            existing.item = dto.item;
+            existing.spec = dto.spec;
+            existing.quantity = dto.quantity;
+            existing.unitPrice = dto.unitPrice;
+            existing.totalAmount = dto.totalAmount;
+            existing.note = dto.note;
+            return existing;
+          }
+        }
+
+        return queryRunner.manager.create(ProcurementIssueRequestItem, {
+          request,
+          item: dto.item,
+          spec: dto.spec,
+          quantity: dto.quantity,
+          unitPrice: dto.unitPrice,
+          totalAmount: dto.totalAmount,
+          note: dto.note,
+        });
+      });
+
+      const savedItems = await queryRunner.manager.save(items);
+      request.items = savedItems;
+
+      const totalAmount = savedItems.reduce(
+        (sum, item) => sum + (item.totalAmount ?? 0),
+        0,
+      );
+      request.requiresApproval = totalAmount > 500000;
+      request.isApproved = false;
+      request.approvedBy = null;
+      request.approvedAt = null;
+
+      await queryRunner.manager.save(request);
+      request.procurement.issue.updatedBy = user;
+      await queryRunner.manager.save(request.procurement.issue);
+
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+
+    return await this.getIssue(issueId);
   }
 
   async approveProcurementIssueRequest(user: User, id: number) {
@@ -1172,6 +1318,8 @@ export class IssueService {
       request.approvedAt = dayjs().toDate();
 
       await queryRunner.manager.save(request);
+      request.procurement.issue.updatedBy = approver;
+      await queryRunner.manager.save(request.procurement.issue);
       await queryRunner.commitTransaction();
 
       try {
@@ -1199,6 +1347,51 @@ export class IssueService {
     }
   }
 
+  async deleteProcurementIssueRequest(user: User, id: number) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const request = await queryRunner.manager.findOne(
+        ProcurementIssueRequest,
+        {
+          where: { id },
+          relations: [
+            'requestedBy',
+            'procurement',
+            'procurement.issue',
+            'procurement.issue.createdBy',
+          ],
+        },
+      );
+
+      if (!request) throw new NotFoundException('request_not_found');
+
+      if (
+        request.requestedBy.id !== user.id &&
+        request.procurement.issue.createdBy.id !== user.id &&
+        !user.isAdmin
+      ) {
+        throw new ForbiddenException('no_permission');
+      }
+
+      await queryRunner.manager.softDelete(ProcurementIssueRequestItem, {
+        request: { id: request.id },
+      });
+      await queryRunner.manager.softDelete(ProcurementIssueRequest, request.id);
+
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+
+    return true;
+  }
+
   async createProcurementIssue(user: User, body: CreateProcurementIssueDto) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -1219,7 +1412,8 @@ export class IssueService {
       const issue = await queryRunner.manager.create(Issue, {
         project,
         category,
-        user,
+        createdBy: user,
+        updatedBy: user,
         content: body.content,
       });
       const savedIssue = await queryRunner.manager.save(issue);
@@ -1296,7 +1490,8 @@ export class IssueService {
       const issue = await queryRunner.manager.create(Issue, {
         project,
         category,
-        user,
+        createdBy: user,
+        updatedBy: user,
         content: body.content,
       });
       const savedIssue = await queryRunner.manager.save(issue);
@@ -1403,7 +1598,8 @@ export class IssueService {
       const issue = await queryRunner.manager.create(Issue, {
         project,
         category,
-        user,
+        createdBy: user,
+        updatedBy: user,
         content: body.content,
       });
       const savedIssue = await queryRunner.manager.save(issue);
@@ -1443,11 +1639,17 @@ export class IssueService {
     try {
       const issue = await queryRunner.manager.findOne(Issue, {
         where: { id },
-        relations: ['project', 'user', 'category', 'contract', 'attachments'],
+        relations: [
+          'project',
+          'createdBy',
+          'category',
+          'contract',
+          'attachments',
+        ],
       });
       if (!issue) throw new NotFoundException('issue_not_found');
 
-      if (issue.user.id !== user.id && !user.isAdmin) {
+      if (issue.createdBy.id !== user.id && !user.isAdmin) {
         throw new ForbiddenException('no_permission');
       }
 
@@ -1608,6 +1810,7 @@ export class IssueService {
       }
 
       // Issue 저장
+      issue.updatedBy = user;
       const saved = await queryRunner.manager.save(issue);
 
       await queryRunner.commitTransaction();
@@ -1632,11 +1835,17 @@ export class IssueService {
     try {
       const issue = await queryRunner.manager.findOne(Issue, {
         where: { id },
-        relations: ['project', 'user', 'category', 'kickoff', 'attachments'],
+        relations: [
+          'project',
+          'createdBy',
+          'category',
+          'kickoff',
+          'attachments',
+        ],
       });
       if (!issue) throw new NotFoundException('issue_not_found');
 
-      if (issue.user.id !== user.id && !user.isAdmin) {
+      if (issue.createdBy.id !== user.id && !user.isAdmin) {
         throw new ForbiddenException('no_permission');
       }
 
@@ -1697,6 +1906,7 @@ export class IssueService {
         issue.attachments = [...remainingAttachments, ...newAttachments];
       }
 
+      issue.updatedBy = user;
       const saved = await queryRunner.manager.save(issue);
 
       await queryRunner.commitTransaction();
@@ -1721,11 +1931,17 @@ export class IssueService {
     try {
       const issue = await queryRunner.manager.findOne(Issue, {
         where: { id },
-        relations: ['project', 'user', 'category', 'approval', 'attachments'],
+        relations: [
+          'project',
+          'createdBy',
+          'category',
+          'approval',
+          'attachments',
+        ],
       });
       if (!issue) throw new NotFoundException('issue_not_found');
 
-      if (issue.user.id !== user.id && !user.isAdmin) {
+      if (issue.createdBy.id !== user.id && !user.isAdmin) {
         throw new ForbiddenException('no_permission');
       }
 
@@ -1781,6 +1997,7 @@ export class IssueService {
         issue.attachments = [...remainingAttachments, ...newAttachments];
       }
 
+      issue.updatedBy = user;
       const saved = await queryRunner.manager.save(issue);
 
       await queryRunner.commitTransaction();
@@ -1807,7 +2024,7 @@ export class IssueService {
         where: { id },
         relations: [
           'project',
-          'user',
+          'createdBy',
           'category',
           'procurement',
           'procurement.items',
@@ -1821,7 +2038,7 @@ export class IssueService {
       });
       if (!issue) throw new NotFoundException('issue_not_found');
 
-      if (issue.user.id !== user.id && !user.isAdmin) {
+      if (issue.createdBy.id !== user.id && !user.isAdmin) {
         throw new ForbiddenException('no_permission');
       }
 
@@ -1945,6 +2162,7 @@ export class IssueService {
         issue.procurement.items = savedItems;
       }
 
+      issue.updatedBy = user;
       const saved = await queryRunner.manager.save(issue);
 
       await queryRunner.commitTransaction();
@@ -1971,7 +2189,7 @@ export class IssueService {
         where: { id },
         relations: [
           'project',
-          'user',
+          'createdBy',
           'category',
           'transaction',
           'attachments',
@@ -1979,7 +2197,7 @@ export class IssueService {
       });
       if (!issue) throw new NotFoundException('issue_not_found');
 
-      if (issue.user.id !== user.id && !user.isAdmin) {
+      if (issue.createdBy.id !== user.id && !user.isAdmin) {
         throw new ForbiddenException('no_permission');
       }
 
@@ -2090,6 +2308,7 @@ export class IssueService {
       }
 
       // Issue 저장
+      issue.updatedBy = user;
       const saved = await queryRunner.manager.save(issue);
 
       await queryRunner.commitTransaction();
@@ -2114,11 +2333,17 @@ export class IssueService {
     try {
       const issue = await queryRunner.manager.findOne(Issue, {
         where: { id },
-        relations: ['project', 'user', 'category', 'payment', 'attachments'],
+        relations: [
+          'project',
+          'createdBy',
+          'category',
+          'payment',
+          'attachments',
+        ],
       });
       if (!issue) throw new NotFoundException('issue_not_found');
 
-      if (issue.user.id !== user.id && !user.isAdmin) {
+      if (issue.createdBy.id !== user.id && !user.isAdmin) {
         throw new ForbiddenException('no_permission');
       }
 
@@ -2174,6 +2399,7 @@ export class IssueService {
         issue.attachments = [...remainingAttachments, ...newAttachments];
       }
 
+      issue.updatedBy = user;
       const saved = await queryRunner.manager.save(issue);
 
       await queryRunner.commitTransaction();
@@ -2197,9 +2423,12 @@ export class IssueService {
         .createQueryBuilder('issue')
         .leftJoinAndSelect('issue.project', 'project')
         .leftJoinAndSelect('issue.category', 'category')
-        .leftJoinAndSelect('issue.user', 'user')
-        .leftJoinAndSelect('user.position', 'position')
-        .leftJoinAndSelect('user.department', 'department')
+        .leftJoinAndSelect('issue.createdBy', 'createdBy')
+        .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
+        .leftJoinAndSelect('createdBy.position', 'position')
+        .leftJoinAndSelect('createdBy.department', 'department')
+        .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+        .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
         .leftJoinAndSelect('issue.attachments', 'attachments')
         .leftJoinAndSelect('issue.contract', 'contract')
         .leftJoinAndSelect('contract.currency', 'currency')
@@ -2218,7 +2447,7 @@ export class IssueService {
         throw new NotFoundException('issue_not_found');
       }
 
-      if (issue.user.id !== user.id && !user.isAdmin) {
+      if (issue.createdBy.id !== user.id && !user.isAdmin) {
         throw new ForbiddenException('no_permission');
       }
 

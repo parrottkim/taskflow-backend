@@ -11,6 +11,20 @@ export class GetSchedulesDto {
   projectId?: number;
 
   @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsOptional()
+  @Expose({ name: 'user_id' })
+  userId?: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Expose({ name: 'department_id' })
+  departmentId?: number;
+
+  @ApiProperty()
   @IsOptional()
   @IsString()
   search?: string;

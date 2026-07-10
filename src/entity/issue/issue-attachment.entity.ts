@@ -18,7 +18,6 @@ export class IssueAttachment {
   @ManyToOne(() => Issue, (issue) => issue.attachments, {
     onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: 'issue_id' })
   issue: Issue;
 
   @Column({ type: 'varchar' })

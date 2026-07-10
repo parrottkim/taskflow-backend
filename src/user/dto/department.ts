@@ -1,6 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Expose } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Expose, Type } from 'class-transformer';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 
 export class DepartmentDto {
   @ApiProperty()
@@ -20,4 +26,24 @@ export class DepartmentDto {
   @IsOptional()
   @Expose()
   root?: number;
+}
+
+export class DepartmentGroupDto {
+  @ApiProperty()
+  @IsInt()
+  @IsNotEmpty()
+  @Expose()
+  depth: number;
+
+  @ApiProperty()
+  @IsInt()
+  @IsOptional()
+  @Expose()
+  parentId?: number;
+
+  @ApiProperty({ type: [DepartmentDto] })
+  @ValidateNested({ each: true })
+  @Type(() => DepartmentDto)
+  @Expose()
+  items: DepartmentDto[];
 }

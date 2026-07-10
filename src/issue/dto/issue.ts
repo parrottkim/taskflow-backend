@@ -112,7 +112,12 @@ export class IssueDto {
   @ApiProperty()
   @Type(() => UserDto)
   @Expose()
-  user: UserDto;
+  createdBy: UserDto;
+
+  @ApiProperty({ required: false })
+  @Type(() => UserDto)
+  @Expose()
+  updatedBy?: UserDto;
 
   @ApiProperty()
   @Expose()

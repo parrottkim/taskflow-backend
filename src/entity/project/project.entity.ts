@@ -59,10 +59,13 @@ export class Project {
   @Column({ type: 'int', default: 0 })
   views: number;
 
-  @ManyToOne(() => User, (user) => user.projects)
-  user: User;
+  @ManyToOne(() => User, (user) => user.createdProjects)
+  createdBy: User;
 
-  @ManyToOne(() => User, (user) => user.projects, { nullable: true })
+  @ManyToOne(() => User, (user) => user.updatedProjects, { nullable: true })
+  updatedBy?: User;
+
+  @ManyToOne(() => User, { nullable: true })
   manager: User;
 
   @ManyToOne(() => ProjectClient, (client) => client.projects)

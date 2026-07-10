@@ -20,7 +20,7 @@ export class GetProjectsDto {
   @ApiProperty()
   @Type(() => Number)
   @IsInt()
-  @Min(40)
+  @Min(1)
   @IsOptional()
   limit?: number = 40;
 

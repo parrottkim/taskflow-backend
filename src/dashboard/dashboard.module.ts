@@ -10,6 +10,5 @@ import { DashboardController } from './dashboard.controller';
   imports: [TypeOrmModule.forFeature([Project, Schedule]), UserModule],
   providers: [DashboardService],
   controllers: [DashboardController],
-  exports: [DashboardService],
 })
 export class DashboardModule {}

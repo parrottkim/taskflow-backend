@@ -126,8 +126,9 @@ export class ReportService {
       .leftJoinAndSelect('report.project', 'project')
       .leftJoinAndSelect('report.schedule', 'schedule')
       .leftJoinAndSelect('schedule.project', 'scheduleProject')
-      .leftJoinAndSelect('report.user', 'user')
-      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('report.createdBy', 'createdBy')
+      .leftJoinAndSelect('createdBy.department', 'department')
+      .leftJoinAndSelect('report.updatedBy', 'updatedBy')
       .leftJoinAndSelect('report.trip', 'trip')
       .leftJoinAndSelect('trip.expenses', 'expense')
       .leftJoinAndSelect('expense.step', 'expenseStep')
@@ -146,7 +147,8 @@ export class ReportService {
       .leftJoinAndSelect('report.project', 'project')
       .leftJoinAndSelect('report.schedule', 'schedule')
       .leftJoinAndSelect('schedule.project', 'scheduleProject')
-      .leftJoinAndSelect('report.user', 'user')
+      .leftJoinAndSelect('report.createdBy', 'createdBy')
+      .leftJoinAndSelect('report.updatedBy', 'updatedBy')
       .leftJoinAndSelect('report.trip', 'trip')
       .leftJoinAndSelect('trip.expenses', 'expense')
       .leftJoinAndSelect('expense.step', 'expenseStep')
@@ -266,9 +268,9 @@ export class ReportService {
           : `${durationNights}박 ${durationDays}일`;
 
       // 데이터 채우기 (개요 시트)
-      worksheet.getCell('C3').value = report.user.department.name;
+      worksheet.getCell('C3').value = report.createdBy.department.name;
       worksheet.getCell('C4').value = schedule.summary;
-      worksheet.getCell('G3').value = report.user.username;
+      worksheet.getCell('G3').value = report.createdBy.username;
       worksheet.getCell('C5').value = dayjs(schedule.start).format(
         'YYYY.MM.DD',
       );
@@ -872,7 +874,7 @@ export class ReportService {
         : await this.calculateOverseasTripCosts(report);
     }
 
-    // 3. plainToInstance 변환 (user가 주어지면 덮어쓰고, 없으면 기존 report.user 유지)
+    // 3. plainToInstance 변환 (user가 주어지면 덮어쓰고, 없으면 기존 report.createdBy 유지)
     const reportDto = plainToInstance(
       ReportDto,
       {
@@ -914,7 +916,7 @@ export class ReportService {
         const schedule = report.schedule
           ? await this.scheduleService.getSchedule(report.schedule.id)
           : null;
-        const user = await this.userService.getUser(report.user.id);
+        const createdBy = await this.userService.getUser(report.createdBy.id);
 
         let calculations = null;
         if (report.trip && schedule) {
@@ -929,7 +931,7 @@ export class ReportService {
           {
             ...report,
             schedule,
-            user,
+            createdBy,
             trip: report.trip
               ? {
                   ...report.trip,
@@ -1027,7 +1029,7 @@ export class ReportService {
 
     if (!report) throw new NotFoundException('report_not_found');
     if (!report.trip) throw new NotFoundException('trip_data_not_found');
-    if (report.user.id !== user.id && !user.isAdmin)
+    if (report.createdBy.id !== user.id && !user.isAdmin)
       throw new ForbiddenException('no_permission');
 
     const schedule = await this.scheduleService.getSchedule(report.schedule.id);
@@ -1046,7 +1048,7 @@ export class ReportService {
 
     if (!report) throw new NotFoundException('report_not_found');
     if (!report.trip) throw new NotFoundException('trip_data_not_found');
-    if (report.user.id !== user.id && !user.isAdmin)
+    if (report.createdBy.id !== user.id && !user.isAdmin)
       throw new ForbiddenException('no_permission');
 
     const schedule = await this.scheduleService.getSchedule(report.schedule.id);
@@ -1212,7 +1214,7 @@ export class ReportService {
     await this.mailService.sendReportMail(project, reportDto, userIds);
   }
 
-  async createReport(user: any, body: CreateReportDto) {
+  async createReport(user: User, body: CreateReportDto) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1242,7 +1244,8 @@ export class ReportService {
       const report = queryRunner.manager.create(Report, {
         schedule: scheduleReference,
         project: projectReference,
-        user: user,
+        createdBy: user,
+        updatedBy: user,
         content: body.content,
       });
 
@@ -1329,6 +1332,14 @@ export class ReportService {
         saved.trip = savedTrip; // 최종 Report 객체에 연결
       }
 
+      if (saved.project?.id) {
+        await queryRunner.manager.update(
+          Project,
+          { id: saved.project.id },
+          { updatedAt: new Date() },
+        );
+      }
+
       const schedule = saved.schedule
         ? await this.scheduleService.getSchedule(saved.schedule.id)
         : null;
@@ -1350,7 +1361,8 @@ export class ReportService {
           // Report 엔티티의 직접 속성들
           ...saved,
           schedule: schedule,
-          user: user,
+          createdBy: user,
+          updatedBy: user,
           trip: saved.trip
             ? {
                 isDeducted: saved.trip.isDeducted,
@@ -1384,7 +1396,7 @@ export class ReportService {
     }
   }
 
-  async updateReport(user: any, reportId: number, body: UpdateReportDto) {
+  async updateReport(user: User, reportId: number, body: UpdateReportDto) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1395,7 +1407,9 @@ export class ReportService {
         relations: [
           'schedule',
           'schedule.category',
-          'user',
+          'project',
+          'createdBy',
+          'updatedBy',
           'trip',
           'trip.expenses',
           'trip.rates',
@@ -1406,7 +1420,7 @@ export class ReportService {
 
       if (!report) throw new NotFoundException('report_not_found');
 
-      if (report.user.id !== user.id && !user.isAdmin)
+      if (report.createdBy.id !== user.id && !user.isAdmin)
         throw new ForbiddenException('no_permission');
 
       if (body.content) {
@@ -1596,7 +1610,15 @@ export class ReportService {
       // 🚨 isDeducted 필드는 Report에서 제거되었으므로, Report 엔티티 업데이트에서 제거합니다.
       // report.isDeducted = body.isDeducted; // 이 줄 제거
 
+      report.updatedBy = user;
       const saved = await queryRunner.manager.save(report);
+      if (saved.project?.id) {
+        await queryRunner.manager.update(
+          Project,
+          { id: saved.project.id },
+          { updatedAt: new Date() },
+        );
+      }
 
       // ... (commitTransaction 및 DTO 반환 로직은 createReport와 유사하게 TripReport 데이터를 매핑하여 수정)
       await queryRunner.commitTransaction();
@@ -1620,7 +1642,8 @@ export class ReportService {
           // Report 엔티티의 직접 속성들
           ...saved,
           schedule: schedule,
-          user: saved.user,
+          createdBy: saved.createdBy,
+          updatedBy: saved.updatedBy,
           trip: saved.trip
             ? {
                 isDeducted: saved.trip.isDeducted,

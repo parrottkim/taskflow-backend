@@ -1,71 +1,97 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
 import { ProjectClientClosure } from '@/entity/project/project-client-closure.entity';
 import { ProjectClient } from '@/entity/project/project-client.entity';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { AllClientCountDto } from './dto/all-client-count';
 import { ProjectClientDto, ProjectClientGroupDto } from './dto/project-client';
+import { CreateProjectClientDto } from './dto/create-project-client';
 
 @Injectable()
 export class ProjectClientService {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(ProjectClient)
-    private projectClientRepository: Repository<ProjectClient>,
+    private clientRepository: Repository<ProjectClient>,
 
     @InjectRepository(ProjectClientClosure)
-    private projectClientClosureRepository: Repository<ProjectClientClosure>,
+    private clientClosureRepository: Repository<ProjectClientClosure>,
   ) {}
 
   // 새로운 고객 생성
-  async create(name: string, parentId?: number): Promise<ProjectClient> {
-    const client = new ProjectClient();
-    client.name = name;
-    const savedClient = await this.projectClientRepository.save(client);
+  async create(body: CreateProjectClientDto): Promise<ProjectClient> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (parentId) {
-      // 부모가 있는 경우: 부모의 Closure Table 레코드를 가져와서 새로운 레코드를 추가
-      const parentClosures = await this.projectClientClosureRepository.find({
-        where: { descendant: parentId },
+    try {
+      const client = queryRunner.manager.create(ProjectClient, {
+        name: body.name,
       });
+      const savedClient = await queryRunner.manager.save(client);
 
-      const newClosures = parentClosures.map((parentClosure) => {
-        const closure = new ProjectClientClosure();
-        closure.ancestor = parentClosure.ancestor;
-        closure.descendant = savedClient.id;
-        closure.depth = parentClosure.depth + 1;
-        return closure;
-      });
+      if (body.parentId) {
+        // 부모가 있는 경우: 부모의 Closure Table 레코드를 가져와서 새로운 레코드를 추가
+        const parentClosures = await queryRunner.manager.find(
+          ProjectClientClosure,
+          {
+            where: { descendant: body.parentId },
+          },
+        );
 
-      const selfClosure = new ProjectClientClosure();
-      selfClosure.ancestor = savedClient.id;
-      selfClosure.descendant = savedClient.id;
-      selfClosure.depth = 0;
+        if (!parentClosures.length) {
+          throw new NotFoundException('parent_client_not_found');
+        }
 
-      newClosures.push(selfClosure);
+        const newClosures = parentClosures.map((parentClosure) =>
+          queryRunner.manager.create(ProjectClientClosure, {
+            ancestor: parentClosure.ancestor,
+            descendant: savedClient.id,
+            depth: parentClosure.depth + 1,
+          }),
+        );
 
-      await this.projectClientClosureRepository.save(newClosures);
-    } else {
-      // 루트 노드의 경우: 자기 자신과의 관계를 Closure Table에 추가
-      const closure = new ProjectClientClosure();
-      closure.ancestor = savedClient.id;
-      closure.descendant = savedClient.id;
-      closure.depth = 0;
-      await this.projectClientClosureRepository.save(closure);
+        newClosures.push(
+          queryRunner.manager.create(ProjectClientClosure, {
+            ancestor: savedClient.id,
+            descendant: savedClient.id,
+            depth: 0,
+          }),
+        );
+
+        await queryRunner.manager.save(newClosures);
+      } else {
+        // 루트 노드의 경우: 자기 자신과의 관계를 Closure Table에 추가
+        const closure = queryRunner.manager.create(ProjectClientClosure, {
+          ancestor: savedClient.id,
+          descendant: savedClient.id,
+          depth: 0,
+        });
+
+        await queryRunner.manager.save(closure);
+      }
+
+      await queryRunner.commitTransaction();
+
+      return savedClient;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-
-    return savedClient;
   }
 
   async findClientById(id: number) {
-    return await this.projectClientRepository
+    return await this.clientRepository
       .createQueryBuilder('client')
       .where('client.id = :id', { id })
       .getOne();
   }
 
   async findRootClients() {
-    return await this.projectClientRepository
+    return await this.clientRepository
       .createQueryBuilder('client')
       .leftJoin(
         ProjectClientClosure,
@@ -76,8 +102,6 @@ export class ProjectClientService {
       .getMany();
   }
 
-  // ... (생략)
-
   async findAllClients() {
     const roots = await this.findRootClients();
     const rootIds = roots.map((r) => r.id);
@@ -85,7 +109,7 @@ export class ProjectClientService {
     if (!rootIds.length) return [];
 
     // 1. 모든 클라이언트의 최대 깊이를 찾습니다.
-    const maxDepthResult = await this.projectClientRepository
+    const maxDepthResult = await this.clientRepository
       .createQueryBuilder('client')
       .select('MAX(closure.depth)', 'maxDepth')
       .innerJoin(
@@ -98,7 +122,7 @@ export class ProjectClientService {
 
     const maxDepth = maxDepthResult?.maxDepth || 0; // 최대 깊이
 
-    return await this.projectClientRepository
+    return await this.clientRepository
       .createQueryBuilder('client')
       .select('client.id', 'id')
       .addSelect('client.name', 'name')
@@ -135,7 +159,7 @@ export class ProjectClientService {
     const rootNodes = await this.findRootClients();
     const rootIds = rootNodes.map((node) => node.id);
 
-    return await this.projectClientRepository
+    return await this.clientRepository
       .createQueryBuilder('client')
       .select('closure.depth', 'depth')
       .addSelect('COUNT(client.id)', 'count')
@@ -150,7 +174,7 @@ export class ProjectClientService {
   }
 
   async findDescendants(clientId: number) {
-    const descendants = await this.projectClientClosureRepository
+    const descendants = await this.clientClosureRepository
       .createQueryBuilder('closure')
       .innerJoinAndSelect('closure.descendantClient', 'descendant')
       .where('closure.ancestor = :clientId', { clientId })
@@ -162,7 +186,7 @@ export class ProjectClientService {
 
   // 특정 고객의 모든 상위 고객 조회
   async findAncestors(clientId: number) {
-    const ancestors = await this.projectClientClosureRepository
+    const ancestors = await this.clientClosureRepository
       .createQueryBuilder('closure')
       .innerJoinAndSelect('closure.ancestorClient', 'ancestor')
       .where('closure.descendant = :clientId', { clientId })
@@ -178,7 +202,7 @@ export class ProjectClientService {
     }
 
     // 1. 한 번의 쿼리로 모든 관련 closure 레코드와 상위 고객 엔티티를 가져옵니다.
-    const closures = await this.projectClientClosureRepository
+    const closures = await this.clientClosureRepository
       .createQueryBuilder('closure')
       .innerJoinAndSelect('closure.ancestorClient', 'ancestor')
       .where('closure.descendant IN (:...clientIds)', { clientIds })

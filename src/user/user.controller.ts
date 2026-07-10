@@ -18,6 +18,7 @@ import { UserDto, UserListDto } from './dto/user';
 import { UserService } from './user.service';
 import { GetUsersDto } from './dto/get-users';
 import { UpdateUserDto, UpdateUserPermissionDto } from './dto/update-user';
+import { DepartmentGroupDto } from './dto/department';
 
 @ApiTags('User (사용자)')
 @Controller('user')
@@ -30,7 +31,7 @@ export class UserController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
-    type: UserListDto,
+    type: [DepartmentGroupDto],
   })
   @Get('department')
   getAllDepartments() {

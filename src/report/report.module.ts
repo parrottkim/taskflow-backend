@@ -42,6 +42,5 @@ import { ReportEditGuard } from '@/common/guards/report-edit.guard';
   ],
   controllers: [ReportController],
   providers: [ReportService, ReportAttachmentSubscriber, ReportEditGuard],
-  exports: [ReportService, ReportEditGuard],
 })
 export class ReportModule {}
