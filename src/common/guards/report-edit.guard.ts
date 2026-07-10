@@ -23,12 +23,12 @@ export class ReportEditGuard implements CanActivate {
 
     const report = await this.reportRepository.findOne({
       where: { id: reportId },
-      relations: ['user'],
+      relations: ['createdBy'],
     });
 
     if (!report) throw new NotFoundException('report_not_found');
 
-    if (report.user.id !== user.id && !user.isAdmin) {
+    if (report.createdBy.id !== user.id && !user.isAdmin) {
       throw new ForbiddenException('no_permission');
     }
 

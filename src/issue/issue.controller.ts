@@ -35,7 +35,10 @@ import {
   UpdateTransactionIssueDto,
 } from './dto/update-issue';
 import { SendIssueMailDto } from './dto/send-issue-mail';
-import { CreateProcurementRequestDto } from './dto/procurement-issue-request';
+import {
+  CreateProcurementRequestDto,
+  UpdateProcurementRequestDto,
+} from './dto/procurement-issue-request';
 import { IssueEditGuard } from '@/common/guards/issue-edit.guard';
 import { IssueProcurementRequestGuard } from '@/common/guards/issue-procurement-request.guard';
 
@@ -147,6 +150,17 @@ export class IssueController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '구매 요청 내역 수정' })
+  @Patch('procurement/request/:id')
+  async updateProcurementIssueRequest(
+    @Request() req,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateProcurementRequestDto,
+  ) {
+    return this.issueService.updateProcurementIssueRequest(req.user, id, body);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '구매 요청 승인권자 승인' })
   @Patch('procurement/:id/approve') // 🌟 자식이 붙은 주소 상단 배치
   @HttpCode(200)
@@ -155,6 +169,17 @@ export class IssueController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.issueService.approveProcurementIssueRequest(req.user, id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '구매 요청 내역 삭제' })
+  @Delete('procurement/request/:id')
+  @HttpCode(200)
+  async deleteProcurementIssueRequest(
+    @Request() req,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.issueService.deleteProcurementIssueRequest(req.user, id);
   }
 
   // --- TRANSACTION ---
@@ -366,14 +391,14 @@ export class IssueController {
 
   @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '이슈 조회 (기본 ID 단건)' })
-  @Get(':id') // 🚨 무조건 클래스 최하단 격리
+  @Get(':id')
   getIssue(@Param('id', ParseIntPipe) id: number) {
     return this.issueService.getIssue(id);
   }
 
   @UseGuards(JwtAccessAuthGuard)
   @ApiOperation({ summary: '이슈 삭제' })
-  @Delete(':id') // 🚨 무조건 클래스 최하단 격리
+  @Delete(':id')
   async deleteIssue(@Request() req, @Param('id', ParseIntPipe) id: number) {
     return this.issueService.deleteIssue(req.user, id);
   }

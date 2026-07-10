@@ -29,7 +29,12 @@ export class AddressService {
         this.httpService.get(url, {
           params: {
             confmKey: apiKey,
-            ...query,
+            currentPage: query.page,
+            countPerPage: query.limit ?? 10,
+            keyword: query.search,
+            resultType: 'json',
+            firstSort: 'road',
+            addInfoYn: 'Y',
           },
         }),
       );
@@ -39,7 +44,7 @@ export class AddressService {
 
       return plainToInstance(AddressListDto, {
         total: parseInt(results.common.totalCount || '0', 10),
-        page: query.currentPage,
+        page: query.page,
         items: jusoList.map((item: any) => ({
           zipNo: item.zipNo ?? '',
           roadAddr: item.roadAddr ?? '',

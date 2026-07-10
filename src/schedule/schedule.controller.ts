@@ -85,8 +85,8 @@ export class ScheduleController {
     type: ScheduleListDto,
   })
   @Get()
-  async getSchedules(@Request() req, @Query() query: GetSchedulesDto) {
-    return await this.scheduleService.getScheduleWithUsers(req.user, query);
+  async getSchedules(@Query() query: GetSchedulesDto) {
+    return await this.scheduleService.getScheduleWithUsers(query);
   }
 
   @UseGuards(JwtAccessAuthGuard)

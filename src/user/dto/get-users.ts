@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Expose, Type } from 'class-transformer';
 import { IsInt, Min, IsOptional, IsString } from 'class-validator';
 
 export class GetUsersDto {
@@ -21,12 +21,14 @@ export class GetUsersDto {
   @Type(() => Number)
   @IsOptional()
   @IsInt()
+  @Expose({ name: 'department_id' })
   departmentId?: number;
 
   @ApiProperty()
   @Type(() => Number)
   @IsOptional()
   @IsInt()
+  @Expose({ name: 'position_id' })
   positionId?: number;
 
   @ApiProperty()

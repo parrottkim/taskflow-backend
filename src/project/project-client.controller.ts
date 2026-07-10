@@ -17,6 +17,7 @@ import { ApiOperation, ApiHeader, ApiTags, ApiResponse } from '@nestjs/swagger';
 import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { ProjectClientDto } from './dto/project-client';
 import { AllClientCountDto } from './dto/all-client-count';
+import { CreateProjectClientDto } from './dto/create-project-client';
 
 @ApiTags('Project Client (프로젝트 고객사)')
 @Controller('project-client')
@@ -27,11 +28,8 @@ export class ProjectClientController {
   @ApiOperation({ summary: '프로젝트 고객사 생성' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @Post('create')
-  async createClient(
-    @Body('name') name: string,
-    @Body('parent_id') parentId?: number,
-  ) {
-    return this.clientService.create(name, parentId);
+  async createClient(@Body() body: CreateProjectClientDto) {
+    return this.clientService.create(body);
   }
 
   @UseGuards(JwtAccessAuthGuard)

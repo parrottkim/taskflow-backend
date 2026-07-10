@@ -34,8 +34,11 @@ export class Report {
   @ManyToOne(() => Project, (project) => project.reports)
   project: Project;
 
-  @ManyToOne(() => User, (user) => user.reports, { cascade: true })
-  user: User;
+  @ManyToOne(() => User, (user) => user.createdReports, { cascade: true })
+  createdBy: User;
+
+  @ManyToOne(() => User, (user) => user.updatedReports, { nullable: true })
+  updatedBy?: User;
 
   @OneToOne(() => TripReport, (trip) => trip.report, {
     nullable: true, // 원격 대응 보고서일 경우 NULL

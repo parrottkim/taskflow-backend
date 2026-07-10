@@ -26,7 +26,12 @@ export class ReportDto {
   @ApiProperty({ type: UserDto })
   @Type(() => UserDto)
   @Expose()
-  user: UserDto;
+  createdBy: UserDto;
+
+  @ApiProperty({ type: UserDto, required: false })
+  @Type(() => UserDto)
+  @Expose()
+  updatedBy?: UserDto;
 
   @ApiProperty({ type: TripReportDto, required: false, nullable: true })
   @ValidateNested()

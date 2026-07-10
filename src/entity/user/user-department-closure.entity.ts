@@ -12,13 +12,22 @@ export class UserDepartmentClosure {
   @Column()
   depth: number;
 
-  @ManyToOne(() => UserDepartment, (department) => department.ancestorClosures)
+  @ManyToOne(
+    () => UserDepartment,
+    (department) => department.ancestorClosures,
+    {
+      onDelete: 'CASCADE',
+    },
+  )
   @JoinColumn({ name: 'ancestor' })
   ancestorClient: UserDepartment;
 
   @ManyToOne(
     () => UserDepartment,
     (department) => department.descendantClosures,
+    {
+      onDelete: 'CASCADE',
+    },
   )
   @JoinColumn({ name: 'descendant' })
   descendantClient: UserDepartment;

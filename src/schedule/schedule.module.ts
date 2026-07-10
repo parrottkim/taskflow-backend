@@ -9,10 +9,15 @@ import { ProjectModule } from '@/project/project.module';
 import { MailModule } from '@/mail/mail.module';
 import { ProjectClientModule } from '@/project/project-client.module';
 import { ScheduleEditGuard } from '@/common/guards/schedule-edit.guard';
+import { UserDepartmentClosure } from '@/entity/user/user-department-closure.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Schedule, ScheduleCategory]),
+    TypeOrmModule.forFeature([
+      Schedule,
+      ScheduleCategory,
+      UserDepartmentClosure,
+    ]),
     ProjectModule,
     ProjectClientModule,
     UserModule,
@@ -20,6 +25,6 @@ import { ScheduleEditGuard } from '@/common/guards/schedule-edit.guard';
   ],
   controllers: [ScheduleController],
   providers: [ScheduleService, ScheduleEditGuard],
-  exports: [ScheduleService, ScheduleEditGuard],
+  exports: [ScheduleService],
 })
 export class ScheduleModule {}

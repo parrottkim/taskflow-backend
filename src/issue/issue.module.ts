@@ -12,8 +12,6 @@ import { ProcurementIssueItem } from '@/entity/issue/procurement/procurement-iss
 import { TransactionIssueItemCategory } from '@/entity/issue/transaction/transaction-issue-category.entity';
 import { TransactionIssueItem } from '@/entity/issue/transaction/transaction-issue-item.entity';
 import { SftpModule } from '@/sftp/sftp.module';
-import { IssueAttachmentController } from './issue-attachment.controller';
-import { IssueAttachmentService } from './issue-attachment.service';
 import { IssueController } from './issue.controller';
 import { IssueService } from './issue.service';
 import { Module } from '@nestjs/common';
@@ -52,18 +50,7 @@ import { IssueProcurementRequestGuard } from '@/common/guards/issue-procurement-
     MailModule,
     SftpModule,
   ],
-  controllers: [IssueController, IssueAttachmentController],
-  providers: [
-    IssueService,
-    IssueAttachmentService,
-    IssueEditGuard,
-    IssueProcurementRequestGuard,
-  ],
-  exports: [
-    IssueService,
-    IssueAttachmentService,
-    IssueEditGuard,
-    IssueProcurementRequestGuard,
-  ],
+  controllers: [IssueController],
+  providers: [IssueService, IssueEditGuard, IssueProcurementRequestGuard],
 })
 export class IssueModule {}

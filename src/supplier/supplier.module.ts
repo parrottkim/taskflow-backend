@@ -9,6 +9,5 @@ import { SftpModule } from '@/sftp/sftp.module';
   imports: [TypeOrmModule.forFeature([Supplier]), SftpModule],
   controllers: [SupplierController],
   providers: [SupplierService],
-  exports: [SupplierService],
 })
 export class SupplierModule {}

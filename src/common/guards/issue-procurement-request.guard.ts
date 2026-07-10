@@ -23,10 +23,10 @@ export class IssueProcurementRequestGuard implements CanActivate {
 
     const issue = await this.issueRepository.findOne({
       where: { id: issueId },
-      relations: ['user', 'project'], // 소유자 확인에 필요한 관계만 설정
+      relations: ['createdBy', 'project'], // 소유자 확인에 필요한 관계만 설정
       select: {
         id: true,
-        user: { id: true },
+        createdBy: { id: true },
         project: { id: true },
       },
     });
