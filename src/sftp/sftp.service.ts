@@ -16,6 +16,13 @@ import { User } from '@/entity/user/user.entity';
 import { UploadInlineImageDto } from './dto/upload-inline-image';
 import { plainToInstance } from 'class-transformer';
 
+interface UploadedAttachment {
+  filename: string;
+  size: number;
+  path: string;
+  url: string;
+}
+
 @Injectable()
 export class SftpService {
   constructor(
@@ -158,63 +165,84 @@ export class SftpService {
     user: User,
     namespace: string,
     files: Express.Multer.File[],
-  ) {
+  ): Promise<UploadInlineImageDto[]> {
+    if (!files.length) return [];
+
     const directory = 'inline-images';
     const basePath = this.buildRemotePath(directory, namespace, String(user.id));
-    const date = `${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const now = new Date();
+    const date = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const uploadDirectory = `${basePath}/${date}`;
 
-    const images = await Promise.all(
-      files.map(async (file) => {
+    return this.withSftp(async (sftp) => {
+      const exists = await sftp.exists(uploadDirectory);
+      if (!exists) {
+        await sftp.mkdir(uploadDirectory, true);
+      }
+
+      const images: UploadInlineImageDto[] = [];
+      for (const file of files) {
         const extension = this.getExtension(file.originalname);
         const uuid = `${uuidv4()}${extension ? '.' + extension : ''}`;
-        const path = `${basePath}/${date}/${uuid}`;
+        const path = `${uploadDirectory}/${uuid}`;
 
-        return await this.uploadFile(file.buffer, path);
-      }),
-    );
+        await sftp.put(file.buffer, path);
+        images.push(
+          plainToInstance(UploadInlineImageDto, {
+            path,
+            url: `${this.configService.sftp.url}${path}`,
+          }),
+        );
+      }
 
-    return images.map((result) =>
-      plainToInstance(UploadInlineImageDto, {
-        path: result.path,
-        url: result.url,
-      }),
-    );
+      return images;
+    });
   }
 
   async uploadAttachments(
     namespace: string,
     resourceId: number,
     files: Express.Multer.File[],
-  ) {
+  ): Promise<UploadedAttachment[]> {
+    if (!files.length) return [];
+
     const directory = 'attachments';
     const basePath = this.buildRemotePath(
       directory,
       namespace,
       String(resourceId),
     );
-    const date = `${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const now = new Date();
+    const date = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const uploadDirectory = `${basePath}/${date}`;
 
-    const attachments = await Promise.all(
-      files.map(async (file) => {
+    return this.withSftp(async (sftp) => {
+      const exists = await sftp.exists(uploadDirectory);
+      if (!exists) {
+        await sftp.mkdir(uploadDirectory, true);
+      }
+
+      const attachments: UploadedAttachment[] = [];
+      for (const file of files) {
         const extension = this.getExtension(file.originalname);
         const uuid = `${uuidv4()}${extension ? '.' + extension : ''}`;
-        const path = `${basePath}/${date}/${uuid}`;
+        const path = `${uploadDirectory}/${uuid}`;
         const originalname = Buffer.from(file.originalname, 'latin1').toString(
           'utf8',
         );
 
-        await this.uploadFile(file.buffer, path);
+        await sftp.put(file.buffer, path);
 
-        return {
+        attachments.push({
           filename: originalname,
           size: file.size,
-          path: path,
+          path,
           url: `${this.configService.sftp.url}${path}`,
-        };
-      }),
-    );
+        });
+      }
 
-    return attachments;
+      return attachments;
+    });
   }
 
   async uploadSupplierLogo(user: User, file: Express.Multer.File) {
