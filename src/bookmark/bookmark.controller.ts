@@ -12,13 +12,14 @@ import { BookmarkService } from './bookmark.service';
 import { ApiTags, ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
 import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { BookmarkDto } from './dto/bookmark';
+import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 
 @ApiTags('Bookmark (북마크)')
 @Controller('bookmark')
 export class BookmarkController {
   constructor(private readonly bookmarkService: BookmarkService) {}
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '프로젝트 북마크 추가' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -31,7 +32,7 @@ export class BookmarkController {
     return this.bookmarkService.addBookmark(req.user, Number(id));
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '프로젝트 북마크 추가' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({

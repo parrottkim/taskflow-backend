@@ -4,6 +4,8 @@ import { UserDepartmentClosure } from '@/entity/user/user-department-closure.ent
 import { UserDepartment } from '@/entity/user/user-department.entity';
 import { Repository } from 'typeorm';
 import { CreateUserDepartmentDto } from './dto/create-user-department';
+import { User } from '@/entity/user/user.entity';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
 
 @Injectable()
 export class UserDepartmentService {
@@ -15,7 +17,8 @@ export class UserDepartmentService {
     private userDepartmentClosureRepository: Repository<UserDepartmentClosure>,
   ) {}
 
-  async create(name: string, parentId?: number) {
+  async create(user: User, name: string, parentId?: number) {
+    assertWriteAccess(user);
     const department = new UserDepartment();
     department.name = name;
     const saveDepartment = await this.userDepartmentRepository.save(department);

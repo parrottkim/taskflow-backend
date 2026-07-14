@@ -2,12 +2,12 @@ import { Project } from '@/entity/project/project.entity';
 import {
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { assertOwnerOrAdmin } from '../policies/resource-access.policy';
 
 @Injectable()
 export class ProjectEditGuard implements CanActivate {
@@ -30,9 +30,7 @@ export class ProjectEditGuard implements CanActivate {
       throw new NotFoundException('project_not_found');
     }
 
-    if (project.createdBy.id !== user.id && !user.isAdmin) {
-      throw new ForbiddenException('no_permission');
-    }
+    assertOwnerOrAdmin(user, project.createdBy.id);
 
     request.validateProjectId = project.id;
 

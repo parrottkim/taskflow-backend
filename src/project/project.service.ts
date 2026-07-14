@@ -1,6 +1,5 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,6 +11,8 @@ import { ProjectClientService } from './project-client.service';
 import { ProjectClientDto } from './dto/project-client';
 import { GetProjectsDto } from './dto/get-projects';
 import { User } from '@/entity/user/user.entity';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
+import { assertOwnerOrAdmin } from '@/common/policies/resource-access.policy';
 import { CreateProjectDto } from './dto/create-project';
 import { UpdateProjectDto } from './dto/update-project';
 import { IssueCategory } from '@/entity/issue/issue-category.entity';
@@ -352,6 +353,7 @@ export class ProjectService {
   }
 
   async createProject(user: User, body: CreateProjectDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -421,6 +423,7 @@ export class ProjectService {
   }
 
   async updateProject(user: User, id: number, body: UpdateProjectDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -449,9 +452,7 @@ export class ProjectService {
 
       if (!project) throw new NotFoundException('project_not_found');
 
-      if (project.createdBy.id !== user.id && !user.isAdmin) {
-        throw new ForbiddenException('no_permission');
-      }
+      assertOwnerOrAdmin(user, project.createdBy.id);
 
       // 프로젝트 코드 중복 체크
       if (body.projectCode && body.projectCode !== project.code) {
@@ -525,7 +526,8 @@ export class ProjectService {
     }
   }
 
-  async deleteProject(id: number) {
+  async deleteProject(user: User, id: number) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -552,7 +554,8 @@ export class ProjectService {
     }
   }
 
-  async restoreProject(id: number) {
+  async restoreProject(user: User, id: number) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();

@@ -2,12 +2,12 @@ import { Schedule } from '@/entity/schedule/schedule.entity';
 import {
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { assertOwnerOrAdmin } from '../policies/resource-access.policy';
 
 @Injectable()
 export class ScheduleEditGuard implements CanActivate {
@@ -30,9 +30,7 @@ export class ScheduleEditGuard implements CanActivate {
       throw new NotFoundException('schedule_not_found');
     }
 
-    if (schedule.user.id !== user.id) {
-      throw new ForbiddenException('no_permission');
-    }
+    assertOwnerOrAdmin(user, schedule.user.id);
 
     request.validateScheduleId = schedule.id;
 

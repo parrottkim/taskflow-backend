@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -15,6 +14,8 @@ import { ConfigType } from '@nestjs/config';
 import { User } from '@/entity/user/user.entity';
 import { UploadInlineImageDto } from './dto/upload-inline-image';
 import { plainToInstance } from 'class-transformer';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
+import { assertAdmin } from '@/common/policies/admin-access.policy';
 
 interface UploadedAttachment {
   filename: string;
@@ -166,6 +167,7 @@ export class SftpService {
     namespace: string,
     files: Express.Multer.File[],
   ): Promise<UploadInlineImageDto[]> {
+    assertWriteAccess(user);
     if (!files.length) return [];
 
     const directory = 'inline-images';
@@ -246,9 +248,8 @@ export class SftpService {
   }
 
   async uploadSupplierLogo(user: User, file: Express.Multer.File) {
-    if (!user.isAdmin) {
-      throw new ForbiddenException('no_permission');
-    }
+    assertWriteAccess(user);
+    assertAdmin(user);
 
     const directory = 'suppliers';
     const basePath = `${this.configService.sftp.path}/${directory}`;

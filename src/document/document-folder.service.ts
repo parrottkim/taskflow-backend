@@ -16,6 +16,8 @@ import {
   SyncDocumentFolderDto,
   SyncDocumentFoldersDto,
 } from './dto/sync-folders';
+import { User } from '@/entity/user/user.entity';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
 
 type FlattenedFolderInput = {
   id: number;
@@ -242,7 +244,8 @@ export class DocumentFolderService {
     return result;
   }
 
-  async sync(body: SyncDocumentFoldersDto) {
+  async sync(user: User, body: SyncDocumentFoldersDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -337,7 +340,8 @@ export class DocumentFolderService {
     }
   }
 
-  async create(body: CreateFolderDto) {
+  async create(user: User, body: CreateFolderDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -399,7 +403,8 @@ export class DocumentFolderService {
     }
   }
 
-  async update(id: number, body: UpdateFolderDto) {
+  async update(user: User, id: number, body: UpdateFolderDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();

@@ -2,12 +2,12 @@ import { Report } from '@/entity/report/report.entity';
 import {
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { assertOwnerOrAdmin } from '../policies/resource-access.policy';
 
 @Injectable()
 export class ReportEditGuard implements CanActivate {
@@ -28,9 +28,7 @@ export class ReportEditGuard implements CanActivate {
 
     if (!report) throw new NotFoundException('report_not_found');
 
-    if (report.createdBy.id !== user.id && !user.isAdmin) {
-      throw new ForbiddenException('no_permission');
-    }
+    assertOwnerOrAdmin(user, report.createdBy.id);
 
     request.validatedReportId = report.id;
 

@@ -39,6 +39,9 @@ export class User {
   @Column({ type: 'bool', default: false })
   isAuthorized: boolean;
 
+  @Column({ type: 'bool', default: false })
+  isGuest: boolean;
+
   @Column({ type: 'varchar', nullable: true })
   refreshToken: string;
 

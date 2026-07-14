@@ -1,5 +1,4 @@
 import {
-  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -17,6 +16,8 @@ import { UserDepartment } from '@/entity/user/user-department.entity';
 import { PositionDto } from './dto/position';
 import { UserPosition } from '@/entity/user/user-position.entity';
 import { UserDepartmentClosure } from '@/entity/user/user-department-closure.entity';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
+import { assertAdmin } from '@/common/policies/admin-access.policy';
 
 @Injectable()
 export class UserService {
@@ -332,8 +333,14 @@ export class UserService {
     }
   }
 
+  async updateByUser(user: User, id: number, dto: UpdateUserDto) {
+    assertWriteAccess(user);
+    return this.update(id, dto);
+  }
+
   async updatePermission(user: User, id: number, dto: UpdateUserPermissionDto) {
-    if (!user.isAdmin) throw new ForbiddenException('no_permission');
+    assertWriteAccess(user);
+    assertAdmin(user);
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -347,6 +354,8 @@ export class UserService {
         existingUser.isAdmin = dto.isAdmin;
       if (dto.isAuthorized !== undefined && dto.isAuthorized !== null)
         existingUser.isAuthorized = dto.isAuthorized;
+      if (dto.isGuest !== undefined && dto.isGuest !== null)
+        existingUser.isGuest = dto.isGuest;
 
       if (dto.positionId) existingUser.position = { id: dto.positionId } as any;
       if (dto.departmentId)
@@ -370,7 +379,8 @@ export class UserService {
   }
 
   async delete(user: User, id: number) {
-    if (!user.isAdmin) throw new ForbiddenException('no_permission');
+    assertWriteAccess(user);
+    assertAdmin(user);
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();

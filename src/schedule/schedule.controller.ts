@@ -22,6 +22,7 @@ import { ScheduleCategoryDto } from './dto/schedule-category';
 import { UpdateScheduleDto } from './dto/update-schedule';
 import { GetSchedulesDto } from './dto/get-schedules';
 import { ScheduleEditGuard } from '@/common/guards/schedule-edit.guard';
+import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 
 @ApiTags('Schedule (일정)')
 @Controller('schedule')
@@ -89,7 +90,7 @@ export class ScheduleController {
     return await this.scheduleService.getScheduleWithUsers(query);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '일정 추가하기' })
   @ApiHeader({
     name: 'Authorization',
@@ -105,7 +106,7 @@ export class ScheduleController {
     return await this.scheduleService.createSchedule(req.user, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '일정 수정하기' })
   @ApiHeader({
     name: 'Authorization',
@@ -125,7 +126,7 @@ export class ScheduleController {
     return await this.scheduleService.updateSchedule(req.user, id, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '프로젝트 삭제' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -134,7 +135,7 @@ export class ScheduleController {
   })
   @Delete(':id')
   @HttpCode(200)
-  async deleteSchedule(@Param('id', ParseIntPipe) id: number) {
-    return this.scheduleService.deleteSchedule(id);
+  async deleteSchedule(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    return this.scheduleService.deleteSchedule(req.user, id);
   }
 }

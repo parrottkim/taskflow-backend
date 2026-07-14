@@ -22,6 +22,11 @@ export class UpdateUserPermissionDto {
   isAuthorized?: boolean;
 
   @ApiProperty()
+  @IsBoolean()
+  @IsOptional()
+  isGuest?: boolean;
+
+  @ApiProperty()
   @IsNumber()
   @IsOptional()
   positionId?: number;
