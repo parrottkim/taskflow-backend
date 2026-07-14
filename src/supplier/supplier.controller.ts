@@ -11,6 +11,7 @@ import {
   Post,
   Query,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { SupplierService } from './supplier.service';
 import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
@@ -19,6 +20,7 @@ import { SupplierDto, SupplierListDto } from './dto/supplier';
 import { GetSuppliersDto } from './dto/get-suppliers';
 import { CreateSupplierDto } from './dto/create-supplier';
 import { UpdateSupplierDto } from './dto/update-supplier';
+import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 
 @Controller('supplier')
 export class SupplierController {
@@ -53,7 +55,7 @@ export class SupplierController {
     return this.supplierService.getSuppliers(query);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '공급처 생성' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -62,11 +64,11 @@ export class SupplierController {
     type: SupplierDto,
   })
   @Post()
-  async createSupplier(@Body() body: CreateSupplierDto) {
-    return this.supplierService.createSupplier(body);
+  async createSupplier(@Request() req, @Body() body: CreateSupplierDto) {
+    return this.supplierService.createSupplier(req.user, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '공급처 수정' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -76,13 +78,14 @@ export class SupplierController {
   })
   @Patch(':id')
   async updateSupplier(
+    @Request() req,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateSupplierDto,
   ) {
-    return this.supplierService.updateSupplier(id, body);
+    return this.supplierService.updateSupplier(req.user, id, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '공급처 삭제' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -91,7 +94,7 @@ export class SupplierController {
   })
   @Delete(':id')
   @HttpCode(200)
-  async deleteSupplier(@Param('id', ParseIntPipe) id: number) {
-    return this.supplierService.deleteSupplier(id);
+  async deleteSupplier(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    return this.supplierService.deleteSupplier(req.user, id);
   }
 }

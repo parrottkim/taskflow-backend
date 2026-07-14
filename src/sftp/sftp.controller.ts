@@ -22,12 +22,13 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
 import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { UploadInlineImageDto } from './dto/upload-inline-image';
+import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 
 @Controller('files')
 export class SftpController {
   constructor(private readonly sftpService: SftpService) {}
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '인라인 이미지 업로드' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -55,7 +56,7 @@ export class SftpController {
     return await this.sftpService.uploadInlineImages(req.user, path, files);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '공급처 로고 업로드' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -102,7 +103,7 @@ export class SftpController {
     res.end(buffer);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '파일 다운로드' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({

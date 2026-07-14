@@ -22,6 +22,7 @@ import { CreateProjectDto } from './dto/create-project';
 import { UpdateProjectDto } from './dto/update-project';
 import { ProjectItemCountDto } from './dto/project-item-count';
 import { ProjectEditGuard } from '@/common/guards/project-edit.guard';
+import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 
 @ApiTags('Project (프로젝트)')
 @Controller('project')
@@ -80,7 +81,7 @@ export class ProjectController {
     return this.projectService.getProjects(req.user, query);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '프로잭트 생성' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -93,7 +94,7 @@ export class ProjectController {
     return this.projectService.createProject(req.user, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '프로젝트 수정' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -110,7 +111,7 @@ export class ProjectController {
     return this.projectService.updateProject(req.user, id, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '프로젝트 삭제' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -119,11 +120,11 @@ export class ProjectController {
   })
   @Delete(':id')
   @HttpCode(200)
-  async deleteProject(@Param('id', ParseIntPipe) id: number) {
-    return this.projectService.deleteProject(id);
+  async deleteProject(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    return this.projectService.deleteProject(req.user, id);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '프로젝트 복구' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -131,7 +132,7 @@ export class ProjectController {
     description: 'Successful response',
   })
   @Patch(':id/restore')
-  async restoreProject(@Param('id', ParseIntPipe) id: number) {
-    return this.projectService.restoreProject(id);
+  async restoreProject(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    return this.projectService.restoreProject(req.user, id);
   }
 }

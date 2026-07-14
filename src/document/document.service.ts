@@ -2,7 +2,6 @@ import { Document } from '@/entity/document/document.entity';
 import { DocumentFolder } from '@/entity/document/document-folder.entity';
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,8 +11,11 @@ import { GetDocumentsDto } from './dto/get-documents';
 import { DocumentDto, DocumentListDto } from './dto/document';
 import { plainToInstance } from 'class-transformer';
 import { User } from '@/entity/user/user.entity';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
+import { assertOwnerOrAdmin } from '@/common/policies/resource-access.policy';
 import { CreateDocumentDto } from './dto/create-document';
 import { UpdateDocumentDto } from './dto/update-document';
+import { MailService } from '@/mail/mail.service';
 
 @Injectable()
 export class DocumentService {
@@ -23,6 +25,7 @@ export class DocumentService {
     private readonly documentRepository: Repository<Document>,
     @InjectRepository(DocumentFolder)
     private readonly documentFolderRepository: Repository<DocumentFolder>,
+    private readonly mailService: MailService,
   ) {}
 
   private async ensureFixedDocumentLimit(
@@ -174,7 +177,27 @@ export class DocumentService {
     return documentListDto;
   }
 
+  async sendMail(user: User, id: number, userIds?: number[]) {
+    assertWriteAccess(user);
+    const document = await this.findDocumentById(id);
+
+    if (!document) {
+      throw new NotFoundException('document_not_found');
+    }
+
+    const documentDto = plainToInstance(DocumentDto, document, {
+      excludeExtraneousValues: true,
+    });
+
+    await this.mailService.sendDocumentMail(
+      documentDto,
+      document.folder.name,
+      userIds,
+    );
+  }
+
   async createDocument(user: User, body: CreateDocumentDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -217,6 +240,7 @@ export class DocumentService {
   }
 
   async updateDocument(user: User, id: number, body: UpdateDocumentDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -231,9 +255,7 @@ export class DocumentService {
         throw new NotFoundException('document_not_found');
       }
 
-      if (document.createdBy.id !== user.id && !user.isAdmin) {
-        throw new ForbiddenException('no_permission');
-      }
+      assertOwnerOrAdmin(user, document.createdBy.id);
 
       const originalFolderId = document.folder.id;
 
@@ -284,7 +306,8 @@ export class DocumentService {
     }
   }
 
-  async deleteDocument(id: number) {
+  async deleteDocument(user: User, id: number) {
+    assertWriteAccess(user);
     const document = await this.documentRepository.findOne({
       where: { id },
     });

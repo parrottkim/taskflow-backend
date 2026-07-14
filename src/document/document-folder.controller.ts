@@ -18,6 +18,7 @@ import { DocumentFolderDto } from './dto/document-folder';
 import { CreateFolderDto } from './dto/create-folder';
 import { UpdateFolderDto } from './dto/update-folder';
 import { SyncDocumentFoldersDto } from './dto/sync-folders';
+import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 
 @ApiTags('Document Folder (문서 폴더)')
 @Controller('document-folder')
@@ -37,7 +38,7 @@ export class DocumentFolderController {
     return this.folderService.getAllFolders();
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '문서 폴더 트리 동기화' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -46,19 +47,19 @@ export class DocumentFolderController {
     type: [DocumentFolderDto],
   })
   @Put()
-  async syncFolders(@Body() body: SyncDocumentFoldersDto) {
-    return this.folderService.sync(body);
+  async syncFolders(@Request() req, @Body() body: SyncDocumentFoldersDto) {
+    return this.folderService.sync(req.user, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '문서 폴더 생성' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @Post()
-  async createFolder(@Body() body: CreateFolderDto) {
-    return this.folderService.create(body);
+  async createFolder(@Request() req, @Body() body: CreateFolderDto) {
+    return this.folderService.create(req.user, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '문서 폴더 수정' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @Patch(':id')
@@ -67,6 +68,6 @@ export class DocumentFolderController {
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateFolderDto,
   ) {
-    return this.folderService.update(id, body);
+    return this.folderService.update(req.user, id, body);
   }
 }

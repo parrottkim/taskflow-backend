@@ -18,6 +18,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { ReportAttachmentService } from './report-attachment.service';
 import { ReportAttachmentDto } from './dto/report-attachment';
+import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 
 @ApiTags('Report Attachments (이슈 첨부파일)')
 @Controller('report/:report_id/attachments')
@@ -26,7 +27,7 @@ export class ReportAttachmentController {
     private readonly reportAttachmentService: ReportAttachmentService,
   ) {}
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @UseInterceptors(FilesInterceptor('files'))
   @ApiOperation({ summary: '첨부 파일 업로드' })
   @ApiResponse({
@@ -53,7 +54,7 @@ export class ReportAttachmentController {
     );
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '첨부 파일 삭제' })
   @Delete(':file_id')
   @HttpCode(200)

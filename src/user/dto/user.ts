@@ -29,6 +29,10 @@ export class UserDto {
   @Expose()
   isAuthorized: boolean;
 
+  @ApiProperty()
+  @Expose()
+  isGuest: boolean;
+
   @ApiProperty({ type: PositionDto })
   @Type(() => PositionDto)
   @Expose()

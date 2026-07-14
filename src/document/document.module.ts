@@ -6,10 +6,12 @@ import { Document } from '@/entity/document/document.entity';
 import { DocumentAttachment } from '@/entity/document/document-attachment.entity';
 import { DocumentFolder } from '@/entity/document/document-folder.entity';
 import { DocumentEditGuard } from '@/common/guards/document-edit.guard';
+import { MailModule } from '@/mail/mail.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Document, DocumentAttachment, DocumentFolder]),
+    MailModule,
   ],
   controllers: [DocumentController],
   providers: [DocumentService, DocumentEditGuard],

@@ -11,6 +11,7 @@ import { ReportAttachmentDto } from '@/report/dto/report-attachment';
 import { ScheduleDto } from '@/schedule/dto/schedule';
 import { UserService } from '@/user/user.service';
 import dayjs from 'dayjs';
+import { DocumentDto } from '@/document/dto/document';
 
 @Injectable()
 export class MailService {
@@ -397,6 +398,70 @@ export class MailService {
     </html>`;
   }
 
+  private getDocumentMailHtml(
+    title: string,
+    folderName: string,
+    username: string,
+    userEmail: string,
+    content: string,
+    url: string,
+    attachments: DocumentDto['attachments'] = [],
+  ) {
+    const frontendUrl = this.configService.url.frontend;
+    const attachmentsHtml = attachments.length
+      ? `
+        <div style="width:100%;padding:15px;box-sizing:border-box;margin-top:20px;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">
+          <strong style="display:block;font-size:16px;color:#111827;margin-bottom:10px;">첨부 파일 (${attachments.length}개)</strong>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            ${attachments
+              .map(
+                (attachment) => `
+                  <tr>
+                    <td style="padding:6px 0;border-bottom:1px dotted #e5e7eb;">
+                      <a href="${frontendUrl}/download?path=${attachment.path}&filename=${attachment.filename}" target="_blank" style="color:#78909C;text-decoration:none;">${attachment.filename}</a>
+                    </td>
+                  </tr>`,
+              )
+              .join('')}
+          </table>
+        </div>`
+      : '';
+
+    return `<!DOCTYPE html>
+    <html lang="ko">
+      <head>
+        <meta charset="UTF-8">
+        <title>문서 공유</title>
+      </head>
+      <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Helvetica Neue', Arial, sans-serif;">
+        <div style="max-width:600px;margin:40px auto;background-color:#fff;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.1);overflow:hidden;padding:40px 30px;">
+          <img src="https://cdn.dan-tech.com/files/images/icon-192.png" alt="Taskflow 로고" style="width:50px;height:50px;margin-bottom:25px;display:block;margin-left:auto;margin-right:auto;">
+          <h1 style="font-size:24px;font-weight:700;color:#111827;margin-bottom:20px;text-align:center;">📄 문서 공유</h1>
+          <div style="font-size:20px;font-weight:600;color:#78909C;margin-bottom:30px;text-align:center;padding:10px 0;border-bottom:1px solid #e5e7eb;">${title}</div>
+          <div style="width:100%;padding:15px;box-sizing:border-box;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">
+            <strong style="display:block;font-size:16px;color:#111827;margin-bottom:10px;">문서 정보</strong>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+              <tr>
+                <th style="width:30%;padding:5px 10px 5px 0;text-align:left;color:#4b5563;">폴더</th>
+                <td style="width:70%;padding:5px 0;color:#111827;">${folderName}</td>
+              </tr>
+              <tr>
+                <th style="width:30%;padding:5px 10px 5px 0;text-align:left;color:#4b5563;">작성자</th>
+                <td style="width:70%;padding:5px 0;color:#111827;">${username} (<a href="mailto:${userEmail}" style="color:#78909C;text-decoration:none;">${userEmail}</a>)</td>
+              </tr>
+            </table>
+          </div>
+          <div style="width:100%;padding:15px;box-sizing:border-box;margin-top:20px;border:1px solid #f0f2f5;border-radius:8px;background-color:#f9fafb;text-align:left;">
+            <strong style="display:block;font-size:16px;color:#111827;margin-bottom:10px;">문서 내용</strong>
+            <div style="margin-top:10px;line-height:1.6;color:#111827;">${content}</div>
+          </div>
+          ${attachmentsHtml}
+          <a href="${url}" target="_blank" style="display:inline-block;padding:14px 28px;font-size:16px;color:#fff;background-color:#78909C;border-radius:8px;text-decoration:none;font-weight:600;width:100%;text-align:center;box-sizing:border-box;margin-top:20px;">문서 바로가기</a>
+        </div>
+      </body>
+    </html>`;
+  }
+
   private getProcurementApprovalRequestHtml(
     projectCode: string,
     projectName: string,
@@ -774,6 +839,54 @@ export class MailService {
       report.schedule?.category?.name,
       project.manager?.username,
       project.manager?.email,
+    );
+
+    const message = this.buildMimeMessage({
+      from: `"taskflow-helpbot" <${this.configService.mail.user}>`,
+      to: toRecipients,
+      subject,
+      html,
+    });
+
+    return await this.sendEmail(message);
+  }
+
+  async sendDocumentMail(
+    document: DocumentDto,
+    folderName: string,
+    userIds?: number[],
+  ) {
+    const users =
+      userIds && userIds.length > 0
+        ? await this.userService.getUsersByIds(userIds)
+        : await this.userService.getAllUsers();
+    const allowedUsers = users.filter((user) =>
+      this.isAllowedEmail(user.email),
+    );
+    if (!allowedUsers.length) return null;
+
+    const toRecipients = allowedUsers
+      .map((user) => {
+        const displayName = [user.username, user.position?.name]
+          .filter(Boolean)
+          .join(' ');
+        const name = `=?UTF-8?B?${Buffer.from(displayName, 'utf-8').toString('base64')}?=`;
+        return `${name} <${user.email}>`;
+      })
+      .join(', ');
+
+    const frontendUrl = this.configService.url.frontend;
+    const url = `${frontendUrl}/document?folder_id=${document.folderId}&document_id=${document.id}`;
+    const content = await marked(document.content);
+    const subject = `📄 [${folderName}] ${document.title}`;
+    const html = this.getDocumentMailHtml(
+      document.title,
+      folderName,
+      document.createdBy.username,
+      document.createdBy.email,
+      content,
+      url,
+      document.attachments,
     );
 
     const message = this.buildMimeMessage({

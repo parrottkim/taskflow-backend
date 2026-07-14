@@ -1,13 +1,13 @@
 import {
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Document } from '@/entity/document/document.entity';
+import { assertOwnerOrAdmin } from '../policies/resource-access.policy';
 
 @Injectable()
 export class DocumentEditGuard implements CanActivate {
@@ -30,9 +30,7 @@ export class DocumentEditGuard implements CanActivate {
       throw new NotFoundException('document_not_found');
     }
 
-    if (document.createdBy.id !== user.id && !user.isAdmin) {
-      throw new ForbiddenException('no_permission');
-    }
+    assertOwnerOrAdmin(user, document.createdBy.id);
 
     request.validateDocumentId = document.id;
 

@@ -26,6 +26,7 @@ import { UpdateReportDto } from './dto/update-report';
 import { GetReportDto } from './dto/get-report';
 import { SendReportMailDto } from './dto/send-report-mail';
 import { ReportEditGuard } from '@/common/guards/report-edit.guard';
+import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 
 @Controller('report')
 export class ReportController {
@@ -129,7 +130,7 @@ export class ReportController {
     return this.reportService.getReports(query);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '실무 결과 메일 전송' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -138,13 +139,14 @@ export class ReportController {
   })
   @Post('mail/:id')
   sendMail(
+    @Request() req,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: SendReportMailDto,
   ) {
-    return this.reportService.sendMail(id, body.userIds);
+    return this.reportService.sendMail(req.user, id, body.userIds);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '출장 명령서 생성' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -157,7 +159,7 @@ export class ReportController {
     return this.reportService.createReport(req.user, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '출장 명령서 수정' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -174,7 +176,7 @@ export class ReportController {
     return this.reportService.updateReport(req.user, id, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '출장 명령서 삭제' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -183,7 +185,7 @@ export class ReportController {
   })
   @Delete(':id')
   @HttpCode(200)
-  async deleteReport(@Param('id', ParseIntPipe) id: number) {
-    return this.reportService.deleteReport(id);
+  async deleteReport(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    return this.reportService.deleteReport(req.user, id);
   }
 }
