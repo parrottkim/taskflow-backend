@@ -28,8 +28,8 @@
     "typeorm:local:generate": "npm run typeorm:local -- migration:generate ./src/migrations/$npm_config_name -d ./src/data-source.ts",
     "typeorm:local:migrate": "npm run typeorm:local -- migration:run -d ./src/data-source.ts",
     "typeorm:local:revert": "npm run typeorm:local -- migration:revert -d ./src/data-source.ts",
-    "migrate:attachment-paths": "cross-env DOTENV_CONFIG_PATH=.local.env ts-node -r dotenv/config -r tsconfig-paths/register src/sftp/migrate-attachment-paths.ts",
-    "migrate:attachment-paths:write": "npm run migrate:attachment-paths -- --write"
+    "migrate:inline-image-paths": "cross-env DOTENV_CONFIG_PATH=.local.env ts-node -r dotenv/config -r tsconfig-paths/register src/sftp/migrate-inline-image-paths.ts",
+    "migrate:inline-image-paths:write": "npm run migrate:inline-image-paths -- --write"
   },
   "dependencies": {
     "@nestjs-modules/ioredis": "^2.0.2",
