@@ -13,6 +13,8 @@ import { TripReport } from '@/entity/report/trip/trip-report.entity';
 import { TripStep } from '@/entity/report/trip/trip-step.entity';
 import { Schedule } from '@/entity/schedule/schedule.entity';
 import { User } from '@/entity/user/user.entity';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
+import { assertOwnerOrAdmin } from '@/common/policies/resource-access.policy';
 import { MailService } from '@/mail/mail.service';
 import { ProjectService } from '@/project/project.service';
 import { ScheduleService } from '@/schedule/schedule.service';
@@ -1029,8 +1031,7 @@ export class ReportService {
 
     if (!report) throw new NotFoundException('report_not_found');
     if (!report.trip) throw new NotFoundException('trip_data_not_found');
-    if (report.createdBy.id !== user.id && !user.isAdmin)
-      throw new ForbiddenException('no_permission');
+    assertOwnerOrAdmin(user, report.createdBy.id);
 
     const schedule = await this.scheduleService.getSchedule(report.schedule.id);
 
@@ -1048,8 +1049,7 @@ export class ReportService {
 
     if (!report) throw new NotFoundException('report_not_found');
     if (!report.trip) throw new NotFoundException('trip_data_not_found');
-    if (report.createdBy.id !== user.id && !user.isAdmin)
-      throw new ForbiddenException('no_permission');
+    assertOwnerOrAdmin(user, report.createdBy.id);
 
     const schedule = await this.scheduleService.getSchedule(report.schedule.id);
 
@@ -1173,7 +1173,8 @@ export class ReportService {
     );
   }
 
-  async sendMail(id: number, userIds?: number[]) {
+  async sendMail(user: User, id: number, userIds?: number[]) {
+    assertWriteAccess(user);
     const report = await this.findReportById(id);
     const schedule = report.schedule
       ? await this.scheduleService.getSchedule(report.schedule.id)
@@ -1215,6 +1216,7 @@ export class ReportService {
   }
 
   async createReport(user: User, body: CreateReportDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1397,6 +1399,7 @@ export class ReportService {
   }
 
   async updateReport(user: User, reportId: number, body: UpdateReportDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1420,8 +1423,7 @@ export class ReportService {
 
       if (!report) throw new NotFoundException('report_not_found');
 
-      if (report.createdBy.id !== user.id && !user.isAdmin)
-        throw new ForbiddenException('no_permission');
+      assertOwnerOrAdmin(user, report.createdBy.id);
 
       if (body.content) {
         const oldUrls = extractImages(report.content);
@@ -1673,7 +1675,8 @@ export class ReportService {
     }
   }
 
-  async deleteReport(id: number) {
+  async deleteReport(user: User, id: number) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();

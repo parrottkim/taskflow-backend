@@ -6,6 +6,7 @@ import { User } from '@/entity/user/user.entity';
 import { SftpService } from '@/sftp/sftp.service';
 import { Repository } from 'typeorm';
 import { DocumentAttachmentDto } from './dto/document-attachment';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
 
 @Injectable()
 export class DocumentAttachmentService {
@@ -20,6 +21,7 @@ export class DocumentAttachmentService {
     documentId: number,
     files: Express.Multer.File[],
   ) {
+    assertWriteAccess(user);
     const uploadedFiles = await this.sftpService.uploadAttachments(
       'document',
       documentId,
@@ -41,6 +43,7 @@ export class DocumentAttachmentService {
   }
 
   async deleteAttachment(user: User, documentId: number, fileId: number) {
+    assertWriteAccess(user);
     const attachment = await this.documentAttachmentRepository.findOne({
       where: { id: fileId, document: { id: documentId } },
     });

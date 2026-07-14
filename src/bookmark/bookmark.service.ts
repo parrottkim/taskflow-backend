@@ -13,6 +13,7 @@ import { User } from '@/entity/user/user.entity';
 import { ProjectService } from '@/project/project.service';
 import { Repository } from 'typeorm';
 import { BookmarkDto } from './dto/bookmark';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
 
 @Injectable()
 export class BookmarkService {
@@ -43,6 +44,7 @@ export class BookmarkService {
   }
 
   async addBookmark(user: User, id: number) {
+    assertWriteAccess(user);
     const project = await this.projectRepository.findOne({
       where: { id },
     });
@@ -67,6 +69,7 @@ export class BookmarkService {
   }
 
   async removeBookmark(user: User, id: number) {
+    assertWriteAccess(user);
     const bookmark = await this.findBookmarkById(user.id, id);
 
     if (!bookmark) {

@@ -7,6 +7,8 @@ import { DataSource, Repository } from 'typeorm';
 import { AllClientCountDto } from './dto/all-client-count';
 import { ProjectClientDto, ProjectClientGroupDto } from './dto/project-client';
 import { CreateProjectClientDto } from './dto/create-project-client';
+import { User } from '@/entity/user/user.entity';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
 
 @Injectable()
 export class ProjectClientService {
@@ -20,7 +22,11 @@ export class ProjectClientService {
   ) {}
 
   // 새로운 고객 생성
-  async create(body: CreateProjectClientDto): Promise<ProjectClient> {
+  async create(
+    user: User,
+    body: CreateProjectClientDto,
+  ): Promise<ProjectClient> {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();

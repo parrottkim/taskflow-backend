@@ -19,6 +19,7 @@ import { UserService } from './user.service';
 import { GetUsersDto } from './dto/get-users';
 import { UpdateUserDto, UpdateUserPermissionDto } from './dto/update-user';
 import { DepartmentGroupDto } from './dto/department';
+import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 
 @ApiTags('User (사용자)')
 @Controller('user')
@@ -90,7 +91,7 @@ export class UserController {
     return this.userService.getUsers(query);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '사용자 권한 수정' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -107,7 +108,7 @@ export class UserController {
     return this.userService.updatePermission(req.user, id, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '사용자 정보 수정' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
@@ -117,13 +118,14 @@ export class UserController {
   })
   @Patch(':id')
   updateUser(
+    @Request() req,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateUserDto,
   ) {
-    return this.userService.update(id, body);
+    return this.userService.updateByUser(req.user, id, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '사용자 삭제' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({

@@ -51,6 +51,8 @@ import {
   CreateTransactionIssueDto,
 } from './dto/create-issue';
 import { User } from '@/entity/user/user.entity';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
+import { assertOwnerOrAdmin } from '@/common/policies/resource-access.policy';
 import { ContractIssueItem } from '@/entity/issue/contract/contract-issue-item.entity';
 import dayjs from 'dayjs';
 import { Supplier } from '@/entity/supplier/supplier.entity';
@@ -805,7 +807,8 @@ export class IssueService {
     return await this.mapIssueToDto(issue);
   }
 
-  async sendMail(id: number, userIds?: number[]) {
+  async sendMail(user: User, id: number, userIds?: number[]) {
+    assertWriteAccess(user);
     const issue = await this.issueRepository
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.project', 'project')
@@ -847,6 +850,7 @@ export class IssueService {
   }
 
   async createContractIssue(user: User, body: CreateContractIssueDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -942,6 +946,7 @@ export class IssueService {
   }
 
   async createKickoffIssue(user: User, body: CreateKickoffIssueDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1000,6 +1005,7 @@ export class IssueService {
   }
 
   async createApprovalIssue(user: User, body: CreateApprovalIssueDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1053,6 +1059,7 @@ export class IssueService {
     id: number,
     body: CreateProcurementRequestDto,
   ) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1168,6 +1175,7 @@ export class IssueService {
     id: number,
     body: UpdateProcurementRequestDto,
   ) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1191,13 +1199,7 @@ export class IssueService {
 
       if (!request) throw new NotFoundException('request_not_found');
 
-      if (
-        request.requestedBy.id !== user.id &&
-        request.procurement.issue.createdBy.id !== user.id &&
-        !user.isAdmin
-      ) {
-        throw new ForbiddenException('no_permission');
-      }
+      assertOwnerOrAdmin(user, request.requestedBy.id);
 
       issueId = request.procurement.issue.id;
 
@@ -1279,6 +1281,7 @@ export class IssueService {
   }
 
   async approveProcurementIssueRequest(user: User, id: number) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1348,6 +1351,7 @@ export class IssueService {
   }
 
   async deleteProcurementIssueRequest(user: User, id: number) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1368,13 +1372,7 @@ export class IssueService {
 
       if (!request) throw new NotFoundException('request_not_found');
 
-      if (
-        request.requestedBy.id !== user.id &&
-        request.procurement.issue.createdBy.id !== user.id &&
-        !user.isAdmin
-      ) {
-        throw new ForbiddenException('no_permission');
-      }
+      assertOwnerOrAdmin(user, request.requestedBy.id);
 
       await queryRunner.manager.softDelete(ProcurementIssueRequestItem, {
         request: { id: request.id },
@@ -1393,6 +1391,7 @@ export class IssueService {
   }
 
   async createProcurementIssue(user: User, body: CreateProcurementIssueDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1460,6 +1459,7 @@ export class IssueService {
   }
 
   async createTransactionIssue(user: User, body: CreateTransactionIssueDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1570,6 +1570,7 @@ export class IssueService {
   }
 
   async createPaymentIssue(user: User, body: CreatePaymentIssueDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1632,6 +1633,7 @@ export class IssueService {
     id: number,
     body: UpdateContractIssueDto,
   ) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1649,9 +1651,7 @@ export class IssueService {
       });
       if (!issue) throw new NotFoundException('issue_not_found');
 
-      if (issue.createdBy.id !== user.id && !user.isAdmin) {
-        throw new ForbiddenException('no_permission');
-      }
+      assertOwnerOrAdmin(user, issue.createdBy.id);
 
       // Currency 업데이트
       if (body.currencyId) {
@@ -1828,6 +1828,7 @@ export class IssueService {
     id: number,
     body: UpdateKickoffIssueDto,
   ) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1845,9 +1846,7 @@ export class IssueService {
       });
       if (!issue) throw new NotFoundException('issue_not_found');
 
-      if (issue.createdBy.id !== user.id && !user.isAdmin) {
-        throw new ForbiddenException('no_permission');
-      }
+      assertOwnerOrAdmin(user, issue.createdBy.id);
 
       if (body.kickoffDate) {
         issue.kickoff.kickoffDate = body.kickoffDate;
@@ -1924,6 +1923,7 @@ export class IssueService {
     id: number,
     body: UpdateApprovalIssueDto,
   ) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1941,9 +1941,7 @@ export class IssueService {
       });
       if (!issue) throw new NotFoundException('issue_not_found');
 
-      if (issue.createdBy.id !== user.id && !user.isAdmin) {
-        throw new ForbiddenException('no_permission');
-      }
+      assertOwnerOrAdmin(user, issue.createdBy.id);
 
       if (body.content) {
         const oldUrls = extractImages(issue.content);
@@ -2015,6 +2013,7 @@ export class IssueService {
     id: number,
     body: UpdateProcurementIssueDto,
   ) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -2038,9 +2037,7 @@ export class IssueService {
       });
       if (!issue) throw new NotFoundException('issue_not_found');
 
-      if (issue.createdBy.id !== user.id && !user.isAdmin) {
-        throw new ForbiddenException('no_permission');
-      }
+      assertOwnerOrAdmin(user, issue.createdBy.id);
 
       if (body.content) {
         const oldUrls = extractImages(issue.content);
@@ -2180,6 +2177,7 @@ export class IssueService {
     id: number,
     body: UpdateTransactionIssueDto,
   ) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -2197,9 +2195,7 @@ export class IssueService {
       });
       if (!issue) throw new NotFoundException('issue_not_found');
 
-      if (issue.createdBy.id !== user.id && !user.isAdmin) {
-        throw new ForbiddenException('no_permission');
-      }
+      assertOwnerOrAdmin(user, issue.createdBy.id);
 
       if (body.content) {
         const oldUrls = extractImages(issue.content);
@@ -2326,6 +2322,7 @@ export class IssueService {
     id: number,
     body: UpdatePaymentIssueDto,
   ) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -2343,9 +2340,7 @@ export class IssueService {
       });
       if (!issue) throw new NotFoundException('issue_not_found');
 
-      if (issue.createdBy.id !== user.id && !user.isAdmin) {
-        throw new ForbiddenException('no_permission');
-      }
+      assertOwnerOrAdmin(user, issue.createdBy.id);
 
       if (body.content) {
         const oldUrls = extractImages(issue.content);
@@ -2413,6 +2408,7 @@ export class IssueService {
   }
 
   async deleteIssue(user: User, id: number) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -2447,9 +2443,7 @@ export class IssueService {
         throw new NotFoundException('issue_not_found');
       }
 
-      if (issue.createdBy.id !== user.id && !user.isAdmin) {
-        throw new ForbiddenException('no_permission');
-      }
+      assertOwnerOrAdmin(user, issue.createdBy.id);
 
       const projectId = issue.project.id;
 

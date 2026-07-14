@@ -41,6 +41,7 @@ import {
 } from './dto/procurement-issue-request';
 import { IssueEditGuard } from '@/common/guards/issue-edit.guard';
 import { IssueProcurementRequestGuard } from '@/common/guards/issue-procurement-request.guard';
+import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 
 @ApiTags('Issue (이슈)')
 @Controller('issue')
@@ -138,7 +139,7 @@ export class IssueController {
     res.end(buffer);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '구매 요청' })
   @Patch('procurement/:id/request') // 🌟 자식이 붙은 주소 상단 배치
   async createProcurementIssueRequest(
@@ -149,7 +150,7 @@ export class IssueController {
     return this.issueService.createProcurementIssueRequest(req.user, id, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '구매 요청 내역 수정' })
   @Patch('procurement/request/:id')
   async updateProcurementIssueRequest(
@@ -160,7 +161,7 @@ export class IssueController {
     return this.issueService.updateProcurementIssueRequest(req.user, id, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '구매 요청 승인권자 승인' })
   @Patch('procurement/:id/approve') // 🌟 자식이 붙은 주소 상단 배치
   @HttpCode(200)
@@ -171,7 +172,7 @@ export class IssueController {
     return this.issueService.approveProcurementIssueRequest(req.user, id);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '구매 요청 내역 삭제' })
   @Delete('procurement/request/:id')
   @HttpCode(200)
@@ -202,7 +203,7 @@ export class IssueController {
     return this.issueService.getContractIssue(id);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '계약 이슈 등록' })
   @Post('contract')
   async createContractIssue(
@@ -212,7 +213,7 @@ export class IssueController {
     return this.issueService.createContractIssue(req.user, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '계약 이슈 수정' })
   @Patch('contract/:id')
   async updateContractIssue(
@@ -231,7 +232,7 @@ export class IssueController {
     return this.issueService.getKickoffIssue(id);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '킥오프 이슈 등록' })
   @Post('kickoff')
   async createKickoffIssue(
@@ -241,7 +242,7 @@ export class IssueController {
     return this.issueService.createKickoffIssue(req.user, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '킥오프 이슈 수정' })
   @Patch('kickoff/:id')
   async updateKickoffIssue(
@@ -253,7 +254,7 @@ export class IssueController {
   }
 
   // --- APPROVAL ---
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '사양 승인 이슈 등록' })
   @Post('approval')
   async createApprovalIssue(
@@ -263,7 +264,7 @@ export class IssueController {
     return this.issueService.createApprovalIssue(req.user, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '사양 승인 이슈 수정' })
   @Patch('approval/:id')
   async updateApprovalIssue(
@@ -275,7 +276,7 @@ export class IssueController {
   }
 
   // --- PROCUREMENT ---
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '구매 조달 이슈 등록' })
   @Post('procurement')
   async createProcurementIssue(
@@ -285,7 +286,7 @@ export class IssueController {
     return this.issueService.createProcurementIssue(req.user, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '구매 조달 이슈 수정' })
   @Patch('procurement/:id')
   async updateProcurementIssue(
@@ -304,7 +305,7 @@ export class IssueController {
     return this.issueService.getTransactionIssue(id);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '거래명세 이슈 등록' })
   @Post('transaction')
   async createTransactionIssue(
@@ -314,7 +315,7 @@ export class IssueController {
     return this.issueService.createTransactionIssue(req.user, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '거래명세 이슈 수정' })
   @Patch('transaction/:id')
   async updateTransactionIssue(
@@ -333,7 +334,7 @@ export class IssueController {
     return this.issueService.getPaymentIssue(id);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '지급 청구 이슈 등록' })
   @Post('payment')
   async createPaymentIssue(
@@ -343,7 +344,7 @@ export class IssueController {
     return this.issueService.createPaymentIssue(req.user, body);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '지급 청구 이슈 수정' })
   @Patch('payment/:id')
   async updatePaymentIssue(
@@ -364,14 +365,15 @@ export class IssueController {
     return this.issueService.getCategory(id);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '이슈 메일 전송' })
   @Post('mail/:id')
   sendMail(
+    @Request() req,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: SendIssueMailDto,
   ) {
-    return this.issueService.sendMail(id, body.userIds);
+    return this.issueService.sendMail(req.user, id, body.userIds);
   }
 
   @UseGuards(JwtAccessAuthGuard, IssueProcurementRequestGuard)
@@ -396,7 +398,7 @@ export class IssueController {
     return this.issueService.getIssue(id);
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '이슈 삭제' })
   @Delete(':id')
   async deleteIssue(@Request() req, @Param('id', ParseIntPipe) id: number) {

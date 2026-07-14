@@ -4,10 +4,10 @@ import {
   CanActivate,
   ExecutionContext,
   NotFoundException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { assertOwnerOrAdmin } from '../policies/resource-access.policy';
 
 @Injectable()
 export class IssueEditGuard implements CanActivate {
@@ -35,9 +35,7 @@ export class IssueEditGuard implements CanActivate {
     if (!issue) throw new NotFoundException('issue_not_found');
 
     // 권한 체크 로직 (예: 작성자 본인이거나, 프로젝트 관리자이거나, 어드민인 경우)
-    if (issue.createdBy.id !== user.id && !user.isAdmin) {
-      throw new ForbiddenException('no_permission');
-    }
+    assertOwnerOrAdmin(user, issue.createdBy.id);
 
     // 가벼운 식별 데이터만 컨트롤러/서비스로 토스
     request.validatedIssueId = issue.id;

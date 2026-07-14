@@ -2,7 +2,6 @@ import {
   Injectable,
   Inject,
   NotFoundException,
-  ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
 import { google, calendar_v3 } from 'googleapis';
@@ -17,6 +16,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ScheduleCategory } from '@/entity/schedule/schedule-category.entity';
 import { DataSource, Repository } from 'typeorm';
 import { User } from '@/entity/user/user.entity';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
+import { assertOwnerOrAdmin } from '@/common/policies/resource-access.policy';
 import { ScheduleCategoryDto } from './dto/schedule-category';
 import { Schedule } from '@/entity/schedule/schedule.entity';
 import { UpdateScheduleDto } from './dto/update-schedule';
@@ -311,6 +312,7 @@ export class ScheduleService {
   }
 
   async createSchedule(user: User, body: CreateScheduleDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -411,6 +413,7 @@ export class ScheduleService {
 
   // DataSource를 DI 받았다고 가정 (this.dataSource)
   async updateSchedule(user: User, id: number, body: UpdateScheduleDto) {
+    assertWriteAccess(user);
     // ⬇️ 트랜잭션 시작
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -433,10 +436,7 @@ export class ScheduleService {
       }
 
       // 2️⃣ 권한 체크
-      if (schedule.user.id !== user.id && !user.isAdmin) {
-        await queryRunner.rollbackTransaction(); // 롤백
-        throw new ForbiddenException('no_permission');
-      }
+      assertOwnerOrAdmin(user, schedule.user.id);
 
       // 3️⃣ 새 프로젝트/카테고리 값 처리 (queryRunner.manager 사용)
       let projectId = body.projectId ?? schedule.project.id;
@@ -560,7 +560,8 @@ export class ScheduleService {
     }
   }
 
-  async deleteSchedule(id: number) {
+  async deleteSchedule(user: User, id: number) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();

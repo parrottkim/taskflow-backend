@@ -12,6 +12,8 @@ import { GetSuppliersDto } from './dto/get-suppliers';
 import { SupplierDto, SupplierListDto } from './dto/supplier';
 import { UpdateSupplierDto } from './dto/update-supplier';
 import { SftpService } from '@/sftp/sftp.service';
+import { User } from '@/entity/user/user.entity';
+import { assertWriteAccess } from '@/common/policies/write-access.policy';
 
 @Injectable()
 export class SupplierService {
@@ -82,7 +84,8 @@ export class SupplierService {
     return supplierListDto;
   }
 
-  async createSupplier(body: CreateSupplierDto) {
+  async createSupplier(user: User, body: CreateSupplierDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -125,7 +128,8 @@ export class SupplierService {
     }
   }
 
-  async updateSupplier(id: number, body: UpdateSupplierDto) {
+  async updateSupplier(user: User, id: number, body: UpdateSupplierDto) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -178,7 +182,8 @@ export class SupplierService {
     }
   }
 
-  async deleteSupplier(id: number) {
+  async deleteSupplier(user: User, id: number) {
+    assertWriteAccess(user);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();

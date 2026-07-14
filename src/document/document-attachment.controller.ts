@@ -18,6 +18,7 @@ import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { DocumentAttachmentDto } from './dto/document-attachment';
+import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 
 @ApiTags('Document Attachments (문서 첨부파일)')
 @Controller('document/:document_id/attachments')
@@ -26,7 +27,7 @@ export class DocumentAttachmentController {
     private readonly documentAttachmentService: DocumentAttachmentService,
   ) {}
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @UseInterceptors(FilesInterceptor('files'))
   @ApiOperation({ summary: '첨부 파일 업로드' })
   @ApiResponse({
@@ -53,7 +54,7 @@ export class DocumentAttachmentController {
     );
   }
 
-  @UseGuards(JwtAccessAuthGuard)
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '첨부 파일 삭제' })
   @Delete(':file_id')
   @HttpCode(200)
