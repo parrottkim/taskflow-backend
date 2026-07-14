@@ -25,7 +25,7 @@ import { MailService } from '@/mail/mail.service';
 import { ProjectDto } from '@/project/dto/project';
 import { ProjectClientDto } from '@/project/dto/project-client';
 import { ProjectClientService } from '@/project/project-client.service';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { GetLatestIssuesDto } from './dto/get-latest-issues';
 import {
   ContractIssueDto,
@@ -79,6 +79,10 @@ import {
 import { ProcurementIssueRequest } from '@/entity/issue/procurement/procurement-issue-request.entity';
 import { convertToKoreanCurrency } from '@/common/utils/converter.util';
 import { extractImages } from '@/common/utils/markdown.util';
+import {
+  assertIssueCategory,
+  shouldAdvanceLatestCategory,
+} from './issue-category.util';
 
 @Injectable()
 export class IssueService {
@@ -102,6 +106,49 @@ export class IssueService {
     @Inject(config.KEY)
     private configService: ConfigType<typeof config>,
   ) {}
+
+  private async findAndLockProject(manager: EntityManager, projectId: number) {
+    const project = await manager
+      .createQueryBuilder(Project, 'project')
+      .leftJoinAndSelect('project.latestCategory', 'latestCategory')
+      .where('project.id = :projectId', { projectId })
+      .setLock('pessimistic_write', undefined, ['project'])
+      .getOne();
+
+    if (!project) throw new NotFoundException('project_not_found');
+    return project;
+  }
+
+  private async findIssueCategory(
+    manager: EntityManager,
+    categoryId: number,
+    expectedCategoryId: number,
+  ) {
+    assertIssueCategory(categoryId, expectedCategoryId);
+
+    const category = await manager.findOne(IssueCategory, {
+      where: { id: categoryId },
+    });
+    if (!category) throw new NotFoundException('category_not_found');
+    return category;
+  }
+
+  private async advanceLatestCategory(
+    manager: EntityManager,
+    project: Project,
+    category: IssueCategory,
+  ) {
+    if (!shouldAdvanceLatestCategory(project.latestCategory?.id, category.id)) {
+      return;
+    }
+
+    await manager.update(
+      Project,
+      { id: project.id },
+      { latestCategory: category },
+    );
+    project.latestCategory = category;
+  }
 
   private async mapIssueToDto(issue: Issue) {
     if (!issue) return null;
@@ -856,16 +903,17 @@ export class IssueService {
     await queryRunner.startTransaction();
 
     try {
-      const project = await queryRunner.manager.findOne(Project, {
-        where: { id: body.projectId },
-      });
-      if (!project) throw new NotFoundException('project_not_found');
+      const project = await this.findAndLockProject(
+        queryRunner.manager,
+        body.projectId,
+      );
 
       // 2️⃣ 카테고리 조회
-      const category = await queryRunner.manager.findOne(IssueCategory, {
-        where: { id: body.categoryId },
-      });
-      if (!category) throw new NotFoundException('category_not_found');
+      const category = await this.findIssueCategory(
+        queryRunner.manager,
+        body.categoryId,
+        1,
+      );
 
       const existingContract = await queryRunner.manager.findOne(
         ContractIssue,
@@ -929,11 +977,7 @@ export class IssueService {
       );
       await queryRunner.manager.save(transactionItems);
 
-      await queryRunner.manager.update(
-        Project,
-        { id: project.id },
-        { latestCategory: category },
-      );
+      await this.advanceLatestCategory(queryRunner.manager, project, category);
 
       await queryRunner.commitTransaction();
       return await this.mapIssueToDto(savedIssue);
@@ -952,15 +996,16 @@ export class IssueService {
     await queryRunner.startTransaction();
 
     try {
-      const project = await queryRunner.manager.findOne(Project, {
-        where: { id: body.projectId },
-      });
-      if (!project) throw new NotFoundException('project_not_found');
+      const project = await this.findAndLockProject(
+        queryRunner.manager,
+        body.projectId,
+      );
 
-      const category = await queryRunner.manager.findOne(IssueCategory, {
-        where: { id: body.categoryId },
-      });
-      if (!category) throw new NotFoundException('category_not_found');
+      const category = await this.findIssueCategory(
+        queryRunner.manager,
+        body.categoryId,
+        2,
+      );
 
       const existingKickoff = await queryRunner.manager.findOne(KickoffIssue, {
         where: {
@@ -988,11 +1033,7 @@ export class IssueService {
       const savedKickoff = await queryRunner.manager.save(kickoff);
       savedIssue.kickoff = savedKickoff;
 
-      await queryRunner.manager.update(
-        Project,
-        { id: project.id },
-        { latestCategory: category },
-      );
+      await this.advanceLatestCategory(queryRunner.manager, project, category);
 
       await queryRunner.commitTransaction();
       return await this.mapIssueToDto(savedIssue);
@@ -1011,16 +1052,17 @@ export class IssueService {
     await queryRunner.startTransaction();
 
     try {
-      const project = await queryRunner.manager.findOne(Project, {
-        where: { id: body.projectId },
-      });
-      if (!project) throw new NotFoundException('project_not_found');
+      const project = await this.findAndLockProject(
+        queryRunner.manager,
+        body.projectId,
+      );
 
       // 2️⃣ 카테고리 조회
-      const category = await queryRunner.manager.findOne(IssueCategory, {
-        where: { id: body.categoryId },
-      });
-      if (!category) throw new NotFoundException('category_not_found');
+      const category = await this.findIssueCategory(
+        queryRunner.manager,
+        body.categoryId,
+        3,
+      );
 
       const issue = await queryRunner.manager.create(Issue, {
         project,
@@ -1038,11 +1080,7 @@ export class IssueService {
       const savedApproval = await queryRunner.manager.save(approval);
       savedIssue.approval = savedApproval;
 
-      await queryRunner.manager.update(
-        Project,
-        { id: project.id },
-        { latestCategory: category },
-      );
+      await this.advanceLatestCategory(queryRunner.manager, project, category);
 
       await queryRunner.commitTransaction();
       return await this.mapIssueToDto(savedIssue);
@@ -1397,16 +1435,17 @@ export class IssueService {
     await queryRunner.startTransaction();
 
     try {
-      const project = await queryRunner.manager.findOne(Project, {
-        where: { id: body.projectId },
-      });
-      if (!project) throw new NotFoundException('project_not_found');
+      const project = await this.findAndLockProject(
+        queryRunner.manager,
+        body.projectId,
+      );
 
       // 2️⃣ 카테고리 조회
-      const category = await queryRunner.manager.findOne(IssueCategory, {
-        where: { id: body.categoryId },
-      });
-      if (!category) throw new NotFoundException('category_not_found');
+      const category = await this.findIssueCategory(
+        queryRunner.manager,
+        body.categoryId,
+        4,
+      );
 
       const issue = await queryRunner.manager.create(Issue, {
         project,
@@ -1442,11 +1481,7 @@ export class IssueService {
 
       savedIssue.procurement = savedProcurement;
 
-      await queryRunner.manager.update(
-        Project,
-        { id: project.id },
-        { latestCategory: category },
-      );
+      await this.advanceLatestCategory(queryRunner.manager, project, category);
 
       await queryRunner.commitTransaction();
       return await this.mapIssueToDto(savedIssue);
@@ -1465,15 +1500,16 @@ export class IssueService {
     await queryRunner.startTransaction();
 
     try {
-      const project = await queryRunner.manager.findOne(Project, {
-        where: { id: body.projectId },
-      });
-      if (!project) throw new NotFoundException('project_not_found');
+      const project = await this.findAndLockProject(
+        queryRunner.manager,
+        body.projectId,
+      );
 
-      const category = await queryRunner.manager.findOne(IssueCategory, {
-        where: { id: body.categoryId },
-      });
-      if (!category) throw new NotFoundException('category_not_found');
+      const category = await this.findIssueCategory(
+        queryRunner.manager,
+        body.categoryId,
+        5,
+      );
 
       const existingTransaction = await queryRunner.manager.findOne(
         TransactionIssue,
@@ -1553,11 +1589,7 @@ export class IssueService {
 
       await queryRunner.manager.save(items);
 
-      await queryRunner.manager.update(
-        Project,
-        { id: project.id },
-        { latestCategory: category },
-      );
+      await this.advanceLatestCategory(queryRunner.manager, project, category);
 
       await queryRunner.commitTransaction();
       return await this.mapIssueToDto(savedIssue);
@@ -1576,16 +1608,17 @@ export class IssueService {
     await queryRunner.startTransaction();
 
     try {
-      const project = await queryRunner.manager.findOne(Project, {
-        where: { id: body.projectId },
-      });
-      if (!project) throw new NotFoundException('project_not_found');
+      const project = await this.findAndLockProject(
+        queryRunner.manager,
+        body.projectId,
+      );
 
       // 2️⃣ 카테고리 조회
-      const category = await queryRunner.manager.findOne(IssueCategory, {
-        where: { id: body.categoryId },
-      });
-      if (!category) throw new NotFoundException('category_not_found');
+      const category = await this.findIssueCategory(
+        queryRunner.manager,
+        body.categoryId,
+        6,
+      );
 
       const existingPayment = await queryRunner.manager.findOne(PaymentIssue, {
         where: {
@@ -1610,13 +1643,9 @@ export class IssueService {
         project,
       });
       const savedPayment = await queryRunner.manager.save(payment);
-      savedIssue.approval = savedPayment;
+      savedIssue.payment = savedPayment;
 
-      await queryRunner.manager.update(
-        Project,
-        { id: project.id },
-        { latestCategory: category },
-      );
+      await this.advanceLatestCategory(queryRunner.manager, project, category);
 
       await queryRunner.commitTransaction();
       return await this.mapIssueToDto(savedIssue);
@@ -2447,6 +2476,11 @@ export class IssueService {
 
       const projectId = issue.project.id;
 
+      const project = await this.findAndLockProject(
+        queryRunner.manager,
+        projectId,
+      );
+
       // Attachments 아카이브 및 soft delete
       if (issue.attachments?.length) {
         // SFTP에서 파일 아카이브
@@ -2507,19 +2541,15 @@ export class IssueService {
         .leftJoinAndSelect('issue.project', 'project')
         .leftJoinAndSelect('issue.category', 'category')
         .where('issue.project.id = :projectId', { projectId })
-        .orderBy('issue.createdAt', 'DESC')
+        .orderBy('category.id', 'DESC')
+        .addOrderBy('issue.createdAt', 'DESC')
+        .addOrderBy('issue.id', 'DESC')
         .getOne();
 
       const latestCategory = latestIssue ? latestIssue.category : null;
 
-      const project = await queryRunner.manager.findOne(Project, {
-        where: { id: projectId },
-      });
-
-      if (project) {
-        project.latestCategory = latestCategory ?? null;
-        await queryRunner.manager.save(project);
-      }
+      project.latestCategory = latestCategory ?? null;
+      await queryRunner.manager.save(project);
 
       await queryRunner.commitTransaction();
 

@@ -448,6 +448,7 @@ export class ProjectService {
           { userId: user.id },
         )
         .where('project.id = :id', { id })
+        .setLock('pessimistic_write', undefined, ['project'])
         .getOne();
 
       if (!project) throw new NotFoundException('project_not_found');
@@ -487,10 +488,16 @@ export class ProjectService {
         project.client = client;
       }
 
-      const category = await queryRunner.manager.findOne(IssueCategory, {
-        where: { id: body.categoryId },
-      });
-      project.latestCategory = category;
+      if (body.categoryId) {
+        const category = await queryRunner.manager.findOne(IssueCategory, {
+          where: { id: body.categoryId },
+        });
+        if (!category) throw new NotFoundException('category_not_found');
+
+        if ((project.latestCategory?.id ?? 0) < category.id) {
+          project.latestCategory = category;
+        }
+      }
       project.updatedBy = user;
 
       const saved = await queryRunner.manager.save(project);
