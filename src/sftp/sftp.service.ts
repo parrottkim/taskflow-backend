@@ -164,12 +164,20 @@ export class SftpService {
   async uploadInlineImages(
     user: User,
     namespace: string,
+    resourceId: number,
     files: Express.Multer.File[],
   ): Promise<UploadInlineImageDto[]> {
     if (!files.length) return [];
+    if (!Number.isInteger(resourceId) || resourceId < 1) {
+      throw new BadRequestException('invalid_resource_id');
+    }
 
     const directory = 'inline-images';
-    const basePath = this.buildRemotePath(directory, namespace, String(user.id));
+    const basePath = this.buildRemotePath(
+      directory,
+      namespace,
+      String(resourceId),
+    );
     const now = new Date();
     const date = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
     const uploadDirectory = `${basePath}/${date}`;
