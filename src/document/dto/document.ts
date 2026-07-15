@@ -26,6 +26,10 @@ export class DocumentDto {
   @Expose()
   fixed: boolean;
 
+  @ApiProperty({ default: 0 })
+  @Expose()
+  views: number;
+
   @ApiProperty({ type: UserDto })
   @Type(() => UserDto)
   @Expose()
@@ -57,12 +61,55 @@ export class DocumentDto {
   deletedAt: Date | null;
 }
 
-export class DocumentListDto {
-  @ApiProperty({ type: [DocumentDto] })
-  @ValidateNested({ each: true })
-  @Type(() => DocumentDto)
+export class DocumentListItemDto {
+  @ApiProperty()
   @Expose()
-  items: DocumentDto[];
+  id: number;
+
+  @ApiProperty()
+  @Expose()
+  title: string;
+
+  @ApiProperty()
+  @Transform(({ obj }) => obj.folder?.id)
+  @Expose()
+  folderId: number;
+
+  @ApiProperty()
+  @Expose()
+  fixed: boolean;
+
+  @ApiProperty({ type: UserDto })
+  @Type(() => UserDto)
+  @Expose()
+  createdBy: UserDto;
+
+  @ApiProperty({ default: 0 })
+  @Expose()
+  attachmentCount: number;
+
+  @ApiProperty()
+  @Type(() => Date)
+  @Expose()
+  createdAt: Date;
+
+  @ApiProperty()
+  @Type(() => Date)
+  @Expose()
+  updatedAt: Date;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Type(() => Date)
+  @Expose()
+  deletedAt: Date | null;
+}
+
+export class DocumentListDto {
+  @ApiProperty({ type: [DocumentListItemDto] })
+  @ValidateNested({ each: true })
+  @Type(() => DocumentListItemDto)
+  @Expose()
+  items: DocumentListItemDto[];
 
   @ApiProperty()
   @Expose()

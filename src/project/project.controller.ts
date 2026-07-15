@@ -52,7 +52,7 @@ export class ProjectController {
   })
   @Get(':id/edit')
   getProjectForEdit(@Request() req, @Param('id', ParseIntPipe) id: number) {
-    return this.projectService.getProject(req.user, id);
+    return this.projectService.getProjectForEdit(req.user, id);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -64,8 +64,8 @@ export class ProjectController {
     type: ProjectDto,
   })
   @Get(':id')
-  getProject(@Request() req, @Param('id', ParseIntPipe) id: number) {
-    return this.projectService.getProject(req.user, id);
+  getProjectDetail(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    return this.projectService.getProjectDetail(req.user, id);
   }
 
   @UseGuards(JwtAccessAuthGuard)

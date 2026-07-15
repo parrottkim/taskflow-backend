@@ -61,6 +61,7 @@ export class DocumentService {
       .leftJoinAndSelect('document.updatedBy', 'updatedBy')
       .leftJoinAndSelect('document.attachments', 'attachment')
       .where('document.id = :id', { id })
+      .addOrderBy('attachment.createdAt', 'DESC')
       .getOne();
   }
 
@@ -69,15 +70,18 @@ export class DocumentService {
       .createQueryBuilder('document')
       .leftJoinAndSelect('document.folder', 'folder')
       .leftJoinAndSelect('document.createdBy', 'createdBy')
-      .leftJoinAndSelect('document.updatedBy', 'updatedBy')
-      .leftJoinAndSelect('document.attachments', 'attachment')
-      .where('folder.id = :id', { id: value.folderId })
+      .loadRelationCountAndMap(
+        'document.attachmentCount',
+        'document.attachments',
+      )
       .andWhere('document.fixed = false');
 
     if (value.search) {
       queryBuilder.andWhere('document.title ILIKE :search', {
         search: `%${value.search}%`,
       });
+    } else {
+      queryBuilder.andWhere('folder.id = :id', { id: value.folderId });
     }
 
     const orderType = value.order?.toUpperCase() as 'ASC' | 'DESC';
@@ -112,15 +116,18 @@ export class DocumentService {
       .createQueryBuilder('document')
       .leftJoinAndSelect('document.folder', 'folder')
       .leftJoinAndSelect('document.createdBy', 'createdBy')
-      .leftJoinAndSelect('document.updatedBy', 'updatedBy')
-      .leftJoinAndSelect('document.attachments', 'attachment')
-      .where('folder.id = :id', { id: value.folderId })
+      .loadRelationCountAndMap(
+        'document.attachmentCount',
+        'document.attachments',
+      )
       .andWhere('document.fixed = true');
 
     if (value.search) {
       fixedQueryBuilder.andWhere('document.title ILIKE :search', {
         search: `%${value.search}%`,
       });
+    } else {
+      fixedQueryBuilder.andWhere('folder.id = :id', { id: value.folderId });
     }
 
     switch (value.sort) {
@@ -157,6 +164,33 @@ export class DocumentService {
     });
 
     return documentDto;
+  }
+
+  async getDocumentDetail(id: number) {
+    const incrementResult = await this.documentRepository
+      .createQueryBuilder()
+      .update(Document)
+      .set({
+        views: () => '"views" + 1',
+        updatedAt: () => '"updated_at"',
+      })
+      .where('"id" = :id', { id })
+      .andWhere('"deleted_at" IS NULL')
+      .execute();
+
+    if (!incrementResult.affected) {
+      throw new NotFoundException('document_not_found');
+    }
+
+    const document = await this.findDocumentById(id);
+
+    if (!document) {
+      throw new NotFoundException('document_not_found');
+    }
+
+    return plainToInstance(DocumentDto, document, {
+      excludeExtraneousValues: true,
+    });
   }
 
   async getDocuments(query: GetDocumentsDto) {

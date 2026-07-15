@@ -73,13 +73,8 @@ export class ProjectService {
     let queryBuilder = this.projectRepository
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.createdBy', 'createdBy')
-      .leftJoinAndSelect('project.updatedBy', 'updatedBy')
       .leftJoinAndSelect('project.manager', 'manager')
       .leftJoinAndSelect('project.latestCategory', 'latestCategory')
-      .leftJoinAndSelect('createdBy.position', 'position')
-      .leftJoinAndSelect('createdBy.department', 'department')
-      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
-      .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('project.client', 'client');
 
     // 1. 검색어 필터링
@@ -250,7 +245,7 @@ export class ProjectService {
     });
   }
 
-  async getProject(user: User, id: number) {
+  async getProjectForEdit(user: User, id: number) {
     const project = await this.findProjectById(id, user);
 
     if (!project) {
@@ -274,6 +269,25 @@ export class ProjectService {
     );
 
     return projectDto;
+  }
+
+  async getProjectDetail(user: User, id: number) {
+    const incrementResult = await this.projectRepository
+      .createQueryBuilder()
+      .update(Project)
+      .set({
+        views: () => '"views" + 1',
+        updatedAt: () => '"updated_at"',
+      })
+      .where('"id" = :id', { id })
+      .andWhere('"deleted_at" IS NULL')
+      .execute();
+
+    if (!incrementResult.affected) {
+      throw new NotFoundException('project_not_found');
+    }
+
+    return this.getProjectForEdit(user, id);
   }
 
   async getProjectWithoutUser(id: number) {
@@ -305,33 +319,33 @@ export class ProjectService {
   async getProjects(user: User, query: GetProjectsDto) {
     const [projects, total] = await this.findProjects(user, query);
 
-    const items = await Promise.all(
-      projects.map(async (project) => {
-        const ancestors = await this.projectClientService.findAncestors(
-          project.client.id,
-        );
-
-        const projectDto = plainToInstance(
-          ProjectDto,
-          {
-            ...project,
-            clients: ancestors,
-            isBookmarked: project.bookmarks && project.bookmarks.length > 0,
-          },
-          {
-            excludeExtraneousValues: true,
-          },
-        );
-
-        return projectDto;
-      }),
+    const clientIds = [
+      ...new Set(projects.map((project) => project.client.id)),
+    ];
+    const ancestorGroups =
+      await this.projectClientService.findAllAncestors(clientIds);
+    const ancestorsByClientId = new Map(
+      ancestorGroups.map(({ descendantId, ancestors }) => [
+        descendantId,
+        ancestors,
+      ]),
     );
 
-    const projectListDto = plainToInstance(ProjectListDto, {
-      items: items,
-      page: query.page,
-      total: total,
-    });
+    const items = projects.map((project) => ({
+      ...project,
+      clients: ancestorsByClientId.get(project.client.id) ?? [],
+      isBookmarked: project.bookmarks && project.bookmarks.length > 0,
+    }));
+
+    const projectListDto = plainToInstance(
+      ProjectListDto,
+      {
+        items,
+        page: query.page,
+        total,
+      },
+      { excludeExtraneousValues: true },
+    );
 
     return projectListDto;
   }
