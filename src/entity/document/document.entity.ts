@@ -43,6 +43,9 @@ export class Document {
   @Column({ default: false })
   fixed: boolean;
 
+  @Column({ type: 'int', default: 0 })
+  views: number;
+
   @CreateDateColumn()
   createdAt: Date;
 
