@@ -84,12 +84,74 @@ export class ProjectDto {
   deletedAt: Date | null;
 }
 
-export class ProjectListDto {
-  @ApiProperty({ type: [ProjectDto] })
-  @ValidateNested({ each: true })
-  @Type(() => ProjectDto)
+export class ProjectListItemDto {
+  @ApiProperty()
   @Expose()
-  items: ProjectDto[];
+  id: number;
+
+  @ApiProperty()
+  @Expose()
+  code: string;
+
+  @ApiProperty()
+  @Expose()
+  name: string;
+
+  @ApiProperty({ type: UserDto })
+  @Type(() => UserDto)
+  @Expose()
+  createdBy: UserDto;
+
+  @ApiProperty({ type: UserDto, required: false })
+  @Type(() => UserDto)
+  @Expose()
+  manager?: UserDto;
+
+  @ApiProperty({ type: IssueCategoryDto, required: false })
+  @Type(() => IssueCategoryDto)
+  @Expose()
+  latestCategory?: IssueCategoryDto;
+
+  @ApiProperty({ type: [ProjectClientDto] })
+  @ValidateNested({ each: true })
+  @Type(() => ProjectClientDto)
+  @Expose()
+  clients: ProjectClientDto[];
+
+  @ApiProperty()
+  @Expose()
+  isPreexecuted: boolean;
+
+  @ApiProperty()
+  @Expose()
+  isClosed: boolean;
+
+  @ApiProperty()
+  @Expose()
+  isBookmarked: boolean;
+
+  @ApiProperty()
+  @Type(() => Date)
+  @Expose()
+  createdAt: Date;
+
+  @ApiProperty()
+  @Type(() => Date)
+  @Expose()
+  updatedAt: Date;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Type(() => Date)
+  @Expose()
+  deletedAt: Date | null;
+}
+
+export class ProjectListDto {
+  @ApiProperty({ type: [ProjectListItemDto] })
+  @ValidateNested({ each: true })
+  @Type(() => ProjectListItemDto)
+  @Expose()
+  items: ProjectListItemDto[];
 
   @ApiProperty()
   @Expose()

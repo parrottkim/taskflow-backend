@@ -55,6 +55,19 @@ export class DocumentController {
     return this.documentService.getDocuments(query);
   }
 
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '문서 상세 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: DocumentDto,
+  })
+  @Get(':id')
+  getDocumentDetail(@Param('id', ParseIntPipe) id: number) {
+    return this.documentService.getDocumentDetail(id);
+  }
+
   @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
   @ApiOperation({ summary: '문서 공유 메일 전송' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
@@ -110,10 +123,7 @@ export class DocumentController {
   })
   @Delete(':id')
   @HttpCode(200)
-  async deleteDocument(
-    @Request() req,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async deleteDocument(@Request() req, @Param('id', ParseIntPipe) id: number) {
     return this.documentService.deleteDocument(req.user, id);
   }
 }

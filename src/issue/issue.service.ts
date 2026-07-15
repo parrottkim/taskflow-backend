@@ -627,10 +627,11 @@ export class IssueService {
       .leftJoinAndSelect('createdBy.department', 'department')
       .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
-      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .leftJoinAndSelect('issue.attachments', 'attachment')
       .innerJoinAndSelect('issue.contract', 'contract')
       .leftJoinAndSelect('contract.currency', 'currency')
       .where('project.id = :id', { id })
+      .addOrderBy('attachment.createdAt', 'DESC')
       .getOne();
 
     if (!issue) return null;
@@ -657,9 +658,10 @@ export class IssueService {
       .leftJoinAndSelect('createdBy.department', 'department')
       .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
-      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .leftJoinAndSelect('issue.attachments', 'attachment')
       .innerJoinAndSelect('issue.kickoff', 'kickoff')
       .where('project.id = :id', { id })
+      .addOrderBy('attachment.createdAt', 'DESC')
       .getOne();
 
     if (!issue) return null;
@@ -686,9 +688,10 @@ export class IssueService {
       .leftJoinAndSelect('createdBy.department', 'department')
       .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
-      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .leftJoinAndSelect('issue.attachments', 'attachment')
       .innerJoinAndSelect('issue.transaction', 'transaction')
       .where('project.id = :id', { id })
+      .addOrderBy('attachment.createdAt', 'DESC')
       .getOne();
 
     if (!issue) return null;
@@ -723,9 +726,10 @@ export class IssueService {
       .leftJoinAndSelect('createdBy.department', 'department')
       .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
-      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .leftJoinAndSelect('issue.attachments', 'attachment')
       .innerJoinAndSelect('issue.payment', 'payment')
       .where('project.id = :id', { id })
+      .addOrderBy('attachment.createdAt', 'DESC')
       .getOne();
 
     if (!issue) return null;
@@ -748,10 +752,11 @@ export class IssueService {
       .leftJoinAndSelect('createdBy.department', 'department')
       .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
-      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .leftJoinAndSelect('issue.attachments', 'attachment')
       .innerJoinAndSelect('issue.approval', 'approval')
       .where('project.id = :id', { id: value.projectId })
       .orderBy('issue.createdAt', 'DESC')
+      .addOrderBy('attachment.createdAt', 'DESC')
       .skip((value.page - 1) * value.limit)
       .take(value.limit)
       .getManyAndCount();
@@ -784,7 +789,7 @@ export class IssueService {
       .leftJoinAndSelect('createdBy.department', 'department')
       .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
-      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .leftJoinAndSelect('issue.attachments', 'attachment')
       .innerJoinAndSelect('issue.procurement', 'procurement')
       .leftJoinAndSelect('procurement.items', 'items')
       .leftJoinAndSelect('items.supplier', 'supplier')
@@ -794,6 +799,7 @@ export class IssueService {
       .leftJoinAndSelect('requests.supplier', 'requestSupplier')
       .where('project.id = :id', { id: value.projectId })
       .orderBy('issue.createdAt', 'DESC')
+      .addOrderBy('attachment.createdAt', 'DESC')
       .skip((value.page - 1) * value.limit)
       .take(value.limit)
       .getManyAndCount();
@@ -836,7 +842,7 @@ export class IssueService {
       .leftJoinAndSelect('createdBy.department', 'department')
       .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
-      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .leftJoinAndSelect('issue.attachments', 'attachment')
       .leftJoinAndSelect('issue.contract', 'contract')
       .leftJoinAndSelect('issue.transaction', 'transaction')
       .leftJoinAndSelect('issue.kickoff', 'kickoff')
@@ -849,6 +855,7 @@ export class IssueService {
       .leftJoinAndSelect('requests.items', 'requestItem')
       .leftJoinAndSelect('requests.supplier', 'requestSupplier')
       .where('issue.id = :id', { id })
+      .addOrderBy('attachment.createdAt', 'DESC')
       .getOne();
 
     return await this.mapIssueToDto(issue);
@@ -868,11 +875,12 @@ export class IssueService {
       .leftJoinAndSelect('createdBy.department', 'department')
       .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
-      .leftJoinAndSelect('issue.attachments', 'attachments')
+      .leftJoinAndSelect('issue.attachments', 'attachment')
       .leftJoinAndSelect('issue.contract', 'contract')
       .leftJoinAndSelect('contract.currency', 'currency')
       .where('issue.id = :id', { id })
       .orderBy('issue.updatedAt', 'DESC')
+      .addOrderBy('attachment.createdAt', 'DESC')
       .getOne();
 
     const ancestors = await this.projectClientService.findAncestors(
@@ -2454,7 +2462,7 @@ export class IssueService {
         .leftJoinAndSelect('createdBy.department', 'department')
         .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
         .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
-        .leftJoinAndSelect('issue.attachments', 'attachments')
+        .leftJoinAndSelect('issue.attachments', 'attachment')
         .leftJoinAndSelect('issue.contract', 'contract')
         .leftJoinAndSelect('contract.currency', 'currency')
         .leftJoinAndSelect('issue.transaction', 'transaction')
@@ -2464,6 +2472,7 @@ export class IssueService {
         .leftJoinAndSelect('procurement.items', 'procurementItems')
         .leftJoinAndSelect('procurementItems.supplier', 'supplier')
         .where('issue.id = :id', { id })
+        .addOrderBy('attachment.createdAt', 'DESC')
         .getOne();
 
       const issueDto = await this.mapIssueToDto(issue);

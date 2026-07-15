@@ -140,6 +140,7 @@ export class ReportService {
       .leftJoinAndSelect('trip.exchangeRate', 'exchangeRate')
       .leftJoinAndSelect('report.attachments', 'attachment')
       .where('report.id = :id', { id })
+      .addOrderBy('attachment.createdAt', 'DESC')
       .getOne();
   }
 
@@ -161,6 +162,7 @@ export class ReportService {
       .leftJoinAndSelect('report.attachments', 'attachment')
       .where('project.id = :id', { id: value.projectId })
       .orderBy('report.createdAt', 'DESC')
+      .addOrderBy('attachment.createdAt', 'DESC')
       .skip((value.page - 1) * value.limit)
       .take(value.limit)
       .getManyAndCount();
