@@ -53,7 +53,7 @@ export class SftpController {
   async uploadInlineImage(
     @Request() req,
     @Query('path') namespace: string,
-    @Query('resourceId', ParseIntPipe) resourceId: number,
+    @Query('resource_id', ParseIntPipe) resourceId: number,
     @UploadedFiles(
       new ParseFilePipe({
         validators: [new MaxFileSizeValidator({ maxSize: 1024 * 1024 * 5 })],
