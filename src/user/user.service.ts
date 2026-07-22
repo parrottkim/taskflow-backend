@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -222,7 +219,8 @@ export class UserService {
     const queryBuilder = this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.position', 'position')
-      .leftJoinAndSelect('user.department', 'department');
+      .leftJoinAndSelect('user.department', 'department')
+      .andWhere('user.isGuest = false');
 
     if (query.departmentId) {
       const closures = await this.userDepartmentClosureRepository.find({

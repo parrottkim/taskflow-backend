@@ -124,6 +124,10 @@ export class ProjectListItemDto {
 
   @ApiProperty()
   @Expose()
+  isContracted: boolean;
+
+  @ApiProperty()
+  @Expose()
   isClosed: boolean;
 
   @ApiProperty()

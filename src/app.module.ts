@@ -28,6 +28,7 @@ import { AddressModule } from './address/address.module';
 import { DocumentModule } from './document/document.module';
 import config from '@/config/config';
 import { DocumentFolderModule } from './document/document-folder.module';
+import { WorkModule } from './work/work.module';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { DocumentFolderModule } from './document/document-folder.module';
     ReportAttachmentModule,
     UserDepartmentModule,
     UserModule,
+    WorkModule,
   ],
   controllers: [AppController],
   providers: [AppService],
