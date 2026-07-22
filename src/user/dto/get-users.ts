@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Expose, Type } from 'class-transformer';
-import { IsInt, Min, IsOptional, IsString } from 'class-validator';
+import { Expose, Transform, Type } from 'class-transformer';
+import { IsBoolean, IsInt, Min, IsOptional, IsString } from 'class-validator';
 
 export class GetUsersDto {
   @ApiProperty()
