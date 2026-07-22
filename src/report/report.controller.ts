@@ -72,7 +72,7 @@ export class ReportController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '출장 명령서 출력' })
+  @ApiOperation({ summary: '보고서 출력' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -92,7 +92,7 @@ export class ReportController {
   }
 
   @UseGuards(JwtAccessAuthGuard, ReportEditGuard)
-  @ApiOperation({ summary: '출장 명령서 수정용 데이터 조회' })
+  @ApiOperation({ summary: '보고서 수정용 데이터 조회' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -105,7 +105,7 @@ export class ReportController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '출장 명령서 단일 조회' })
+  @ApiOperation({ summary: '보고서 단일 조회' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -118,7 +118,7 @@ export class ReportController {
   }
 
   @UseGuards(JwtAccessAuthGuard)
-  @ApiOperation({ summary: '출장 명령서 목록 조회' })
+  @ApiOperation({ summary: '보고서 목록 조회' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -147,7 +147,7 @@ export class ReportController {
   }
 
   @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
-  @ApiOperation({ summary: '출장 명령서 생성' })
+  @ApiOperation({ summary: '보고서 생성' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -160,7 +160,7 @@ export class ReportController {
   }
 
   @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
-  @ApiOperation({ summary: '출장 명령서 수정' })
+  @ApiOperation({ summary: '보고서 수정' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -177,7 +177,7 @@ export class ReportController {
   }
 
   @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
-  @ApiOperation({ summary: '출장 명령서 삭제' })
+  @ApiOperation({ summary: '보고서 삭제' })
   @ApiHeader({ name: 'Authorization', description: 'Access Token' })
   @ApiResponse({
     status: HttpStatus.OK,

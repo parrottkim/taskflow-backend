@@ -21,8 +21,8 @@ import { GetProjectsDto } from './dto/get-projects';
 import { CreateProjectDto } from './dto/create-project';
 import { UpdateProjectDto } from './dto/update-project';
 import { ProjectItemCountDto } from './dto/project-item-count';
-import { ProjectEditGuard } from '@/common/guards/project-edit.guard';
 import { WriteAccessGuard } from '@/common/guards/write-access.guard';
+import { ProjectEditGuard } from '@/common/guards/project-edit.guard';
 
 @ApiTags('Project (프로젝트)')
 @Controller('project')

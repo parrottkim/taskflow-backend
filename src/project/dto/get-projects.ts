@@ -1,9 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Expose, Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   Min,
@@ -57,4 +58,27 @@ export class GetProjectsDto {
   @ApiProperty()
   @IsOptional()
   categories?: string;
+}
+
+export class GetManagerProjectsDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  page?: number = 1;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  limit?: number = 40;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  @Expose({ name: 'manager_id' })
+  managerId?: number;
 }

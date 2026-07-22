@@ -184,13 +184,10 @@ export class ScheduleService {
     let queryBuilder = this.scheduleRepository
       .createQueryBuilder('schedule')
       .leftJoinAndSelect('schedule.project', 'project')
+      .leftJoinAndSelect('project.client', 'client')
       .leftJoinAndSelect('schedule.category', 'category')
       .leftJoinAndSelect('schedule.user', 'user')
-      .leftJoinAndSelect('user.department', 'department')
-      .where('schedule.start <= :end AND schedule.end >= :start', {
-        start: start.toDate(),
-        end: end.toDate(),
-      });
+      .leftJoinAndSelect('user.department', 'department');
 
     if (query.userId) {
       queryBuilder = queryBuilder.andWhere('user.id = :userId', {
@@ -230,46 +227,57 @@ export class ScheduleService {
       });
     }
 
-    // 이제 queryBuilder를 사용하여 events, hasPrevious, hasNext 쿼리를 작성합니다.
-
-    // 1. events 쿼리
-    const events = await queryBuilder
+    const eventsQueryBuilder = queryBuilder
+      .clone()
+      .andWhere('schedule.start <= :end AND schedule.end >= :start', {
+        start: start.toDate(),
+        end: end.toDate(),
+      })
       .orderBy('schedule.start', 'ASC')
-      .addOrderBy('schedule.id', 'ASC')
-      .getMany();
+      .addOrderBy('schedule.id', 'ASC');
 
-    // 2. hasPrevious 쿼리
-    // queryBuilder를 복사하여 start 이전 조건만 추가
-    const hasPrevious = await queryBuilder
-      .clone() // 쿼리 빌더 복사
-      .andWhere('schedule.end < :start', { start: start.toDate() })
-      .getExists();
+    const previousQueryBuilder = queryBuilder
+      .clone()
+      .andWhere('schedule.end < :start', { start: start.toDate() });
 
-    // 3. hasNext 쿼리
-    // queryBuilder를 복사하여 end 이후 조건만 추가
-    const hasNext = await queryBuilder
-      .clone() // 쿼리 빌더 복사
-      .andWhere('schedule.start > :end', { end: end.toDate() })
-      .getExists();
+    const nextQueryBuilder = queryBuilder
+      .clone()
+      .andWhere('schedule.start > :end', { end: end.toDate() });
 
-    const items = await Promise.all(
-      events.map(async (schedule) => {
-        const project = await this.projectService.getProjectWithoutUser(
-          schedule.project.id,
-        );
-        const scheduleDto = plainToInstance(ScheduleDto, schedule, {
-          excludeExtraneousValues: true,
-        });
-        scheduleDto.projectId = project.id;
-        scheduleDto.projectCode = project.code;
-        scheduleDto.projectName = project.name;
-        scheduleDto.projectClientId = project.clients[0].id;
-        scheduleDto.projectClientName =
-          project.clients[project.clients.length - 1].name;
+    const [events, hasPrevious, hasNext] = await Promise.all([
+      eventsQueryBuilder.getMany(),
+      previousQueryBuilder.getExists(),
+      nextQueryBuilder.getExists(),
+    ]);
 
-        return scheduleDto;
-      }),
+    const clientIds = [
+      ...new Set(events.map((schedule) => schedule.project.client.id)),
+    ];
+    const ancestorGroups =
+      await this.projectClientService.findAllAncestors(clientIds);
+    const ancestorsByClientId = new Map(
+      ancestorGroups.map(({ descendantId, ancestors }) => [
+        descendantId,
+        ancestors,
+      ]),
     );
+
+    const items = events.map((schedule) => {
+      const project = schedule.project;
+      const clients = ancestorsByClientId.get(project.client.id) ?? [
+        project.client,
+      ];
+      const scheduleDto = plainToInstance(ScheduleDto, schedule, {
+        excludeExtraneousValues: true,
+      });
+      scheduleDto.projectId = project.id;
+      scheduleDto.projectCode = project.code;
+      scheduleDto.projectName = project.name;
+      scheduleDto.projectClientId = clients[0].id;
+      scheduleDto.projectClientName = clients[clients.length - 1].name;
+
+      return scheduleDto;
+    });
 
     const grouped = {};
 
