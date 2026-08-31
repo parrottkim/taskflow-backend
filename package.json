@@ -27,7 +27,9 @@
     "typeorm:local:create": "npm run typeorm:local -- migration:create",
     "typeorm:local:generate": "npm run typeorm:local -- migration:generate ./src/migrations/$npm_config_name -d ./src/data-source.ts",
     "typeorm:local:migrate": "npm run typeorm:local -- migration:run -d ./src/data-source.ts",
-    "typeorm:local:revert": "npm run typeorm:local -- migration:revert -d ./src/data-source.ts"
+    "typeorm:local:revert": "npm run typeorm:local -- migration:revert -d ./src/data-source.ts",
+    "backfill:schedule-holidays": "cross-env DOTENV_CONFIG_PATH=.local.env ts-node -r dotenv/config -r tsconfig-paths/register src/schedule/backfill-schedule-holidays.ts",
+    "backfill:schedule-holidays:write": "npm run backfill:schedule-holidays -- --write"
   },
   "dependencies": {
     "@nestjs-modules/ioredis": "^2.0.2",
@@ -45,6 +47,7 @@
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "cookie-parser": "^1.4.7",
     "cross-env": "^7.0.3",
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.19",
@@ -55,7 +58,7 @@
     "ioredis": "^5.8.2",
     "joi": "^17.13.3",
     "marked": "^17.0.1",
-    "multer": "^2.0.2",
+    "multer": "^2.2.0",
     "node-ical": "^0.26.1",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
@@ -71,6 +74,7 @@
     "@nestjs/cli": "^11.0.17",
     "@nestjs/schematics": "^11.0.5",
     "@nestjs/testing": "^11.1.5",
+    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.0.0",
@@ -89,6 +93,9 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3"
   },
+  "overrides": {
+    "multer": "$multer"
+  },
   "jest": {
     "moduleFileExtensions": [
       "js",
@@ -99,6 +106,9 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/$1"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

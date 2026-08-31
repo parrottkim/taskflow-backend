@@ -62,7 +62,7 @@ export class SupplierService {
     const supplier = await this.findSupplierById(id);
 
     if (!supplier) {
-      throw new NotFoundException('supplier_not_found');
+      throw new NotFoundException('not_found_supplier');
     }
 
     const supplierDto = plainToInstance(SupplierDto, supplier, {
@@ -96,7 +96,7 @@ export class SupplierService {
       });
 
       if (existingSupplier) {
-        throw new ConflictException('supplier_exists');
+        throw new ConflictException('conflict_supplier_already_exists');
       }
 
       const supplier = queryRunner.manager.create(Supplier, {
@@ -140,7 +140,7 @@ export class SupplierService {
       });
 
       if (!supplier) {
-        throw new NotFoundException('supplier_not_found');
+        throw new NotFoundException('not_found_supplier');
       }
 
       if (body.logo !== undefined && supplier.logo !== body.logo) {
@@ -194,7 +194,7 @@ export class SupplierService {
       });
 
       if (!supplier) {
-        throw new NotFoundException('supplier_not_found');
+        throw new NotFoundException('not_found_supplier');
       }
 
       if (supplier.logo) {

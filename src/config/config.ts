@@ -10,14 +10,23 @@ export default registerAs('config', () => {
       database: process.env.POSTGRES_DB,
     },
     jwt: {
-      jwtAccessSecret:
-        process.env.JWT_ACCESS_SECRET || 'fallback-access-secret',
-      jwtRefreshSecret:
-        process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret',
+      jwtAccessSecret: process.env.JWT_ACCESS_SECRET,
+      jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,
       refreshTokenExpiration:
         (process.env.REFRESH_TOKEN_EXPIRATION as string) || '7d',
       accessTokenExpiration:
         (process.env.ACCESS_TOKEN_EXPIRATION as string) || '1h',
+    },
+    cookie: {
+      refresh: {
+        name: '__Host-refresh_token' as const,
+        options: {
+          httpOnly: true as const,
+          secure: true as const,
+          sameSite: 'strict' as const,
+          path: '/' as const,
+        },
+      },
     },
     calendar: {
       credentialsPath: process.env.GOOGLE_CALENDAR_CREDENTIALS_PATH,
@@ -47,6 +56,10 @@ export default registerAs('config', () => {
     exchange: {
       url: process.env.EXCHANGE_API_URL,
       key: process.env.EXCHANGE_API_KEY,
+    },
+    holiday: {
+      url: process.env.HOLIDAY_API_URL,
+      key: process.env.HOLIDAY_API_KEY,
     },
     address: {
       url: process.env.ADDRESS_API_URL,

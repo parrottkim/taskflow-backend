@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 import { UserDto } from '@/user/dto/user';
 import { ScheduleCategoryDto } from './schedule-category';
+import { ScheduleHolidayDto } from './schedule-holiday';
 
 export class ScheduleDto {
   @ApiProperty()
@@ -21,6 +22,15 @@ export class ScheduleDto {
   @ApiProperty()
   @Expose()
   eventId: string;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: '스케줄에 연결된 활성 보고서 ID',
+  })
+  @Transform(({ value, obj }) => value ?? obj.reports?.[0]?.id ?? null)
+  @Expose()
+  reportId: number | null;
 
   @ApiProperty()
   @Expose()
@@ -52,6 +62,12 @@ export class ScheduleDto {
   @Type(() => UserDto)
   @Expose()
   user: UserDto;
+
+  @ApiProperty({ type: [ScheduleHolidayDto] })
+  @ValidateNested({ each: true })
+  @Type(() => ScheduleHolidayDto)
+  @Expose()
+  holidays: ScheduleHolidayDto[];
 
   @ApiProperty()
   @Expose()

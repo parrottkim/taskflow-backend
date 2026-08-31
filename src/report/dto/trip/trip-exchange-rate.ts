@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
-import { IsDate, IsNumber, IsOptional } from 'class-validator';
+import { IsDate, IsDateString, IsNumber, IsOptional } from 'class-validator';
 
 export class TripExchangeRateDto {
   @ApiProperty()
@@ -13,10 +13,9 @@ export class TripExchangeRateDto {
   rate: number;
 
   @ApiProperty({ description: '환율 적용 기준일' })
-  @Type(() => Date)
-  @IsDate()
+  @IsDateString({ strict: true })
   @Expose()
-  appliedDate: Date;
+  appliedDate: string;
 
   @ApiProperty({ required: false, nullable: true })
   @Type(() => Date)

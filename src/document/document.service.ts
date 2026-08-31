@@ -1,4 +1,5 @@
 import { Document } from '@/entity/document/document.entity';
+import { DocumentAttachment } from '@/entity/document/document-attachment.entity';
 import { DocumentFolder } from '@/entity/document/document-folder.entity';
 import {
   ConflictException,
@@ -16,6 +17,7 @@ import { assertOwnerOrAdmin } from '@/common/policies/resource-access.policy';
 import { CreateDocumentDto } from './dto/create-document';
 import { UpdateDocumentDto } from './dto/update-document';
 import { MailService } from '@/mail/mail.service';
+import { SftpService } from '@/sftp/sftp.service';
 
 @Injectable()
 export class DocumentService {
@@ -26,6 +28,7 @@ export class DocumentService {
     @InjectRepository(DocumentFolder)
     private readonly documentFolderRepository: Repository<DocumentFolder>,
     private readonly mailService: MailService,
+    private readonly sftpService: SftpService,
   ) {}
 
   private async ensureFixedDocumentLimit(
@@ -49,7 +52,7 @@ export class DocumentService {
     const fixedCount = await queryBuilder.getCount();
 
     if (fixedCount >= 5) {
-      throw new ConflictException('fixed_document_limit_exceeded');
+      throw new ConflictException('conflict_fixed_document_limit_exceeded');
     }
   }
 
@@ -156,7 +159,7 @@ export class DocumentService {
     const document = await this.findDocumentById(id);
 
     if (!document) {
-      throw new NotFoundException('document_not_found');
+      throw new NotFoundException('not_found_document');
     }
 
     const documentDto = plainToInstance(DocumentDto, document, {
@@ -179,13 +182,13 @@ export class DocumentService {
       .execute();
 
     if (!incrementResult.affected) {
-      throw new NotFoundException('document_not_found');
+      throw new NotFoundException('not_found_document');
     }
 
     const document = await this.findDocumentById(id);
 
     if (!document) {
-      throw new NotFoundException('document_not_found');
+      throw new NotFoundException('not_found_document');
     }
 
     return plainToInstance(DocumentDto, document, {
@@ -216,7 +219,7 @@ export class DocumentService {
     const document = await this.findDocumentById(id);
 
     if (!document) {
-      throw new NotFoundException('document_not_found');
+      throw new NotFoundException('not_found_document');
     }
 
     const documentDto = plainToInstance(DocumentDto, document, {
@@ -242,7 +245,7 @@ export class DocumentService {
       });
 
       if (!folder) {
-        throw new NotFoundException('folder_not_found');
+        throw new NotFoundException('not_found_folder');
       }
 
       if (body.fixed) {
@@ -282,11 +285,11 @@ export class DocumentService {
     try {
       const document = await queryRunner.manager.findOne(Document, {
         where: { id },
-        relations: ['createdBy', 'folder'],
+        relations: ['createdBy', 'folder', 'attachments'],
       });
 
       if (!document) {
-        throw new NotFoundException('document_not_found');
+        throw new NotFoundException('not_found_document');
       }
 
       assertOwnerOrAdmin(user, document.createdBy.id);
@@ -299,7 +302,7 @@ export class DocumentService {
         });
 
         if (!folder) {
-          throw new NotFoundException('folder_not_found');
+          throw new NotFoundException('not_found_folder');
         }
 
         document.folder = folder;
@@ -322,6 +325,45 @@ export class DocumentService {
       document.title = body.title ?? document.title;
       document.content = body.content ?? document.content;
       document.fixed = body.fixed ?? document.fixed;
+
+      if (body.attachments) {
+        const toRemove = document.attachments.filter(
+          (oldAttachment) =>
+            !body.attachments.some(
+              (newAttachment) => newAttachment.id === oldAttachment.id,
+            ),
+        );
+
+        for (const attachment of toRemove) {
+          await this.sftpService.deleteFileByPath(attachment.path);
+        }
+
+        if (toRemove.length > 0) {
+          await queryRunner.manager.remove(DocumentAttachment, toRemove);
+        }
+
+        const remainingAttachments = document.attachments.filter(
+          (attachment) => !toRemove.includes(attachment),
+        );
+        const newAttachments = body.attachments
+          .filter(
+            (attachment) =>
+              !document.attachments.some(
+                (oldAttachment) => oldAttachment.id === attachment.id,
+              ),
+          )
+          .map((attachment) =>
+            queryRunner.manager.create(DocumentAttachment, {
+              filename: attachment.filename,
+              path: attachment.path,
+              size: attachment.size,
+              document,
+            }),
+          );
+
+        document.attachments = [...remainingAttachments, ...newAttachments];
+      }
+
       document.updatedBy = user;
 
       const saved = await queryRunner.manager.save(document);
@@ -347,7 +389,7 @@ export class DocumentService {
     });
 
     if (!document) {
-      throw new NotFoundException('document_not_found');
+      throw new NotFoundException('not_found_document');
     }
 
     await this.documentRepository.softDelete(id);

@@ -5,8 +5,15 @@ import { AuthGuard } from '@nestjs/passport';
 export class JwtRefreshAuthGuard extends AuthGuard('jwt-refresh') {
   handleRequest(err, user, info) {
     if (info && info.name === 'TokenExpiredError') {
-      throw new UnauthorizedException('refresh_token_expired');
+      throw new UnauthorizedException('unauthorized_refresh_token_expired');
     }
+
+    if (err || !user) {
+      throw (
+        err || new UnauthorizedException('unauthorized_refresh_token_invalid')
+      );
+    }
+
     return user;
   }
 }

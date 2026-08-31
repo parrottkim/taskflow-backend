@@ -7,11 +7,13 @@ import { DocumentAttachment } from '@/entity/document/document-attachment.entity
 import { DocumentFolder } from '@/entity/document/document-folder.entity';
 import { DocumentEditGuard } from '@/common/guards/document-edit.guard';
 import { MailModule } from '@/mail/mail.module';
+import { SftpModule } from '@/sftp/sftp.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Document, DocumentAttachment, DocumentFolder]),
     MailModule,
+    SftpModule,
   ],
   controllers: [DocumentController],
   providers: [DocumentService, DocumentEditGuard],

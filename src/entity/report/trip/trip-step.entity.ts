@@ -37,4 +37,7 @@ export class TripStep {
 
   @Column({ nullable: true })
   description?: string;
+
+  @Column({ default: false })
+  requiresExpenseCurrency: boolean;
 }

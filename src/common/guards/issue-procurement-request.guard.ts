@@ -31,10 +31,10 @@ export class IssueProcurementRequestGuard implements CanActivate {
       },
     });
 
-    if (!issue) throw new NotFoundException('issue_not_found');
+    if (!issue) throw new NotFoundException('not_found_issue');
 
     if (user.department.id !== 1 && user.department.id !== 3) {
-      throw new ForbiddenException('no_permission');
+      throw new ForbiddenException('forbidden_access_denied');
     }
 
     request.validatedIssueId = issue.id;

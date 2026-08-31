@@ -49,7 +49,7 @@ export class ReportAttachmentService {
     const attachment = await this.reportAttachmentRepository.findOne({
       where: { id: fileId, report: { id: reportId } },
     });
-    if (!attachment) throw new NotFoundException('not_found');
+    if (!attachment) throw new NotFoundException('not_found_attachment');
 
     await this.reportAttachmentRepository.remove(attachment);
     // 필요하면 SFTP에서도 삭제

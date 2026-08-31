@@ -15,6 +15,7 @@ import { Currency } from '@/entity/currency/currency.entity';
 import { Repository } from 'typeorm';
 import { CurrencyDto } from './dto/currency';
 import dayjs from 'dayjs';
+import { ExchangeRateApiResponse } from './currency.types';
 
 @Injectable()
 export class CurrencyService {
@@ -34,6 +35,10 @@ export class CurrencyService {
 
   async findCurrencyById(id: number) {
     return await this.currencyRepository.findOne({ where: { id: id } });
+  }
+
+  async findCurrencyByCode(code: string) {
+    return await this.currencyRepository.findOne({ where: { code } });
   }
 
   async getAllCurrencies() {
@@ -58,7 +63,7 @@ export class CurrencyService {
 
   private toDateCursor(date: string) {
     if (!/^\d{8}$/.test(date)) {
-      throw new BadRequestException('invalid_exchange_date');
+      throw new BadRequestException('bad_request_exchange_date_invalid');
     }
 
     const parsedDate = dayjs(
@@ -66,17 +71,23 @@ export class CurrencyService {
     );
 
     if (!parsedDate.isValid()) {
-      throw new BadRequestException('invalid_exchange_date');
+      throw new BadRequestException('bad_request_exchange_date_invalid');
     }
 
     return parsedDate;
   }
 
-  async getExchangeRate(date: string) {
+  async getExchangeRate(date: string, currency: string = 'USD') {
     const url = this.configService.exchange.url;
     const apiKey = this.configService.exchange.key;
 
     try {
+      const currencyEntity = await this.findCurrencyByCode(currency);
+
+      if (!currencyEntity) {
+        throw new BadRequestException('bad_request_currency_invalid');
+      }
+
       let cursor = this.toDateCursor(date);
 
       const attemptedDates: string[] = [];
@@ -86,7 +97,7 @@ export class CurrencyService {
         attemptedDates.push(searchDate);
 
         const response = await firstValueFrom(
-          this.httpService.get(url, {
+          this.httpService.get<ExchangeRateApiResponse>(url, {
             params: {
               authkey: apiKey,
               searchdate: searchDate,
@@ -95,7 +106,7 @@ export class CurrencyService {
           }),
         );
 
-        const allRates: Array<any> = response.data;
+        const allRates = response.data;
 
         if (!Array.isArray(allRates) || allRates.length === 0) {
           cursor = cursor.subtract(1, 'day');
@@ -115,34 +126,35 @@ export class CurrencyService {
           if (errorCode === 3) errorMessage = '인증키 오류';
           else if (errorCode === 4) errorMessage = '일자 오류';
 
+          console.error(`환율 정보 조회 실패: ${errorMessage}`);
           throw new InternalServerErrorException(
-            `환율 정보 조회 실패: ${errorMessage}`,
+            'internal_server_error_exchange_api_request_failed',
           );
         }
 
-        const usdRate = allRates.find((item) => item.cur_unit === 'USD');
-        const deal_bas_r = usdRate?.deal_bas_r;
+        const currencyRate = allRates.find(
+          (item) => item.cur_unit === currencyEntity.code,
+        );
+        const kftc_deal_bas_r = currencyRate?.kftc_deal_bas_r;
 
-        if (!deal_bas_r) {
+        if (!kftc_deal_bas_r) {
           cursor = cursor.subtract(1, 'day');
           continue;
         }
 
-        const rate = parseFloat(deal_bas_r.replace(/,/g, ''));
+        const rate = parseFloat(kftc_deal_bas_r.replace(/,/g, ''));
 
         if (!Number.isNaN(rate)) {
           return {
             rate,
-            appliedDate: cursor.toDate(),
+            appliedDate: cursor.format('YYYY-MM-DD'),
           };
         }
 
         cursor = cursor.subtract(1, 'day');
       }
 
-      throw new NotFoundException(
-        `exchange_not_found: ${attemptedDates.join(', ')}`,
-      );
+      throw new NotFoundException('not_found_exchange');
     } catch (error) {
       if (error instanceof Error && 'status' in error) {
         throw error;
@@ -154,7 +166,7 @@ export class CurrencyService {
       );
 
       throw new InternalServerErrorException(
-        '환율 정보를 처리하는 데 예상치 못한 오류가 발생했습니다.',
+        'internal_server_error_exchange_processing_failed',
       );
     }
   }

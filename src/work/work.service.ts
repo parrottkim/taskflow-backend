@@ -94,10 +94,10 @@ export class WorkService {
       .getRepository(Project)
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.createdBy', 'createdBy')
-      .leftJoinAndSelect('createdBy.position', 'createdByPosition')
+      .leftJoinAndSelect('createdBy.rank', 'createdByRank')
       .leftJoinAndSelect('createdBy.department', 'createdByDepartment')
       .leftJoinAndSelect('project.manager', 'manager')
-      .leftJoinAndSelect('manager.position', 'managerPosition')
+      .leftJoinAndSelect('manager.rank', 'managerRank')
       .leftJoinAndSelect('manager.department', 'managerDepartment')
       .leftJoinAndSelect('project.latestCategory', 'latestCategory')
       .leftJoinAndSelect('project.client', 'client')
@@ -193,7 +193,7 @@ export class WorkService {
       .leftJoinAndSelect('project.client', 'client')
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.createdBy', 'createdBy')
-      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.rank', 'rank')
       .leftJoinAndSelect('createdBy.department', 'department')
       .where('createdBy.id = :userId', { userId: user.id });
 
@@ -274,12 +274,12 @@ export class WorkService {
       .leftJoinAndSelect('report.project', 'project')
       .leftJoinAndSelect('project.client', 'projectClient')
       .leftJoinAndSelect('report.createdBy', 'createdBy')
-      .leftJoinAndSelect('createdBy.position', 'createdByPosition')
+      .leftJoinAndSelect('createdBy.rank', 'createdByRank')
       .leftJoinAndSelect('createdBy.department', 'createdByDepartment')
       .leftJoinAndSelect('report.schedule', 'schedule')
       .leftJoinAndSelect('schedule.category', 'scheduleCategory')
       .leftJoinAndSelect('schedule.user', 'scheduleUser')
-      .leftJoinAndSelect('scheduleUser.position', 'scheduleUserPosition')
+      .leftJoinAndSelect('scheduleUser.rank', 'scheduleUserRank')
       .leftJoinAndSelect('scheduleUser.department', 'scheduleUserDepartment')
       .where('createdBy.id = :userId', { userId: user.id });
 
@@ -365,6 +365,7 @@ export class WorkService {
             ScheduleDto,
             {
               ...report.schedule,
+              reportId: report.id,
               projectId: report.project.id,
               projectCode: report.project.code,
               projectName: report.project.name,

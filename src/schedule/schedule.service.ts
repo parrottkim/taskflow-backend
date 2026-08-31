@@ -3,6 +3,7 @@ import {
   Inject,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { google, calendar_v3 } from 'googleapis';
 import { join } from 'path';
@@ -14,7 +15,7 @@ import { ScheduleDto, ScheduleGroupDto, ScheduleListDto } from './dto/schedule';
 import { ProjectService } from '@/project/project.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ScheduleCategory } from '@/entity/schedule/schedule-category.entity';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, IsNull, Repository } from 'typeorm';
 import { User } from '@/entity/user/user.entity';
 import { assertWriteAccess } from '@/common/policies/write-access.policy';
 import { assertOwnerOrAdmin } from '@/common/policies/resource-access.policy';
@@ -28,11 +29,19 @@ import { Project } from '@/entity/project/project.entity';
 import { ProjectClientService } from '@/project/project-client.service';
 import { ProjectDto } from '@/project/dto/project';
 import { UserDepartmentClosure } from '@/entity/user/user-department-closure.entity';
+import { Report } from '@/entity/report/report.entity';
+import { ScheduleHoliday } from '@/entity/schedule/schedule-holiday.entity';
+import { HolidayService } from '@/holiday/holiday.service';
+import { UpdateScheduleHolidayDto } from './dto/update-schedule-holiday';
 
 @Injectable()
 export class ScheduleService {
   private calendarClient: calendar_v3.Calendar;
   private readonly scheduleCalendarId: string;
+
+  private toScheduleDate(value: string | Date): Date {
+    return new Date(`${dayjs(value).format('YYYY-MM-DD')}T00:00:00.000Z`);
+  }
 
   constructor(
     private readonly dataSource: DataSource,
@@ -47,6 +56,7 @@ export class ScheduleService {
     private readonly projectService: ProjectService,
     private readonly projectClientService: ProjectClientService,
     private readonly mailService: MailService,
+    private readonly holidayService: HolidayService,
   ) {
     const credentialsPath = this.configService.calendar.credentialsPath;
     this.scheduleCalendarId = this.configService.calendar.scheduleCalendarId;
@@ -63,6 +73,95 @@ export class ScheduleService {
     return await this.scheduleCategoryRepository.findOneBy({ id });
   }
 
+  private async syncScheduleHolidays(
+    manager: EntityManager,
+    schedule: Schedule,
+    holidayInputs?: UpdateScheduleHolidayDto[],
+  ): Promise<ScheduleHoliday[]> {
+    await manager.delete(ScheduleHoliday, {
+      schedule: { id: schedule.id },
+    });
+
+    if (schedule.category.id !== 1) {
+      if (holidayInputs?.length) {
+        throw new BadRequestException(
+          'bad_request_schedule_holidays_not_allowed',
+        );
+      }
+
+      return [];
+    }
+
+    const daysOff = await this.holidayService.getDaysOffBetween(
+      schedule.start,
+      schedule.end,
+    );
+    const inputs = holidayInputs ?? [];
+    const inputByDate = new Map(
+      inputs.map((holiday) => [
+        dayjs(holiday.date).format('YYYY-MM-DD'),
+        holiday,
+      ]),
+    );
+
+    if (holidayInputs) {
+      const expectedDates = new Set(
+        daysOff.map((dayOff) => dayjs(dayOff.date).format('YYYY-MM-DD')),
+      );
+      const hasInvalidDates =
+        inputByDate.size !== inputs.length ||
+        inputs.some(
+          (holiday) =>
+            !expectedDates.has(dayjs(holiday.date).format('YYYY-MM-DD')),
+        );
+
+      if (hasInvalidDates) {
+        throw new BadRequestException(
+          'bad_request_schedule_holiday_dates_invalid',
+        );
+      }
+
+      const compensatoryLeaveDates = inputs
+        .map((holiday) => holiday.compensatoryLeaveDate)
+        .filter((date): date is Date => Boolean(date))
+        .map((date) => dayjs(date).format('YYYY-MM-DD'));
+
+      if (
+        new Set(compensatoryLeaveDates).size !== compensatoryLeaveDates.length
+      ) {
+        throw new BadRequestException(
+          'bad_request_compensatory_leave_date_duplicate',
+        );
+      }
+    }
+
+    const selectedDaysOff = holidayInputs
+      ? daysOff.filter((dayOff) =>
+          inputByDate.has(dayjs(dayOff.date).format('YYYY-MM-DD')),
+        )
+      : daysOff;
+    const holidays = selectedDaysOff.map((dayOff) => {
+      const date = dayjs(dayOff.date).format('YYYY-MM-DD');
+      const input = inputByDate.get(date);
+
+      return manager.create(ScheduleHoliday, {
+        schedule,
+        type:
+          dayOff.name === '토요일' || dayOff.name === '일요일'
+            ? 'WEEKEND'
+            : 'PUBLIC_HOLIDAY',
+        date: new Date(`${date}T00:00:00.000Z`),
+        name: dayOff.name,
+        isTravelOnly: input?.isTravelOnly ?? false,
+        compensatoryLeaveDate: input?.compensatoryLeaveDate
+          ? dayjs(input.compensatoryLeaveDate).toDate()
+          : undefined,
+      });
+    });
+
+    return holidays.length > 0 ? manager.save(holidays) : [];
+  }
+
   async findAllCategories() {
     return await this.scheduleCategoryRepository
       .createQueryBuilder('category')
@@ -76,7 +175,14 @@ export class ScheduleService {
       .leftJoinAndSelect('schedule.project', 'project')
       .leftJoinAndSelect('schedule.category', 'category')
       .leftJoinAndSelect('schedule.user', 'user')
+      .leftJoinAndSelect('schedule.holidays', 'holiday')
+      .leftJoinAndSelect(
+        'schedule.reports',
+        'report',
+        'report.deletedAt IS NULL',
+      )
       .where('schedule.id = :id', { id })
+      .orderBy('holiday.date', 'ASC')
       .getOne();
   }
 
@@ -152,7 +258,7 @@ export class ScheduleService {
 
     // findScheduleById 내부에서 예외 처리를 하지 않는 경우를 대비한 방어 코드
     if (!schedule) {
-      throw new NotFoundException('schedule_not_found');
+      throw new NotFoundException('not_found_schedule');
     }
 
     const project = await this.projectService.getProjectWithoutUser(
@@ -187,7 +293,13 @@ export class ScheduleService {
       .leftJoinAndSelect('project.client', 'client')
       .leftJoinAndSelect('schedule.category', 'category')
       .leftJoinAndSelect('schedule.user', 'user')
-      .leftJoinAndSelect('user.department', 'department');
+      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('schedule.holidays', 'holiday')
+      .leftJoinAndSelect(
+        'schedule.reports',
+        'report',
+        'report.deletedAt IS NULL',
+      );
 
     if (query.userId) {
       queryBuilder = queryBuilder.andWhere('user.id = :userId', {
@@ -234,7 +346,8 @@ export class ScheduleService {
         end: end.toDate(),
       })
       .orderBy('schedule.start', 'ASC')
-      .addOrderBy('schedule.id', 'ASC');
+      .addOrderBy('schedule.id', 'ASC')
+      .addOrderBy('holiday.date', 'ASC');
 
     const previousQueryBuilder = queryBuilder
       .clone()
@@ -370,11 +483,16 @@ export class ScheduleService {
         summary: body.summary,
         description: body.description,
         url: body.url,
-        start: new Date(body.start),
-        end: new Date(body.end),
+        start: this.toScheduleDate(body.start),
+        end: this.toScheduleDate(body.end),
       });
 
       await queryRunner.manager.save(saved);
+      saved.holidays = await this.syncScheduleHolidays(
+        queryRunner.manager,
+        saved,
+        body.holidays,
+      );
 
       const ancestors = await this.projectClientService.findAncestors(
         project.client.id,
@@ -435,16 +553,30 @@ export class ScheduleService {
       // 여기서는 안전하게 트랜잭션 내에서 조회하도록 가정합니다.
       const schedule = await queryRunner.manager.findOne(Schedule, {
         where: { id },
-        relations: ['user', 'project', 'category'],
+        relations: ['user', 'project', 'category', 'holidays'],
+        order: { holidays: { date: 'ASC' } },
       });
 
       if (!schedule) {
         await queryRunner.rollbackTransaction(); // 롤백
-        throw new NotFoundException('schedule_not_found');
+        throw new NotFoundException('not_found_schedule');
       }
 
       // 2️⃣ 권한 체크
       assertOwnerOrAdmin(user, schedule.user.id);
+
+      // 보고서 생성 후에는 출장 기간, 구분, 출장자가 계산 근거가 되므로
+      // 연결된 활성 보고서가 있는 스케줄은 수정할 수 없다.
+      const hasActiveReport = await queryRunner.manager.exists(Report, {
+        where: {
+          schedule: { id: schedule.id },
+          deletedAt: IsNull(),
+        },
+      });
+
+      if (hasActiveReport) {
+        throw new ConflictException('conflict_schedule_report_exists');
+      }
 
       // 3️⃣ 새 프로젝트/카테고리 값 처리 (queryRunner.manager 사용)
       let projectId = body.projectId ?? schedule.project.id;
@@ -517,12 +649,20 @@ export class ScheduleService {
         summary: body.summary ?? schedule.summary,
         description: body.description ?? schedule.description,
         url: body.url ?? schedule.url,
-        start: body.start ? new Date(body.start) : schedule.start,
-        end: body.end ? new Date(body.end) : schedule.end,
+        start: body.start ? this.toScheduleDate(body.start) : schedule.start,
+        end: body.end ? this.toScheduleDate(body.end) : schedule.end,
         project: project,
         category: category,
         user: schedule.user,
       });
+      updatedSchedule.holidays =
+        body.holidays !== undefined
+          ? await this.syncScheduleHolidays(
+              queryRunner.manager,
+              updatedSchedule,
+              body.holidays,
+            )
+          : schedule.holidays;
 
       // 6️⃣ DTO 반환 전 커밋
       await queryRunner.commitTransaction(); // ⬇️ 커밋
@@ -581,7 +721,20 @@ export class ScheduleService {
       });
 
       if (!schedule) {
-        throw new NotFoundException('schedule_not_found');
+        throw new NotFoundException('not_found_schedule');
+      }
+
+      // 보고서의 계산 근거와 이력을 보존하기 위해 활성 보고서가 연결된
+      // 스케줄은 삭제할 수 없다.
+      const hasActiveReport = await queryRunner.manager.exists(Report, {
+        where: {
+          schedule: { id: schedule.id },
+          deletedAt: IsNull(),
+        },
+      });
+
+      if (hasActiveReport) {
+        throw new ConflictException('conflict_schedule_report_exists');
       }
 
       // 2️⃣ Google Calendar 이벤트 삭제

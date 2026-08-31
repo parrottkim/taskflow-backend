@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsInt, IsNotEmpty, ValidateNested } from 'class-validator';
 import { PositionDto } from './position';
+import { RankDto } from './rank';
 import { DepartmentDto } from './department';
 import { Expose, Type } from 'class-transformer';
 
@@ -33,10 +34,15 @@ export class UserDto {
   @Expose()
   isGuest: boolean;
 
-  @ApiProperty({ type: PositionDto })
+  @ApiProperty({ type: RankDto })
+  @Type(() => RankDto)
+  @Expose()
+  rank: RankDto;
+
+  @ApiProperty({ type: PositionDto, nullable: true, required: false })
   @Type(() => PositionDto)
   @Expose()
-  position: PositionDto;
+  position?: PositionDto | null;
 
   @ApiProperty({ type: DepartmentDto })
   @Type(() => DepartmentDto)

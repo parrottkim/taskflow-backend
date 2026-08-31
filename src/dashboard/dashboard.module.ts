@@ -5,9 +5,15 @@ import { Schedule } from '@/entity/schedule/schedule.entity';
 import { UserModule } from '@/user/user.module';
 import { DashboardService } from './dashboard.service';
 import { DashboardController } from './dashboard.controller';
+import { Document } from '@/entity/document/document.entity';
+import { Issue } from '@/entity/issue/issue.entity';
+import { Report } from '@/entity/report/report.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Project, Schedule]), UserModule],
+  imports: [
+    TypeOrmModule.forFeature([Project, Document, Schedule, Issue, Report]),
+    UserModule,
+  ],
   providers: [DashboardService],
   controllers: [DashboardController],
 })

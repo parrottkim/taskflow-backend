@@ -115,7 +115,7 @@ export class IssueService {
       .setLock('pessimistic_write', undefined, ['project'])
       .getOne();
 
-    if (!project) throw new NotFoundException('project_not_found');
+    if (!project) throw new NotFoundException('not_found_project');
     return project;
   }
 
@@ -129,7 +129,7 @@ export class IssueService {
     const category = await manager.findOne(IssueCategory, {
       where: { id: categoryId },
     });
-    if (!category) throw new NotFoundException('category_not_found');
+    if (!category) throw new NotFoundException('not_found_category');
     return category;
   }
 
@@ -213,7 +213,7 @@ export class IssueService {
     });
 
     if (!category) {
-      throw new NotFoundException('category_not_found');
+      throw new NotFoundException('not_found_category');
     }
 
     const categoryDto = plainToInstance(IssueCategoryDto, category, {
@@ -248,7 +248,7 @@ export class IssueService {
     });
 
     if (!category) {
-      throw new NotFoundException('category_not_found');
+      throw new NotFoundException('not_found_category');
     }
 
     return category;
@@ -312,7 +312,7 @@ export class IssueService {
       .leftJoinAndSelect('items.supplier', 'supplier')
       .where('issue.id = :id', { id })
       .getOne();
-    if (!issue) throw new NotFoundException('issue_not_found');
+    if (!issue) throw new NotFoundException('not_found_issue');
 
     try {
       const workbook = new ExcelJS.Workbook();
@@ -421,12 +421,12 @@ export class IssueService {
 
     const request = await this.procurementIssueRequestRepository.findOne({
       where: { id },
-      relations: ['items', 'supplier', 'approvedBy', 'approvedBy.position'],
+      relations: ['items', 'supplier', 'approvedBy', 'approvedBy.rank'],
     });
-    if (!request) throw new NotFoundException('request_not_found');
+    if (!request) throw new NotFoundException('not_found_procurement_request');
 
     if (request.requiresApproval != request.isApproved) {
-      throw new ForbiddenException('ceo_approval_required');
+      throw new ForbiddenException('forbidden_ceo_approval_required');
     }
 
     try {
@@ -623,9 +623,9 @@ export class IssueService {
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.createdBy', 'createdBy')
       .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
-      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.rank', 'rank')
       .leftJoinAndSelect('createdBy.department', 'department')
-      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.rank', 'updatedByRank')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachment')
       .innerJoinAndSelect('issue.contract', 'contract')
@@ -654,9 +654,9 @@ export class IssueService {
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.createdBy', 'createdBy')
       .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
-      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.rank', 'rank')
       .leftJoinAndSelect('createdBy.department', 'department')
-      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.rank', 'updatedByRank')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachment')
       .innerJoinAndSelect('issue.kickoff', 'kickoff')
@@ -684,9 +684,9 @@ export class IssueService {
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.createdBy', 'createdBy')
       .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
-      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.rank', 'rank')
       .leftJoinAndSelect('createdBy.department', 'department')
-      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.rank', 'updatedByRank')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachment')
       .innerJoinAndSelect('issue.transaction', 'transaction')
@@ -722,9 +722,9 @@ export class IssueService {
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.createdBy', 'createdBy')
       .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
-      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.rank', 'rank')
       .leftJoinAndSelect('createdBy.department', 'department')
-      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.rank', 'updatedByRank')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachment')
       .innerJoinAndSelect('issue.payment', 'payment')
@@ -748,9 +748,9 @@ export class IssueService {
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.createdBy', 'createdBy')
       .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
-      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.rank', 'rank')
       .leftJoinAndSelect('createdBy.department', 'department')
-      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.rank', 'updatedByRank')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachment')
       .innerJoinAndSelect('issue.approval', 'approval')
@@ -785,9 +785,9 @@ export class IssueService {
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.createdBy', 'createdBy')
       .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
-      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.rank', 'rank')
       .leftJoinAndSelect('createdBy.department', 'department')
-      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.rank', 'updatedByRank')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachment')
       .innerJoinAndSelect('issue.procurement', 'procurement')
@@ -838,9 +838,9 @@ export class IssueService {
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.createdBy', 'createdBy')
       .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
-      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.rank', 'rank')
       .leftJoinAndSelect('createdBy.department', 'department')
-      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.rank', 'updatedByRank')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachment')
       .leftJoinAndSelect('issue.contract', 'contract')
@@ -871,9 +871,9 @@ export class IssueService {
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.createdBy', 'createdBy')
       .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
-      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.rank', 'rank')
       .leftJoinAndSelect('createdBy.department', 'department')
-      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.rank', 'updatedByRank')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('issue.attachments', 'attachment')
       .leftJoinAndSelect('issue.contract', 'contract')
@@ -932,7 +932,7 @@ export class IssueService {
         },
       );
       if (existingContract) {
-        throw new ConflictException('contract_issue_exists');
+        throw new ConflictException('conflict_contract_issue_already_exists');
       }
 
       const currency = await queryRunner.manager.findOne(Currency, {
@@ -1021,7 +1021,7 @@ export class IssueService {
         },
       });
       if (existingKickoff) {
-        throw new ConflictException('kickoff_issue_exists');
+        throw new ConflictException('conflict_kickoff_issue_already_exists');
       }
 
       const issue = await queryRunner.manager.create(Issue, {
@@ -1127,7 +1127,7 @@ export class IssueService {
           'attachments',
         ],
       });
-      if (!issue) throw new NotFoundException('issue_not_found');
+      if (!issue) throw new NotFoundException('not_found_issue');
 
       await queryRunner.manager.save(issue.procurement);
 
@@ -1243,7 +1243,7 @@ export class IssueService {
         },
       );
 
-      if (!request) throw new NotFoundException('request_not_found');
+      if (!request) throw new NotFoundException('not_found_procurement_request');
 
       assertOwnerOrAdmin(user, request.requestedBy.id);
 
@@ -1335,11 +1335,11 @@ export class IssueService {
     try {
       const approver = await queryRunner.manager.findOne(User, {
         where: { id: user.id },
-        relations: ['position'],
+        relations: ['rank'],
       });
 
-      if (!approver || approver.position?.id !== 1) {
-        throw new ForbiddenException('no_permission');
+      if (!approver || approver.rank?.id !== 1) {
+        throw new ForbiddenException('forbidden_access_denied');
       }
 
       const request = await queryRunner.manager.findOne(
@@ -1355,7 +1355,7 @@ export class IssueService {
         },
       );
 
-      if (!request) throw new NotFoundException('request_not_found');
+      if (!request) throw new NotFoundException('not_found_procurement_request');
 
       if (!request.requiresApproval) {
         await queryRunner.commitTransaction();
@@ -1416,7 +1416,7 @@ export class IssueService {
         },
       );
 
-      if (!request) throw new NotFoundException('request_not_found');
+      if (!request) throw new NotFoundException('not_found_procurement_request');
 
       assertOwnerOrAdmin(user, request.requestedBy.id);
 
@@ -1528,7 +1528,7 @@ export class IssueService {
         },
       );
       if (existingTransaction) {
-        throw new ConflictException('transaction_issue_exists');
+        throw new ConflictException('conflict_transaction_issue_already_exists');
       }
 
       const issue = await queryRunner.manager.create(Issue, {
@@ -1634,7 +1634,7 @@ export class IssueService {
         },
       });
       if (existingPayment) {
-        throw new ConflictException('payment_issue_exists');
+        throw new ConflictException('conflict_payment_issue_already_exists');
       }
 
       const issue = await queryRunner.manager.create(Issue, {
@@ -1686,7 +1686,7 @@ export class IssueService {
           'attachments',
         ],
       });
-      if (!issue) throw new NotFoundException('issue_not_found');
+      if (!issue) throw new NotFoundException('not_found_issue');
 
       assertOwnerOrAdmin(user, issue.createdBy.id);
 
@@ -1881,7 +1881,7 @@ export class IssueService {
           'attachments',
         ],
       });
-      if (!issue) throw new NotFoundException('issue_not_found');
+      if (!issue) throw new NotFoundException('not_found_issue');
 
       assertOwnerOrAdmin(user, issue.createdBy.id);
 
@@ -1976,7 +1976,7 @@ export class IssueService {
           'attachments',
         ],
       });
-      if (!issue) throw new NotFoundException('issue_not_found');
+      if (!issue) throw new NotFoundException('not_found_issue');
 
       assertOwnerOrAdmin(user, issue.createdBy.id);
 
@@ -2072,7 +2072,7 @@ export class IssueService {
           'attachments',
         ],
       });
-      if (!issue) throw new NotFoundException('issue_not_found');
+      if (!issue) throw new NotFoundException('not_found_issue');
 
       assertOwnerOrAdmin(user, issue.createdBy.id);
 
@@ -2230,7 +2230,7 @@ export class IssueService {
           'attachments',
         ],
       });
-      if (!issue) throw new NotFoundException('issue_not_found');
+      if (!issue) throw new NotFoundException('not_found_issue');
 
       assertOwnerOrAdmin(user, issue.createdBy.id);
 
@@ -2375,7 +2375,7 @@ export class IssueService {
           'attachments',
         ],
       });
-      if (!issue) throw new NotFoundException('issue_not_found');
+      if (!issue) throw new NotFoundException('not_found_issue');
 
       assertOwnerOrAdmin(user, issue.createdBy.id);
 
@@ -2458,9 +2458,9 @@ export class IssueService {
         .leftJoinAndSelect('issue.category', 'category')
         .leftJoinAndSelect('issue.createdBy', 'createdBy')
         .leftJoinAndSelect('issue.updatedBy', 'updatedBy')
-        .leftJoinAndSelect('createdBy.position', 'position')
+        .leftJoinAndSelect('createdBy.rank', 'rank')
         .leftJoinAndSelect('createdBy.department', 'department')
-        .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+        .leftJoinAndSelect('updatedBy.rank', 'updatedByRank')
         .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
         .leftJoinAndSelect('issue.attachments', 'attachment')
         .leftJoinAndSelect('issue.contract', 'contract')
@@ -2478,7 +2478,7 @@ export class IssueService {
       const issueDto = await this.mapIssueToDto(issue);
 
       if (!issue) {
-        throw new NotFoundException('issue_not_found');
+        throw new NotFoundException('not_found_issue');
       }
 
       assertOwnerOrAdmin(user, issue.createdBy.id);

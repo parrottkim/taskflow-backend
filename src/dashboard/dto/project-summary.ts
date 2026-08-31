@@ -15,7 +15,7 @@ export class ProjectSummaryDto {
   @ApiProperty()
   @IsInt()
   @IsNotEmpty()
-  kickedOff: number;
+  preexecuted: number;
 
   @ApiProperty()
   @IsInt()

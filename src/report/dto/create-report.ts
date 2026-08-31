@@ -7,8 +7,12 @@ import {
   IsOptional,
   IsString,
   IsBoolean,
+  IsDateString,
+  Matches,
+  IsDate,
 } from 'class-validator';
 import { ReportAttachmentDto } from './report-attachment';
+import { UpdateScheduleHolidayDto } from '@/schedule/dto/update-schedule-holiday';
 
 export class CreateActualExpenseDto {
   @ApiProperty()
@@ -16,15 +20,24 @@ export class CreateActualExpenseDto {
   @IsNotEmpty()
   stepId: number;
 
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsNumber()
+  currencyId?: number;
+
+  @ApiProperty()
+  @Type(() => Date)
+  @IsDate()
+  @IsOptional()
+  paymentDate?: Date;
+
   @ApiProperty()
   @IsNumber()
   @IsNotEmpty()
   @Transform(({ value }) => {
-    // 쉼표(,)를 제거하고 숫자로 변환합니다.
     if (typeof value === 'string') {
-      return parseInt(value.replace(/,/g, ''), 10);
+      return parseFloat(value.replace(/,/g, ''));
     }
-    // 이미 숫자이거나 다른 타입이면 그대로 반환
     return value;
   })
   price: number;
@@ -134,10 +147,23 @@ export class CreateTripReportDto {
   @Type(() => CreateFuelExpenseDto)
   fuel?: CreateFuelExpenseDto;
 
-  @ApiProperty({ description: '공제 여부' })
+  @ApiProperty({
+    description:
+      '공제 여부. 해외 출장(category 2)은 택시/렌탈 비용에 따라 서버에서 자동 계산',
+  })
   @IsOptional()
   @IsBoolean()
   isDeducted?: boolean;
+
+  @ApiProperty({
+    type: [UpdateScheduleHolidayDto],
+    required: false,
+    description: '국내 출장 기간 중 주말/공휴일별 이동 여부와 대체휴무 기록',
+  })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateScheduleHolidayDto)
+  holidays?: UpdateScheduleHolidayDto[];
 }
 
 // ⭐️ Report 생성 DTO (공통 필드만 포함)

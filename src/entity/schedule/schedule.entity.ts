@@ -15,6 +15,8 @@ import { ScheduleCategory } from './schedule-category.entity';
 import { Project } from '../project/project.entity';
 import { User } from '../user/user.entity';
 import { Report } from '../report/report.entity';
+import { ScheduleHoliday } from './schedule-holiday.entity';
+import { DateColumnTransformer } from '@/common/utils/transformer.utils';
 
 @Entity()
 export class Schedule {
@@ -35,6 +37,9 @@ export class Schedule {
   })
   reports: Report[];
 
+  @OneToMany(() => ScheduleHoliday, (holiday) => holiday.schedule)
+  holidays: ScheduleHoliday[];
+
   @ManyToOne(() => User, (user) => user.schedules)
   user: User;
 
@@ -47,10 +52,10 @@ export class Schedule {
   @Column({ type: 'varchar' })
   url: string;
 
-  @Column()
+  @Column({ type: 'date', transformer: new DateColumnTransformer() })
   start: Date;
 
-  @Column()
+  @Column({ type: 'date', transformer: new DateColumnTransformer() })
   end: Date;
 
   @CreateDateColumn()

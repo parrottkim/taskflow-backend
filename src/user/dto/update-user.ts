@@ -1,13 +1,11 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateUserDto } from './create-user';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsOptional, IsNumber, IsString } from 'class-validator';
 
-export class UpdateUserDto extends PartialType(CreateUserDto) {
-  @ApiProperty()
+export class UpdateUserDto {
+  @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
-  refreshToken?: string;
+  username?: string;
 }
 
 export class UpdateUserPermissionDto {
@@ -29,7 +27,12 @@ export class UpdateUserPermissionDto {
   @ApiProperty()
   @IsNumber()
   @IsOptional()
-  positionId?: number;
+  rankId?: number;
+
+  @ApiProperty({ nullable: true, required: false })
+  @IsNumber()
+  @IsOptional()
+  positionId?: number | null;
 
   @ApiProperty()
   @IsNumber()
