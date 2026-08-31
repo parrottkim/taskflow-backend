@@ -27,7 +27,7 @@ export class ScheduleEditGuard implements CanActivate {
     });
 
     if (!schedule) {
-      throw new NotFoundException('schedule_not_found');
+      throw new NotFoundException('not_found_schedule');
     }
 
     assertOwnerOrAdmin(user, schedule.user.id);

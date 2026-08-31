@@ -47,7 +47,7 @@ export class DocumentAttachmentService {
     const attachment = await this.documentAttachmentRepository.findOne({
       where: { id: fileId, document: { id: documentId } },
     });
-    if (!attachment) throw new NotFoundException('not_found');
+    if (!attachment) throw new NotFoundException('not_found_attachment');
 
     await this.documentAttachmentRepository.remove(attachment);
     await this.sftpService.deleteFileByPath(attachment.path);

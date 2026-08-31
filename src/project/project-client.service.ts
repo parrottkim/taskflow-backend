@@ -47,7 +47,7 @@ export class ProjectClientService {
         );
 
         if (!parentClosures.length) {
-          throw new NotFoundException('parent_client_not_found');
+          throw new NotFoundException('not_found_parent_client');
         }
 
         const newClosures = parentClosures.map((parentClosure) =>

@@ -10,6 +10,7 @@ export class TripRegulationDto {
   id: number;
 
   @ApiProperty()
+  @Transform(({ obj }) => obj.step?.id)
   @IsInt()
   @IsNotEmpty()
   @Expose()

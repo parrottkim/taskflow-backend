@@ -20,6 +20,8 @@ import { GetUsersDto } from './dto/get-users';
 import { UpdateUserDto, UpdateUserPermissionDto } from './dto/update-user';
 import { DepartmentGroupDto } from './dto/department';
 import { WriteAccessGuard } from '@/common/guards/write-access.guard';
+import { RankDto } from './dto/rank';
+import { PositionDto } from './dto/position';
 
 @ApiTags('User (사용자)')
 @Controller('user')
@@ -45,7 +47,20 @@ export class UserController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Successful response',
-    type: UserListDto,
+    type: [RankDto],
+  })
+  @Get('rank')
+  getAllRanks() {
+    return this.userService.getAllRanks();
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '직책 목록 조회' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: [PositionDto],
   })
   @Get('position')
   getAllPositions() {

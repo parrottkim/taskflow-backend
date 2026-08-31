@@ -18,10 +18,10 @@ describe('access policies', () => {
 
   it('rejects users without permission', () => {
     expect(() => assertOwnerOrAdmin(other, owner.id)).toThrow(
-      new ForbiddenException('no_permission'),
+      new ForbiddenException('forbidden_access_denied'),
     );
     expect(() => assertAdmin(other)).toThrow(
-      new ForbiddenException('no_permission'),
+      new ForbiddenException('forbidden_access_denied'),
     );
   });
 });

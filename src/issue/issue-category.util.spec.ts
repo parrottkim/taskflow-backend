@@ -19,7 +19,7 @@ describe('issue category progression', () => {
 
   it('rejects a category that does not match the category-specific API', () => {
     expect(() => assertIssueCategory(6, 1)).toThrow(
-      new BadRequestException('invalid_issue_category'),
+      new BadRequestException('bad_request_issue_category_invalid'),
     );
   });
 });

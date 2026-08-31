@@ -6,6 +6,6 @@ export interface AdminAccessUser {
 
 export function assertAdmin(user: AdminAccessUser): void {
   if (!user.isAdmin) {
-    throw new ForbiddenException('no_permission');
+    throw new ForbiddenException('forbidden_access_denied');
   }
 }

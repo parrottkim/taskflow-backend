@@ -42,9 +42,9 @@ export class ProjectService {
       .leftJoinAndSelect('project.updatedBy', 'updatedBy')
       .leftJoinAndSelect('project.manager', 'manager')
       .leftJoinAndSelect('project.latestCategory', 'latestCategory')
-      .leftJoinAndSelect('createdBy.position', 'position')
+      .leftJoinAndSelect('createdBy.rank', 'rank')
       .leftJoinAndSelect('createdBy.department', 'department')
-      .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+      .leftJoinAndSelect('updatedBy.rank', 'updatedByRank')
       .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
       .leftJoinAndSelect('project.client', 'client');
 
@@ -249,7 +249,7 @@ export class ProjectService {
     const project = await this.findProjectById(id, user);
 
     if (!project) {
-      throw new NotFoundException('project_not_found');
+      throw new NotFoundException('not_found_project');
     }
 
     const ancestors = await this.projectClientService.findAncestors(
@@ -284,7 +284,7 @@ export class ProjectService {
       .execute();
 
     if (!incrementResult.affected) {
-      throw new NotFoundException('project_not_found');
+      throw new NotFoundException('not_found_project');
     }
 
     return this.getProjectForEdit(user, id);
@@ -294,7 +294,7 @@ export class ProjectService {
     const project = await this.findProjectById(id);
 
     if (!project) {
-      throw new NotFoundException('project_not_found');
+      throw new NotFoundException('not_found_project');
     }
 
     const ancestors = await this.projectClientService.findAncestors(
@@ -378,21 +378,21 @@ export class ProjectService {
         where: { code: body.projectCode },
       });
       if (existingProject) {
-        throw new ConflictException('project_exists');
+        throw new ConflictException('conflict_project_code_already_exists');
       }
 
       // 연관 엔티티 조회
       const client = await queryRunner.manager.findOne(ProjectClient, {
         where: { id: body.clientId },
       });
-      if (!client) throw new NotFoundException('client_not_found');
+      if (!client) throw new NotFoundException('not_found_client');
 
       let manager: User | null = null;
       if (body.managerId) {
         manager = await queryRunner.manager.findOne(User, {
           where: { id: body.managerId },
         });
-        if (!manager) throw new NotFoundException('manager_not_found');
+        if (!manager) throw new NotFoundException('not_found_manager');
       }
 
       // 프로젝트 생성
@@ -450,9 +450,9 @@ export class ProjectService {
         .leftJoinAndSelect('project.updatedBy', 'updatedBy')
         .leftJoinAndSelect('project.manager', 'manager')
         .leftJoinAndSelect('project.latestCategory', 'latestCategory')
-        .leftJoinAndSelect('createdBy.position', 'position')
+        .leftJoinAndSelect('createdBy.rank', 'rank')
         .leftJoinAndSelect('createdBy.department', 'department')
-        .leftJoinAndSelect('updatedBy.position', 'updatedByPosition')
+        .leftJoinAndSelect('updatedBy.rank', 'updatedByRank')
         .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
         .leftJoinAndSelect('project.client', 'client')
         .leftJoinAndSelect(
@@ -465,7 +465,7 @@ export class ProjectService {
         .setLock('pessimistic_write', undefined, ['project'])
         .getOne();
 
-      if (!project) throw new NotFoundException('project_not_found');
+      if (!project) throw new NotFoundException('not_found_project');
 
       assertOwnerOrAdmin(user, project.createdBy.id);
 
@@ -474,7 +474,7 @@ export class ProjectService {
         const existingProject = await queryRunner.manager.findOne(Project, {
           where: { code: body.projectCode },
         });
-        if (existingProject) throw new ConflictException('project_exists');
+        if (existingProject) throw new ConflictException('conflict_project_code_already_exists');
         project.code = body.projectCode;
       }
 
@@ -490,7 +490,7 @@ export class ProjectService {
         const manager = await queryRunner.manager.findOne(User, {
           where: { id: body.managerId },
         });
-        if (!manager) throw new NotFoundException('manager_not_found');
+        if (!manager) throw new NotFoundException('not_found_manager');
         project.manager = manager;
       }
 
@@ -498,7 +498,7 @@ export class ProjectService {
         const client = await queryRunner.manager.findOne(ProjectClient, {
           where: { id: body.clientId },
         });
-        if (!client) throw new NotFoundException('client_not_found');
+        if (!client) throw new NotFoundException('not_found_client');
         project.client = client;
       }
 
@@ -506,7 +506,7 @@ export class ProjectService {
         const category = await queryRunner.manager.findOne(IssueCategory, {
           where: { id: body.categoryId },
         });
-        if (!category) throw new NotFoundException('category_not_found');
+        if (!category) throw new NotFoundException('not_found_category');
 
         if ((project.latestCategory?.id ?? 0) < category.id) {
           project.latestCategory = category;
@@ -559,7 +559,7 @@ export class ProjectService {
       });
 
       if (!project) {
-        throw new NotFoundException('project_not_found');
+        throw new NotFoundException('not_found_project');
       }
 
       await queryRunner.manager.softDelete(Project, id);
@@ -591,16 +591,16 @@ export class ProjectService {
           'updatedBy',
           'manager',
           'latestCategory',
-          'createdBy.position',
+          'createdBy.rank',
           'createdBy.department',
-          'updatedBy.position',
+          'updatedBy.rank',
           'updatedBy.department',
           'client',
         ],
       });
 
       if (!project) {
-        throw new NotFoundException('project_not_found');
+        throw new NotFoundException('not_found_project');
       }
 
       await queryRunner.commitTransaction();

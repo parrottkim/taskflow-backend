@@ -50,13 +50,13 @@ export class BookmarkService {
     });
 
     if (!project) {
-      throw new NotFoundException('project_not_found');
+      throw new NotFoundException('not_found_project');
     }
 
     const bookmark = await this.findBookmarkById(user.id, id);
 
     if (bookmark) {
-      throw new ConflictException('bookmark_exists');
+      throw new ConflictException('conflict_bookmark_already_exists');
     }
 
     const newBookmark = await this.create(user, project);
@@ -73,7 +73,7 @@ export class BookmarkService {
     const bookmark = await this.findBookmarkById(user.id, id);
 
     if (!bookmark) {
-      throw new NotFoundException('bookmark_not_found');
+      throw new NotFoundException('not_found_bookmark');
     }
 
     await this.remove(bookmark);

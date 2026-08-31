@@ -5,7 +5,7 @@ export function assertIssueCategory(
   expectedCategoryId: number,
 ) {
   if (categoryId !== expectedCategoryId) {
-    throw new BadRequestException('invalid_issue_category');
+    throw new BadRequestException('bad_request_issue_category_invalid');
   }
 }
 

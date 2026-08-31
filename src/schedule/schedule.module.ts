@@ -10,6 +10,9 @@ import { MailModule } from '@/mail/mail.module';
 import { ProjectClientModule } from '@/project/project-client.module';
 import { ScheduleEditGuard } from '@/common/guards/schedule-edit.guard';
 import { UserDepartmentClosure } from '@/entity/user/user-department-closure.entity';
+import { Report } from '@/entity/report/report.entity';
+import { ScheduleHoliday } from '@/entity/schedule/schedule-holiday.entity';
+import { HolidayModule } from '@/holiday/holiday.module';
 
 @Module({
   imports: [
@@ -17,11 +20,14 @@ import { UserDepartmentClosure } from '@/entity/user/user-department-closure.ent
       Schedule,
       ScheduleCategory,
       UserDepartmentClosure,
+      Report,
+      ScheduleHoliday,
     ]),
     ProjectModule,
     ProjectClientModule,
     UserModule,
     MailModule,
+    HolidayModule,
   ],
   controllers: [ScheduleController],
   providers: [ScheduleService, ScheduleEditGuard],

@@ -27,7 +27,7 @@ export class ProjectEditGuard implements CanActivate {
     });
 
     if (!project) {
-      throw new NotFoundException('project_not_found');
+      throw new NotFoundException('not_found_project');
     }
 
     assertOwnerOrAdmin(user, project.createdBy.id);

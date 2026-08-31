@@ -27,6 +27,10 @@ import { GetReportDto } from './dto/get-report';
 import { SendReportMailDto } from './dto/send-report-mail';
 import { ReportEditGuard } from '@/common/guards/report-edit.guard';
 import { WriteAccessGuard } from '@/common/guards/write-access.guard';
+import {
+  DailyAllowancePreviewDto,
+  PreviewDailyAllowanceDto,
+} from './dto/preview-daily-allowance';
 
 @Controller('report')
 export class ReportController {
@@ -69,6 +73,22 @@ export class ReportController {
   @Get('trip/regulations/:id')
   async getAllTripRegulations(@Param('id', ParseIntPipe) id: number) {
     return this.reportService.getAllTripRegulations(id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
+  @ApiOperation({ summary: '출장 일비 계산 미리보기' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: '국내·해외 출장 일비 계산 결과',
+    type: DailyAllowancePreviewDto,
+  })
+  @Post('trip/daily-allowance/preview')
+  previewDailyAllowance(
+    @Request() req,
+    @Body() body: PreviewDailyAllowanceDto,
+  ) {
+    return this.reportService.previewDailyAllowance(req.user, body);
   }
 
   @UseGuards(JwtAccessAuthGuard)

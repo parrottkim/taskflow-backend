@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsInt, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsString,
+  IsNotEmpty,
+  IsInt,
+  IsOptional,
+  ValidateNested,
+} from 'class-validator';
+import { UpdateScheduleHolidayDto } from './update-schedule-holiday';
 
 export class CreateScheduleDto {
   @ApiProperty()
@@ -36,4 +44,14 @@ export class CreateScheduleDto {
   @IsString()
   @IsNotEmpty()
   end: string;
+
+  @ApiProperty({
+    type: [UpdateScheduleHolidayDto],
+    required: false,
+    description: '국내출장 기간 중 주말/공휴일 정보',
+  })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateScheduleHolidayDto)
+  holidays?: UpdateScheduleHolidayDto[];
 }

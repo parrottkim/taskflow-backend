@@ -6,6 +6,6 @@ export interface WriteAccessUser {
 
 export function assertWriteAccess(user: WriteAccessUser): void {
   if (user.isGuest) {
-    throw new ForbiddenException('guest_read_only');
+    throw new ForbiddenException('forbidden_guest_write_not_allowed');
   }
 }

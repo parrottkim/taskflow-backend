@@ -27,7 +27,7 @@ export class DocumentEditGuard implements CanActivate {
     });
 
     if (!document) {
-      throw new NotFoundException('document_not_found');
+      throw new NotFoundException('not_found_document');
     }
 
     assertOwnerOrAdmin(user, document.createdBy.id);

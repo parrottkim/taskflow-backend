@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -12,9 +12,14 @@ import { DepartmentDto, DepartmentGroupDto } from './dto/department';
 import { UserDepartment } from '@/entity/user/user-department.entity';
 import { PositionDto } from './dto/position';
 import { UserPosition } from '@/entity/user/user-position.entity';
+import { RankDto } from './dto/rank';
+import { UserRank } from '@/entity/user/user-rank.entity';
 import { UserDepartmentClosure } from '@/entity/user/user-department-closure.entity';
 import { assertWriteAccess } from '@/common/policies/write-access.policy';
 import { assertAdmin } from '@/common/policies/admin-access.policy';
+import { assertOwnerOrAdmin } from '@/common/policies/resource-access.policy';
+
+type AuthenticationUpdate = Partial<Pick<User, 'password' | 'refreshToken'>>;
 
 @Injectable()
 export class UserService {
@@ -25,6 +30,8 @@ export class UserService {
     private readonly userDepartmentRepository: Repository<UserDepartment>,
     @InjectRepository(UserPosition)
     private readonly userPositionRepository: Repository<UserPosition>,
+    @InjectRepository(UserRank)
+    private readonly userRankRepository: Repository<UserRank>,
     @InjectRepository(UserDepartmentClosure)
     private readonly userDepartmentClosureRepository: Repository<UserDepartmentClosure>,
   ) {}
@@ -65,14 +72,14 @@ export class UserService {
   async findByEmail(email: string): Promise<User | null> {
     return await this.userRepository.findOne({
       where: { email },
-      relations: ['position', 'department'],
+      relations: ['rank', 'position', 'department'],
     });
   }
 
   async findById(id: number): Promise<User | null> {
     return await this.userRepository.findOne({
       where: { id },
-      relations: ['position', 'department'],
+      relations: ['rank', 'position', 'department'],
     });
   }
 
@@ -166,6 +173,15 @@ export class UserService {
       });
   }
 
+  async getAllRanks() {
+    const ranks = await this.userRankRepository.find({
+      order: { id: 'ASC' },
+    });
+    return plainToInstance(RankDto, ranks, {
+      excludeExtraneousValues: true,
+    });
+  }
+
   async getAllPositions() {
     const positions = await this.userPositionRepository.find({
       order: { id: 'ASC' },
@@ -179,10 +195,10 @@ export class UserService {
     // [1] 유저 및 기본 관계 조회
     const user = await this.userRepository.findOne({
       where: { id },
-      relations: ['position', 'department'],
+      relations: ['rank', 'position', 'department'],
     });
 
-    if (!user) throw new UnauthorizedException('user_not_found');
+    if (!user) throw new NotFoundException('not_found_user');
 
     // [2] DTO 기본 변환
     const dto = plainToInstance(UserDto, user, {
@@ -208,7 +224,7 @@ export class UserService {
 
     const users = await this.userRepository.find({
       where: { id: In(ids) },
-      relations: ['position', 'department'],
+      relations: ['rank', 'position', 'department'],
     });
 
     return this.mapToUserDtos(users);
@@ -218,6 +234,7 @@ export class UserService {
   async getUsers(query: GetUsersDto) {
     const queryBuilder = this.userRepository
       .createQueryBuilder('user')
+      .leftJoinAndSelect('user.rank', 'rank')
       .leftJoinAndSelect('user.position', 'position')
       .leftJoinAndSelect('user.department', 'department')
       .andWhere('user.isGuest = false');
@@ -232,6 +249,11 @@ export class UserService {
 
       queryBuilder.andWhere('department.id IN (:...departmentIds)', {
         departmentIds,
+      });
+    }
+    if (query.rankId) {
+      queryBuilder.andWhere('rank.id = :rankId', {
+        rankId: query.rankId,
       });
     }
     if (query.positionId) {
@@ -251,6 +273,9 @@ export class UserService {
             .orWhere('department.name ILIKE :search', {
               search: `%${query.search}%`,
             })
+            .orWhere('rank.name ILIKE :search', {
+              search: `%${query.search}%`,
+            })
             .orWhere('position.name ILIKE :search', {
               search: `%${query.search}%`,
             });
@@ -259,7 +284,8 @@ export class UserService {
     }
 
     queryBuilder
-      .orderBy('position.id', 'ASC')
+      .orderBy('rank.id', 'ASC')
+      .addOrderBy('position.id', 'ASC')
       .addOrderBy('user.username', 'ASC');
 
     const [items, total] = await queryBuilder
@@ -279,8 +305,12 @@ export class UserService {
   // 4. 전체 조회
   async getAllUsers() {
     const users = await this.userRepository.find({
-      relations: ['position', 'department'],
-      order: { position: { id: 'ASC' }, username: 'ASC' },
+      relations: ['rank', 'position', 'department'],
+      order: {
+        rank: { id: 'ASC' },
+        position: { id: 'ASC' },
+        username: 'ASC',
+      },
     });
 
     return this.mapToUserDtos(users);
@@ -309,7 +339,7 @@ export class UserService {
     }
   }
 
-  async update(id: number, dto: UpdateUserDto) {
+  async updateAuthentication(id: number, dto: AuthenticationUpdate) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -317,7 +347,7 @@ export class UserService {
     try {
       const existingUser = await queryRunner.manager.findOneBy(User, { id });
       if (!existingUser) {
-        throw new UnauthorizedException('user_not_found');
+        throw new NotFoundException('not_found_user');
       }
 
       await queryRunner.manager.update(User, id, dto);
@@ -331,9 +361,28 @@ export class UserService {
     }
   }
 
+  async rotateRefreshToken(
+    id: number,
+    currentRefreshTokenHash: string,
+    newRefreshTokenHash: string,
+  ): Promise<boolean> {
+    const result = await this.userRepository.update(
+      { id, refreshToken: currentRefreshTokenHash, isAuthorized: true },
+      { refreshToken: newRefreshTokenHash },
+    );
+    return result.affected === 1;
+  }
+
   async updateByUser(user: User, id: number, dto: UpdateUserDto) {
     assertWriteAccess(user);
-    return this.update(id, dto);
+    assertOwnerOrAdmin(user, id);
+
+    const existingUser = await this.userRepository.findOneBy({ id });
+    if (!existingUser) {
+      throw new NotFoundException('not_found_user');
+    }
+
+    await this.userRepository.update(id, dto);
   }
 
   async updatePermission(user: User, id: number, dto: UpdateUserPermissionDto) {
@@ -346,7 +395,9 @@ export class UserService {
 
     try {
       const existingUser = await queryRunner.manager.findOneBy(User, { id });
-      if (!existingUser) throw new UnauthorizedException('user_not_found');
+      if (!existingUser) {
+        throw new NotFoundException('not_found_user');
+      }
 
       if (dto.isAdmin !== undefined && dto.isAdmin !== null)
         existingUser.isAdmin = dto.isAdmin;
@@ -355,7 +406,12 @@ export class UserService {
       if (dto.isGuest !== undefined && dto.isGuest !== null)
         existingUser.isGuest = dto.isGuest;
 
-      if (dto.positionId) existingUser.position = { id: dto.positionId } as any;
+      if (dto.rankId) existingUser.rank = { id: dto.rankId } as UserRank;
+      if (dto.positionId !== undefined) {
+        existingUser.position = dto.positionId
+          ? ({ id: dto.positionId } as UserPosition)
+          : null;
+      }
       if (dto.departmentId)
         existingUser.department = { id: dto.departmentId } as any;
 
@@ -363,7 +419,7 @@ export class UserService {
 
       const result = await queryRunner.manager.findOne(User, {
         where: { id },
-        relations: ['position', 'department'],
+        relations: ['rank', 'position', 'department'],
       });
 
       await queryRunner.commitTransaction();
@@ -386,7 +442,9 @@ export class UserService {
 
     try {
       const existingUser = await queryRunner.manager.findOneBy(User, { id });
-      if (!existingUser) throw new UnauthorizedException('user_not_found');
+      if (!existingUser) {
+        throw new NotFoundException('not_found_user');
+      }
 
       await queryRunner.manager.softDelete(User, { id });
 

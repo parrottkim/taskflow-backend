@@ -105,12 +105,19 @@ export class SftpController {
     description: 'Successful response',
   })
   @Get('download')
-  async downloadFile(@Query('path') path: string, @Response() res) {
+  async downloadFile(
+    @Request() req,
+    @Query('path') path: string,
+    @Response() res,
+  ) {
     if (!path) {
-      throw new NotFoundException('path_not_found');
+      throw new NotFoundException('not_found_path');
     }
 
-    const { buffer, filename } = await this.sftpService.downloadFile(path);
+    const { buffer, filename } = await this.sftpService.downloadFile(
+      req.user,
+      path,
+    );
 
     res.set({
       'Content-Type': 'application/octet-stream',

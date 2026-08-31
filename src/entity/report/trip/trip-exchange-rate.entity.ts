@@ -32,8 +32,8 @@ export class TripExchangeRate {
   })
   rate: number; // 1 USD = rate KRW
 
-  @Column()
-  appliedDate: Date; // 환율 적용 날짜
+  @Column({ type: 'date' })
+  appliedDate: string; // 환율 적용 날짜 (YYYY-MM-DD)
 
   @CreateDateColumn()
   createdAt: Date;

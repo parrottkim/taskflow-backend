@@ -588,14 +588,14 @@ export class MailService {
   }) {
     const users = await this.userService.getAllUsers();
     const ceoUsers = users.filter(
-      (u) => u.position?.id === 1 && this.isAllowedEmail(u.email),
+      (u) => u.rank?.id === 1 && this.isAllowedEmail(u.email),
     );
     if (!ceoUsers.length) return null;
 
     const toRecipients = ceoUsers
       .map((user) => {
         const name = `=?UTF-8?B?${Buffer.from(
-          `${user.username} ${user.position.name}`,
+          `${user.username} ${user.rank.name}`,
           'utf-8',
         ).toString('base64')}?=`;
         return `${name} <${user.email}>`;
@@ -697,7 +697,7 @@ export class MailService {
     const toRecipients = allowedUsers
       .map((user) => {
         const name = `=?UTF-8?B?${Buffer.from(
-          `${user.username} ${user.position.name}`,
+          `${user.username} ${user.rank.name}`,
           'utf-8',
         ).toString('base64')}?=`;
         return `${name} <${user.email}>`;
@@ -753,7 +753,7 @@ export class MailService {
     const toRecipients = allowedUsers
       .map((user) => {
         const name = `=?UTF-8?B?${Buffer.from(
-          `${user.username} ${user.position.name}`,
+          `${user.username} ${user.rank.name}`,
           'utf-8',
         ).toString('base64')}?=`;
         return `${name} <${user.email}>`;
@@ -811,7 +811,7 @@ export class MailService {
     const toRecipients = allowedUsers
       .map((user) => {
         const name = `=?UTF-8?B?${Buffer.from(
-          `${user.username} ${user.position.name}`,
+          `${user.username} ${user.rank.name}`,
           'utf-8',
         ).toString('base64')}?=`;
         return `${name} <${user.email}>`;
@@ -867,7 +867,7 @@ export class MailService {
 
     const toRecipients = allowedUsers
       .map((user) => {
-        const displayName = [user.username, user.position?.name]
+        const displayName = [user.username, user.rank?.name]
           .filter(Boolean)
           .join(' ');
         const name = `=?UTF-8?B?${Buffer.from(displayName, 'utf-8').toString('base64')}?=`;
@@ -876,7 +876,7 @@ export class MailService {
       .join(', ');
 
     const frontendUrl = this.configService.url.frontend;
-    const url = `${frontendUrl}/document?folder_id=${document.folderId}&document_id=${document.id}`;
+    const url = `${frontendUrl}/document/${document.id}`;
     const content = await marked(document.content);
     const subject = `📄 [${folderName}] ${document.title}`;
     const html = this.getDocumentMailHtml(

@@ -10,6 +10,6 @@ export function assertOwnerOrAdmin(
   ownerId: number,
 ): void {
   if (!user.isAdmin && user.id !== ownerId) {
-    throw new ForbiddenException('no_permission');
+    throw new ForbiddenException('forbidden_access_denied');
   }
 }

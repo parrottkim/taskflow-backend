@@ -11,6 +11,8 @@ import { TripRegulationRate } from '@/entity/report/trip/trip-regulation-rate.en
 import { TripRegulation } from '@/entity/report/trip/trip-regulation.entity';
 import { TripReport } from '@/entity/report/trip/trip-report.entity';
 import { TripStep } from '@/entity/report/trip/trip-step.entity';
+import { ScheduleHoliday } from '@/entity/schedule/schedule-holiday.entity';
+import { Currency } from '@/entity/currency/currency.entity';
 import { Schedule } from '@/entity/schedule/schedule.entity';
 import { User } from '@/entity/user/user.entity';
 import { assertWriteAccess } from '@/common/policies/write-access.policy';
@@ -26,6 +28,8 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import FormData from 'form-data';
@@ -34,7 +38,7 @@ import { plainToInstance } from 'class-transformer';
 import path from 'path';
 import dayjs from 'dayjs';
 import * as ExcelJS from 'exceljs';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import {
   CreateReportDto,
   CreateActualExpenseDto,
@@ -53,6 +57,11 @@ import {
 } from './dto/update-report';
 import config from '@/config/config';
 import { ConfigType } from '@nestjs/config';
+import { HolidayService } from '@/holiday/holiday.service';
+import {
+  DailyAllowancePreviewDto,
+  PreviewDailyAllowanceDto,
+} from './dto/preview-daily-allowance';
 
 @Injectable()
 export class ReportService {
@@ -72,11 +81,46 @@ export class ReportService {
     private readonly scheduleService: ScheduleService,
     private readonly userService: UserService,
     private readonly currencyService: CurrencyService,
+    private readonly holidayService: HolidayService,
     private readonly sftpService: SftpService,
     private readonly mailService: MailService,
     @Inject(config.KEY)
     private configService: ConfigType<typeof config>,
   ) {}
+
+  private convertAmountToKrw(amount: number, exchangeRate: number) {
+    return Math.round(amount * exchangeRate);
+  }
+
+  private getExpenseAmountInKrw(expense: TripActualExpense) {
+    return this.convertAmountToKrw(expense.price, expense.exchangeRate ?? 1);
+  }
+
+  private formatExpenseDate(date: Date) {
+    return date.toISOString().slice(0, 10).replaceAll('-', '');
+  }
+
+  private async getExpenseExchangeRate(
+    date: string,
+    currency: Currency,
+    cache: Map<string, Promise<{ rate: number; appliedDate: string | null }>>,
+  ) {
+    if (currency.code === 'KRW') {
+      return { rate: 1, appliedDate: null };
+    }
+
+    const cacheKey = `${currency.code}:${date}`;
+    let snapshot = cache.get(cacheKey);
+
+    if (!snapshot) {
+      snapshot = this.currencyService
+        .getExchangeRate(date, currency.code)
+        .then(({ rate, appliedDate }) => ({ rate, appliedDate }));
+      cache.set(cacheKey, snapshot);
+    }
+
+    return snapshot;
+  }
 
   async findAllTripCategories() {
     return await this.tripCategoryRepository
@@ -93,33 +137,21 @@ export class ReportService {
   async findAllTripSteps(id: number) {
     return await this.tripStepRepository
       .createQueryBuilder('step')
-      .leftJoin('step.category', 'category')
+      .leftJoinAndSelect('step.category', 'category')
       .leftJoin('step.scheduleCategory', 'scheduleCategory')
       .where('scheduleCategory.id = :id', { id })
-      .select([
-        'step.id AS "id"',
-        'step.name AS "name"',
-        'step.description AS "description"',
-        'category.id AS "categoryId"',
-      ])
       .orderBy('step.id', 'ASC')
-      .getRawMany();
+      .getMany();
   }
 
   async findAllTripRegulations(id: number) {
     return await this.reportRegulationRepository
       .createQueryBuilder('regulation')
-      .leftJoin('regulation.step', 'step')
-      .leftJoin('step.category', 'category')
+      .leftJoinAndSelect('regulation.step', 'step')
       .leftJoin('step.scheduleCategory', 'scheduleCategory')
       .where('scheduleCategory.id = :id', { id })
-      .select([
-        'regulation.id AS "id"',
-        'step.id AS "stepId"',
-        'regulation.rate as "rate"',
-      ])
       .orderBy('regulation.id', 'ASC')
-      .getRawMany();
+      .getMany();
   }
 
   async findReportById(id: number) {
@@ -128,12 +160,14 @@ export class ReportService {
       .leftJoinAndSelect('report.project', 'project')
       .leftJoinAndSelect('report.schedule', 'schedule')
       .leftJoinAndSelect('schedule.project', 'scheduleProject')
+      .leftJoinAndSelect('schedule.holidays', 'holiday')
       .leftJoinAndSelect('report.createdBy', 'createdBy')
       .leftJoinAndSelect('createdBy.department', 'department')
       .leftJoinAndSelect('report.updatedBy', 'updatedBy')
       .leftJoinAndSelect('report.trip', 'trip')
       .leftJoinAndSelect('trip.expenses', 'expense')
       .leftJoinAndSelect('expense.step', 'expenseStep')
+      .leftJoinAndSelect('expense.currency', 'expenseCurrency')
       .leftJoinAndSelect('trip.rates', 'rate')
       .leftJoinAndSelect('rate.step', 'rateStep')
       .leftJoinAndSelect('trip.fuel', 'fuel')
@@ -150,11 +184,13 @@ export class ReportService {
       .leftJoinAndSelect('report.project', 'project')
       .leftJoinAndSelect('report.schedule', 'schedule')
       .leftJoinAndSelect('schedule.project', 'scheduleProject')
+      .leftJoinAndSelect('schedule.holidays', 'holiday')
       .leftJoinAndSelect('report.createdBy', 'createdBy')
       .leftJoinAndSelect('report.updatedBy', 'updatedBy')
       .leftJoinAndSelect('report.trip', 'trip')
       .leftJoinAndSelect('trip.expenses', 'expense')
       .leftJoinAndSelect('expense.step', 'expenseStep')
+      .leftJoinAndSelect('expense.currency', 'expenseCurrency')
       .leftJoinAndSelect('trip.rates', 'rate')
       .leftJoinAndSelect('rate.step', 'rateStep')
       .leftJoinAndSelect('trip.fuel', 'fuel')
@@ -193,10 +229,175 @@ export class ReportService {
 
     const result = plainToInstance(TripRegulationDto, regulations, {
       excludeExtraneousValues: true,
-      enableImplicitConversion: true,
     });
 
     return result;
+  }
+
+  async previewDailyAllowance(
+    user: User,
+    body: PreviewDailyAllowanceDto,
+  ): Promise<DailyAllowancePreviewDto> {
+    assertWriteAccess(user);
+
+    const schedule = await this.scheduleService.getSchedule(body.scheduleId);
+    const startDate = dayjs(schedule.start).startOf('day');
+    const endDate = dayjs(schedule.end).startOf('day');
+    const totalTripDays = endDate.diff(startDate, 'day') + 1;
+
+    if (totalTripDays <= 0) {
+      throw new BadRequestException('bad_request_trip_schedule_range_invalid');
+    }
+
+    if (schedule.category.id === 1) {
+      const holidays = body.holidays ?? [];
+      const inputByDate = new Map(
+        holidays.map((holiday) => [
+          dayjs(holiday.date).format('YYYY-MM-DD'),
+          holiday,
+        ]),
+      );
+
+      if (inputByDate.size !== holidays.length) {
+        throw new BadRequestException(
+          'bad_request_trip_holiday_date_duplicate',
+        );
+      }
+
+      const expectedDates = new Set(
+        schedule.holidays.map((holiday) =>
+          dayjs(holiday.date).format('YYYY-MM-DD'),
+        ),
+      );
+      const hasUnexpectedDate = holidays.some(
+        (holiday) =>
+          !expectedDates.has(dayjs(holiday.date).format('YYYY-MM-DD')),
+      );
+      const hasMissingDate = schedule.holidays.some(
+        (holiday) => !inputByDate.has(dayjs(holiday.date).format('YYYY-MM-DD')),
+      );
+
+      if (hasUnexpectedDate || hasMissingDate) {
+        throw new BadRequestException('bad_request_trip_holiday_dates_invalid');
+      }
+
+      const dailyRegulation = await this.reportRegulationRepository.findOne({
+        where: { step: { id: 10 } },
+        relations: { step: true },
+      });
+
+      if (!dailyRegulation) {
+        throw new NotFoundException(
+          'not_found_domestic_daily_allowance_regulation',
+        );
+      }
+
+      const dailyRate = dailyRegulation.rate;
+      const dailyAmount = dailyRate * totalTripDays;
+      const holidayWorkDays = holidays.filter(
+        (holiday) => !holiday.isTravelOnly,
+      ).length;
+      const holidayTravelDays =
+        holidays.filter((holiday) => holiday.isTravelOnly).length * 0.5;
+
+      return {
+        totalTripDays,
+        domestic: {
+          workDays: holidayWorkDays,
+          travelDays: holidayTravelDays,
+        },
+        dailyRate,
+        dailyAmount,
+        deductionRate: 0,
+        exchangeRate: 1,
+        totalAmount: dailyAmount,
+        currencyCode: 'KRW',
+      };
+    }
+
+    if (schedule.category.id !== 2) {
+      throw new BadRequestException(
+        'bad_request_trip_schedule_category_invalid',
+      );
+    }
+
+    if (body.holidays?.length) {
+      throw new BadRequestException('bad_request_trip_holidays_not_allowed');
+    }
+
+    const dailyStepId =
+      user.rank?.id === 4 ? 21 : user.rank?.id === 3 ? 22 : 23;
+    const [dailyRegulation, holidays, exchangeRateSnapshot] = await Promise.all(
+      [
+        this.reportRegulationRepository.findOne({
+          where: { step: { id: dailyStepId } },
+          relations: { step: true },
+        }),
+        this.holidayService.getHolidaysBetween(schedule.start, schedule.end),
+        this.currencyService.getExchangeRate(
+          startDate.format('YYYYMMDD'),
+          'USD',
+        ),
+      ],
+    );
+
+    if (!dailyRegulation) {
+      throw new NotFoundException(
+        'not_found_overseas_daily_allowance_regulation',
+      );
+    }
+
+    const overseasSpecialAllowanceDays = new Set(
+      holidays
+        .filter((holiday) => holiday.name === '설날' || holiday.name === '추석')
+        .map((holiday) => dayjs(holiday.date).format('YYYY-MM-DD')),
+    ).size;
+    let overseasSpecialAllowanceRate = 0;
+
+    if (overseasSpecialAllowanceDays > 0) {
+      const specialRegulation = await this.reportRegulationRepository.findOne({
+        where: { step: { id: 24 } },
+        relations: { step: true },
+      });
+
+      if (!specialRegulation) {
+        throw new NotFoundException(
+          'not_found_overseas_holiday_special_allowance_regulation',
+        );
+      }
+
+      overseasSpecialAllowanceRate = specialRegulation.rate;
+    }
+
+    const deductionRate = (body.expenses ?? []).some(
+      (expense) => [18, 19].includes(expense.stepId) && expense.price > 0,
+    )
+      ? 0.1
+      : 0;
+    const dailyRate = dailyRegulation.rate;
+    const dailyAmount = dailyRate * totalTripDays;
+    const overseasSpecialAllowanceAmount =
+      overseasSpecialAllowanceRate * overseasSpecialAllowanceDays;
+    const exchangeRate = exchangeRateSnapshot.rate;
+    const totalAmount = this.convertAmountToKrw(
+      dailyAmount * (1 - deductionRate) + overseasSpecialAllowanceAmount,
+      exchangeRate,
+    );
+
+    return {
+      totalTripDays,
+      overseas: {
+        days: overseasSpecialAllowanceDays,
+        rate: overseasSpecialAllowanceRate,
+        amount: overseasSpecialAllowanceAmount,
+      },
+      dailyRate,
+      dailyAmount,
+      deductionRate,
+      exchangeRate,
+      totalAmount,
+      currencyCode: 'USD',
+    };
   }
 
   // 🌟 exportReport 함수 수정됨: 요청별 고유 폴더 사용 및 필요한 시트만 남기고 변환
@@ -208,7 +409,7 @@ export class ReportService {
     const TEMPLATE_PATH = path.join(TEMPLATE_BASE_PATH, TEMPLATE_FILE_NAME);
 
     const report = await this.findReportById(id);
-    if (!report) throw new NotFoundException('report_not_found');
+    if (!report) throw new NotFoundException('not_found_report');
 
     const schedule = await this.scheduleService.getSchedule(report.schedule.id);
     const isDomestic = schedule.category.id === 1;
@@ -289,7 +490,7 @@ export class ReportService {
           (expense) => expense.step.id === 1,
         );
         const totalAirfare = airfareExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const airfareDetails = airfareExpenses
           .map((expense) => expense.details)
@@ -303,7 +504,7 @@ export class ReportService {
           (expense) => expense.step.id == 2,
         );
         const totalTrainFare = trainFareExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const trainFareDetails = trainFareExpenses
           .map((expense) => expense.details)
@@ -319,7 +520,7 @@ export class ReportService {
         );
         const totalOtherTransit = otherTransitExpenses.reduce(
           (sum, expense) => {
-            return sum + expense.price;
+            return sum + this.getExpenseAmountInKrw(expense);
           },
           0,
         );
@@ -341,7 +542,7 @@ export class ReportService {
           (expense) => expense.step.id == 4,
         );
         const totalParkingFee = parkingFeeExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const parkingFeeDetails = parkingFeeExpenses
           .map((expense) => expense.details)
@@ -356,7 +557,7 @@ export class ReportService {
           (expense) => expense.step.id == 5,
         );
         const totalTaxiFare = taxiFareExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const taxiFareDetails = taxiFareExpenses
           .map((expense) => expense.details)
@@ -371,7 +572,7 @@ export class ReportService {
           (expense) => expense.step.id == 6,
         );
         const totalBusFare = busFareExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const busFareDetails = busFareExpenses
           .map((expense) => expense.details)
@@ -396,7 +597,7 @@ export class ReportService {
           ulsanAccommodationRate.rate * ulsanAccommodationRate.days;
         const totalUlsanAccomadationExpenses =
           ulsanAccommodationExpenses.reduce((sum, expense) => {
-            return sum + expense.price;
+            return sum + this.getExpenseAmountInKrw(expense);
           }, 0);
         const ulsanAccommodationDetails = ulsanAccommodationExpenses
           .map((expense) => expense.details)
@@ -419,7 +620,7 @@ export class ReportService {
           notUlsanAccommodationRate.rate * notUlsanAccommodationRate.days;
         const totalNotUlsanAccommodationExpenses =
           notUlsanAccommodationExpenses.reduce((sum, expense) => {
-            return sum + expense.price;
+            return sum + this.getExpenseAmountInKrw(expense);
           }, 0);
         const notUlsanAccommodationDetails = notUlsanAccommodationExpenses
           .map((expense) => expense.details)
@@ -442,7 +643,7 @@ export class ReportService {
           weekdayAccommodationRate.rate * weekdayAccommodationRate.days;
         const totalWeekdayAccomdationExpenses =
           weekdayAccommodationExpenses.reduce((sum, expense) => {
-            return sum + expense.price;
+            return sum + this.getExpenseAmountInKrw(expense);
           }, 0);
         const weekdayAccomdationDetails = weekdayAccommodationExpenses
           .map((expense) => expense.details)
@@ -483,26 +684,32 @@ export class ReportService {
         worksheet.getCell('F33').value = weekdayDailyRate.days;
         worksheet.getCell('H33').value = totalWeekdayDailyRate;
 
-        const weekendDailyRate = report.trip.rates.find(
-          (rate) => rate.step.id == 11,
-        ) ?? { rate: 0, days: 0 };
-        const totalWeekendDailyRate =
-          weekendDailyRate.rate * weekendDailyRate.days;
+        const dailyRate = totalWeekdayDailyRate;
 
-        worksheet.getCell('E34').value = weekendDailyRate.rate;
-        worksheet.getCell('F34').value = weekendDailyRate.days;
-        worksheet.getCell('H34').value = totalWeekendDailyRate;
+        worksheet.getCell('H34').value = dailyRate;
 
-        const dailyRate = totalWeekdayDailyRate + totalWeekendDailyRate;
+        const holidayWorkDays = report.schedule.holidays
+          .filter((holiday) => holiday.isTravelOnly === false)
+          .map((day) => dayjs(day.compensatoryLeaveDate).format('MM/DD'));
+        const holidayTravelDays = report.schedule.holidays
+          .filter((holiday) => holiday.isTravelOnly === true)
+          .map((day) => dayjs(day.compensatoryLeaveDate).format('MM/DD'));
 
-        worksheet.getCell('H35').value = dailyRate;
+        worksheet.getCell('F37').value = holidayWorkDays.length;
+        worksheet.getCell('I37').value = holidayWorkDays.join(', ');
+
+        worksheet.getCell('F38').value = holidayTravelDays.length / 2;
+        worksheet.getCell('I38').value = holidayTravelDays.join(', ');
+
+        worksheet.getCell('F39').value =
+          holidayWorkDays.length + holidayTravelDays.length / 2;
 
         const otherSettlementExpenses = report.trip.expenses.filter(
           (expense) => expense.step.id == 12,
         );
         const totalOtherSettlement = otherSettlementExpenses.reduce(
           (sum, expense) => {
-            return sum + expense.price;
+            return sum + this.getExpenseAmountInKrw(expense);
           },
           0,
         );
@@ -511,15 +718,15 @@ export class ReportService {
           .filter((details) => details)
           .join(', ');
 
-        worksheet.getCell('H38').value = totalOtherSettlement;
-        worksheet.getCell('I38').value = otherSettlementDetails;
+        worksheet.getCell('H40').value = totalOtherSettlement;
+        worksheet.getCell('I40').value = otherSettlementDetails;
 
         const corporateFuelExpenses = report.trip.expenses.filter(
           (expense) => expense.step.id == 13,
         );
         const totalCorporateFuel = corporateFuelExpenses.reduce(
           (sum, expense) => {
-            return sum + expense.price;
+            return sum + this.getExpenseAmountInKrw(expense);
           },
           0,
         );
@@ -528,8 +735,8 @@ export class ReportService {
           .filter((details) => details)
           .join(', ');
 
-        worksheet.getCell('H39').value = totalCorporateFuel;
-        worksheet.getCell('I39').value = corporateFuelDetails;
+        worksheet.getCell('H41').value = totalCorporateFuel;
+        worksheet.getCell('I41').value = corporateFuelDetails;
 
         const personalFuelExpenses = report.trip.fuel;
         const personalFuelRate = personalFuelExpenses?.rate ?? 0;
@@ -540,38 +747,43 @@ export class ReportService {
             ? personalFuelRate * (personalFuelDistance / personalFuelMileage)
             : 0;
 
-        worksheet.getCell('E41').value = personalFuelRate;
-        worksheet.getCell('F41').value = personalFuelMileage;
-        worksheet.getCell('G41').value = personalFuelDistance;
-        worksheet.getCell('H41').value = totalPersonalFuel;
+        worksheet.getCell('E43').value = personalFuelRate;
+        worksheet.getCell('F43').value = personalFuelMileage;
+        worksheet.getCell('G43').value = personalFuelDistance;
+        worksheet.getCell('H43').value = totalPersonalFuel;
 
         const otherCost =
           totalOtherSettlement + totalCorporateFuel + totalPersonalFuel;
 
-        worksheet.getCell('H45').value = otherCost;
+        worksheet.getCell('H47').value = otherCost;
 
-        worksheet.getCell('H46').value =
+        worksheet.getCell('H48').value =
           transportationCost +
           localTransportationCost +
           accommodationRate +
           dailyRate +
           otherCost;
-        worksheet.getCell('H47').value = accommodationSettlement;
-        worksheet.getCell('H48').value = dailyRate + totalPersonalFuel;
+        worksheet.getCell('H49').value = accommodationSettlement;
+        worksheet.getCell('H50').value = dailyRate + totalPersonalFuel;
       } else {
-        const exchangeRate = await report.trip?.exchangeRate.rate;
+        const exchangeRate = report.trip?.exchangeRate?.rate;
+
+        if (exchangeRate == null) {
+          throw new NotFoundException('not_found_trip_exchange_rate');
+        }
 
         const airfareExpenses = report.trip.expenses.filter(
           (expense) => expense.step.id === 14,
         );
         const totalAirfare = airfareExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const airfareDetails = airfareExpenses
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
+        worksheet.getCell('F18').value = airfareExpenses.length;
         worksheet.getCell('H18').value = totalAirfare;
         worksheet.getCell('I18').value = airfareDetails;
 
@@ -579,13 +791,14 @@ export class ReportService {
           (expense) => expense.step.id === 15,
         );
         const totalTaxiFare = taxiFareExpense.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const taxiFareDetails = taxiFareExpense
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
+        worksheet.getCell('F19').value = taxiFareExpense.length;
         worksheet.getCell('H19').value = totalTaxiFare;
         worksheet.getCell('I19').value = taxiFareDetails;
 
@@ -593,13 +806,14 @@ export class ReportService {
           (expense) => expense.step.id === 16,
         );
         const totalPickupFee = pickupFeeExpense.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const pickupFeeDetails = pickupFeeExpense
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
+        worksheet.getCell('F20').value = pickupFeeExpense.length;
         worksheet.getCell('H20').value = totalPickupFee;
         worksheet.getCell('I20').value = pickupFeeDetails;
 
@@ -612,13 +826,14 @@ export class ReportService {
           (expense) => expense.step.id === 17,
         );
         const totalParkingFee = parkingFeeExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const parkingFeeDetails = parkingFeeExpenses
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
+        worksheet.getCell('F24').value = parkingFeeExpenses.length;
         worksheet.getCell('H24').value = totalParkingFee;
         worksheet.getCell('I24').value = parkingFeeDetails;
 
@@ -627,7 +842,7 @@ export class ReportService {
         );
         const totalLocalTaxiFare = localTaxiFareExpenses.reduce(
           (sum, expense) => {
-            return sum + expense.price;
+            return sum + this.getExpenseAmountInKrw(expense);
           },
           0,
         );
@@ -636,6 +851,7 @@ export class ReportService {
           .filter((details) => details)
           .join(', ');
 
+        worksheet.getCell('F25').value = localTaxiFareExpenses.length;
         worksheet.getCell('H25').value = totalLocalTaxiFare;
         worksheet.getCell('I25').value = localTaxiFareDetails;
 
@@ -643,13 +859,14 @@ export class ReportService {
           (expense) => expense.step.id == 19,
         );
         const totalRentalFee = rentalFeeExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const rentalFeeDetails = rentalFeeExpenses
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
+        worksheet.getCell('F26').value = rentalFeeExpenses.length;
         worksheet.getCell('H26').value = totalRentalFee;
         worksheet.getCell('I26').value = rentalFeeDetails;
 
@@ -663,7 +880,7 @@ export class ReportService {
         );
         const totalAccommodation = accommodationExpenses.reduce(
           (sum, expense) => {
-            return sum + expense.price;
+            return sum + this.getExpenseAmountInKrw(expense);
           },
           0,
         );
@@ -672,6 +889,7 @@ export class ReportService {
           .filter((details) => details)
           .join(', ');
 
+        worksheet.getCell('F28').value = accommodationExpenses.length;
         worksheet.getCell('H28').value = totalAccommodation;
         worksheet.getCell('I28').value = accommodationDetails;
         worksheet.getCell('H30').value = totalAccommodation;
@@ -710,7 +928,7 @@ export class ReportService {
 
         worksheet.getCell('H35').value = dailyRate;
 
-        worksheet.getCell('E35').value = exchangeRate;
+        worksheet.getCell('I31').value = `${exchangeRate}₩ / 1\$`;
 
         const deducted = report.trip.isDeducted ? 0.1 : 0.0;
 
@@ -732,7 +950,10 @@ export class ReportService {
 
         worksheet.getCell('H38').value = amountReceived;
 
-        const totalDailyRate = amountReceived * exchangeRate;
+        const totalDailyRate = this.convertAmountToKrw(
+          amountReceived,
+          exchangeRate,
+        );
 
         worksheet.getCell('H41').value = totalDailyRate;
 
@@ -740,13 +961,14 @@ export class ReportService {
           (expense) => expense.step.id === 25,
         );
         const totalInsurance = insuranceExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const insuranceDetails = insuranceExpenses
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
+        worksheet.getCell('F42').value = insuranceExpenses.length;
         worksheet.getCell('H42').value = totalInsurance;
         worksheet.getCell('I42').value = insuranceDetails;
 
@@ -754,13 +976,14 @@ export class ReportService {
           (expense) => expense.step.id === 26,
         );
         const totalUsim = usimExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const usimDetails = usimExpenses
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
+        worksheet.getCell('F43').value = usimExpenses.length;
         worksheet.getCell('H43').value = totalUsim;
         worksheet.getCell('I43').value = usimDetails;
 
@@ -768,13 +991,14 @@ export class ReportService {
           (expense) => expense.step.id === 27,
         );
         const totalLoaming = loamingExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const loamingDetails = loamingExpenses
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
+        worksheet.getCell('F44').value = loamingExpenses.length;
         worksheet.getCell('H44').value = totalLoaming;
         worksheet.getCell('I44').value = loamingDetails;
 
@@ -782,13 +1006,14 @@ export class ReportService {
           (expense) => expense.step.id === 28,
         );
         const totalTest = testExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const testDetails = testExpenses
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
+        worksheet.getCell('F45').value = testExpenses.length;
         worksheet.getCell('H45').value = totalTest;
         worksheet.getCell('I45').value = testDetails;
 
@@ -796,13 +1021,14 @@ export class ReportService {
           (expense) => expense.step.id === 29,
         );
         const totalOtherCharge = otherChargeExpenses.reduce((sum, expense) => {
-          return sum + expense.price;
+          return sum + this.getExpenseAmountInKrw(expense);
         }, 0);
         const otherChargeDetails = otherChargeExpenses
           .map((expense) => expense.details)
           .filter((details) => details)
           .join(', ');
 
+        worksheet.getCell('F46').value = otherChargeExpenses.length;
         worksheet.getCell('H46').value = totalOtherCharge;
         worksheet.getCell('I46').value = otherChargeDetails;
 
@@ -930,46 +1156,42 @@ export class ReportService {
             : await this.calculateOverseasTripCosts(report);
         }
 
-        const reportDto = plainToInstance(
-          ReportDto,
-          {
-            ...report,
-            schedule,
-            createdBy,
-            trip: report.trip
-              ? {
-                  ...report.trip,
-                  expenses:
-                    report.trip.expenses?.map((expense) => ({
-                      ...expense,
-                      price: expense.price !== null ? expense.price : null,
-                      stepId: expense.step?.id,
-                    })) ?? [],
-                  rates:
-                    report.trip.rates?.map((rate) => ({
-                      ...rate,
-                      stepId: rate.step?.id,
-                    })) ?? [],
-                  fuel: report.trip.fuel ?? null,
-                  exchangeRate: report.trip.exchangeRate ?? null,
-                  calculations: calculations,
-                }
-              : null,
-          },
-          {
-            excludeExtraneousValues: true,
-          },
-        );
-
-        return reportDto;
+        return {
+          ...report,
+          schedule,
+          createdBy,
+          trip: report.trip
+            ? {
+                ...report.trip,
+                expenses:
+                  report.trip.expenses?.map((expense) => ({
+                    ...expense,
+                    price: expense.price !== null ? expense.price : null,
+                    stepId: expense.step?.id,
+                  })) ?? [],
+                rates:
+                  report.trip.rates?.map((rate) => ({
+                    ...rate,
+                    stepId: rate.step?.id,
+                  })) ?? [],
+                fuel: report.trip.fuel ?? null,
+                exchangeRate: report.trip.exchangeRate ?? null,
+                calculations: calculations,
+              }
+            : null,
+        };
       }),
     );
 
-    const reportListDto = plainToInstance(ReportListDto, {
-      items: items,
-      page: query.page,
-      total: total,
-    });
+    const reportListDto = plainToInstance(
+      ReportListDto,
+      {
+        items,
+        page: query.page,
+        total,
+      },
+      { excludeExtraneousValues: true },
+    );
 
     return reportListDto;
   }
@@ -1016,7 +1238,7 @@ export class ReportService {
         reportId: report.id,
         tripId: report.trip.id,
         requestedDate,
-        appliedDate: dayjs(snapshot.appliedDate).format('YYYYMMDD'),
+        appliedDate: snapshot.appliedDate.replaceAll('-', ''),
         rate: snapshot.rate,
       });
     }
@@ -1031,16 +1253,16 @@ export class ReportService {
   async getDomesticTripCalculations(user: User, id: number) {
     const report = await this.findReportById(id);
 
-    if (!report) throw new NotFoundException('report_not_found');
-    if (!report.trip) throw new NotFoundException('trip_data_not_found');
+    if (!report) throw new NotFoundException('not_found_report');
+    if (!report.trip) throw new NotFoundException('not_found_trip_data');
     assertOwnerOrAdmin(user, report.createdBy.id);
 
     const schedule = await this.scheduleService.getSchedule(report.schedule.id);
 
-    if (!schedule) throw new NotFoundException('schedule_not_found');
+    if (!schedule) throw new NotFoundException('not_found_schedule');
 
     if (schedule.category.id !== 1) {
-      throw new ForbiddenException('not_domestic_trip');
+      throw new ForbiddenException('forbidden_domestic_trip_required');
     }
 
     return await this.calculateDomesticTripCosts(report);
@@ -1049,16 +1271,16 @@ export class ReportService {
   async getOverseasTripCalculations(user: User, id: number) {
     const report = await this.findReportById(id);
 
-    if (!report) throw new NotFoundException('report_not_found');
-    if (!report.trip) throw new NotFoundException('trip_data_not_found');
+    if (!report) throw new NotFoundException('not_found_report');
+    if (!report.trip) throw new NotFoundException('not_found_trip_data');
     assertOwnerOrAdmin(user, report.createdBy.id);
 
     const schedule = await this.scheduleService.getSchedule(report.schedule.id);
 
-    if (!schedule) throw new NotFoundException('schedule_not_found');
+    if (!schedule) throw new NotFoundException('not_found_schedule');
 
     if (schedule.category.id === 1) {
-      throw new ForbiddenException('not_overseas_trip');
+      throw new ForbiddenException('forbidden_overseas_trip_required');
     }
 
     return await this.calculateOverseasTripCosts(report);
@@ -1069,7 +1291,7 @@ export class ReportService {
     const sumExpensesByStepIds = (stepIds: number[]): number => {
       return report.trip.expenses
         .filter((expense) => stepIds.includes(expense.step.id))
-        .reduce((sum, expense) => sum + expense.price, 0);
+        .reduce((sum, expense) => sum + this.getExpenseAmountInKrw(expense), 0);
     };
 
     // 교통비: step 1, 2, 3
@@ -1122,13 +1344,17 @@ export class ReportService {
   }
 
   private async calculateOverseasTripCosts(report: Report) {
-    const exchangeRate = report.trip?.exchangeRate.rate;
+    const exchangeRate = report.trip?.exchangeRate?.rate;
+
+    if (exchangeRate == null) {
+      throw new NotFoundException('not_found_trip_exchange_rate');
+    }
 
     // 헬퍼 함수: stepIds로 지정된 항목들의 합계 계산
     const sumExpensesByStepIds = (stepIds: number[]): number => {
       return report.trip.expenses
         .filter((expense) => stepIds.includes(expense.step.id))
-        .reduce((sum, expense) => sum + expense.price, 0);
+        .reduce((sum, expense) => sum + this.getExpenseAmountInKrw(expense), 0);
     };
 
     // 교통비: step 14, 15, 16
@@ -1152,7 +1378,10 @@ export class ReportService {
     const totalHolidayRate =
       (holidayRate?.rate ?? 0) * (holidayRate?.days ?? 0);
     const amountReceived = dailyRate * (1 - deducted) + totalHolidayRate;
-    const totalDailyRate = amountReceived * exchangeRate;
+    const totalDailyRate = this.convertAmountToKrw(
+      amountReceived,
+      exchangeRate,
+    );
 
     // 기타 비용: step 25, 26, 27, 28, 29
     const otherCost = sumExpensesByStepIds([25, 26, 27, 28, 29]);
@@ -1241,7 +1470,7 @@ export class ReportService {
         });
 
         if (existingReport) {
-          throw new ConflictException('report_exists');
+          throw new ConflictException('conflict_report_already_exists');
         }
       }
 
@@ -1260,33 +1489,350 @@ export class ReportService {
           ? await this.scheduleService.getSchedule(body.scheduleId)
           : null;
         const isOverseasTrip = Boolean(schedule) && schedule.category.id !== 1;
+        const isOverseasExpenseDeducted =
+          schedule?.category.id === 2 &&
+          (body.trip.expenses ?? []).some(
+            (expense) => [18, 19].includes(expense.stepId) && expense.price > 0,
+          );
 
         const trip = queryRunner.manager.create(TripReport, {
           report: saved,
-          isDeducted: body.trip.isDeducted ?? false,
+          // 해외 출장 택시(step 18) 또는 렌탈(step 19)이 원화로 청구되면
+          // 일비 10% 공제를 자동 적용하고 클라이언트 입력값은 사용하지 않는다.
+          isDeducted:
+            schedule?.category.id === 2
+              ? isOverseasExpenseDeducted
+              : (body.trip.isDeducted ?? false),
         });
         const savedTrip = await queryRunner.manager.save(trip);
+
+        let savedHolidays =
+          schedule?.category.id === 1
+            ? await queryRunner.manager.find(ScheduleHoliday, {
+                where: { schedule: { id: schedule.id } },
+                order: { date: 'ASC' },
+              })
+            : [];
+        let ratesToSave = body.trip.rates ?? [];
+
+        // 직급 ID 1, 2는 임원급이므로 국내 출장 휴일 특별 수당 대상에서 제외한다.
+        // 클라이언트가 step 11을 직접 보내더라도 아래에서 제거한다.
+        const isHolidaySpecialAllowanceExcluded =
+          (user.rank?.id ?? Number.POSITIVE_INFINITY) <= 2;
+
+        if (schedule?.category.id === 1) {
+          // 휴일 날짜와 명칭은 일정 생성 시 서버가 확정한 값을 사용하고,
+          // 일정 생성 시 저장한 이동 여부와 대체휴무일을 기본값으로 사용한다.
+          const holidayInputs =
+            body.trip.holidays ??
+            savedHolidays.map((holiday) => ({
+              date: holiday.date,
+              isTravelOnly: holiday.isTravelOnly,
+              compensatoryLeaveDate: holiday.compensatoryLeaveDate,
+            }));
+          const inputByDate = new Map(
+            holidayInputs.map((holiday) => [
+              dayjs(holiday.date).format('YYYY-MM-DD'),
+              holiday,
+            ]),
+          );
+
+          if (inputByDate.size !== holidayInputs.length) {
+            throw new BadRequestException(
+              'bad_request_trip_holiday_date_duplicate',
+            );
+          }
+
+          // 출장 기간에 포함된 모든 주말/공휴일이 정확히 한 번씩 전달됐는지 확인한다.
+          // 출장 기간 외 날짜가 있거나 필요한 날짜가 누락되면 저장하지 않는다.
+          const expectedDates = new Set(
+            savedHolidays.map((holiday) =>
+              dayjs(holiday.date).format('YYYY-MM-DD'),
+            ),
+          );
+          const hasUnexpectedDate = holidayInputs.some(
+            (holiday) =>
+              !expectedDates.has(dayjs(holiday.date).format('YYYY-MM-DD')),
+          );
+          const hasMissingDate = savedHolidays.some(
+            (holiday) =>
+              !inputByDate.has(dayjs(holiday.date).format('YYYY-MM-DD')),
+          );
+
+          if (hasUnexpectedDate || hasMissingDate) {
+            throw new BadRequestException(
+              'bad_request_trip_holiday_dates_invalid',
+            );
+          }
+
+          // 서로 다른 휴일에 동일한 대체휴무 사용일을 중복 지정할 수 없다.
+          const compensatoryLeaveDates = holidayInputs
+            .map((holiday) => holiday.compensatoryLeaveDate)
+            .filter((date): date is Date => Boolean(date))
+            .map((date) => dayjs(date).format('YYYY-MM-DD'));
+
+          if (
+            new Set(compensatoryLeaveDates).size !==
+            compensatoryLeaveDates.length
+          ) {
+            throw new BadRequestException(
+              'bad_request_compensatory_leave_date_duplicate',
+            );
+          }
+
+          const holidayEntities = savedHolidays.map((holiday) => {
+            const input = inputByDate.get(
+              dayjs(holiday.date).format('YYYY-MM-DD'),
+            );
+            holiday.isTravelOnly = input.isTravelOnly;
+            holiday.compensatoryLeaveDate = input.compensatoryLeaveDate
+              ? dayjs(input.compensatoryLeaveDate).toDate()
+              : undefined;
+
+            return holiday;
+          });
+
+          if (holidayEntities.length > 0) {
+            savedHolidays = await queryRunner.manager.save(holidayEntities);
+          }
+
+          // step 11은 클라이언트 입력을 사용하지 않고 서버에서 다시 계산한다.
+          // 업무 없이 이동만 한 휴일은 기본 일비 대상일 수 있지만 특근비에서는 제외한다.
+          ratesToSave = ratesToSave.filter((rate) => rate.stepId !== 11);
+
+          const holidaySpecialAllowanceDays = holidayInputs.filter(
+            (holiday) => !holiday.isTravelOnly,
+          ).length;
+
+          if (
+            !isHolidaySpecialAllowanceExcluded &&
+            holidaySpecialAllowanceDays > 0
+          ) {
+            const holidaySpecialAllowance = await queryRunner.manager.findOne(
+              TripRegulation,
+              {
+                where: { step: { id: 11 } },
+                relations: { step: true },
+              },
+            );
+
+            if (!holidaySpecialAllowance) {
+              throw new NotFoundException(
+                'not_found_holiday_special_allowance_regulation',
+              );
+            }
+
+            ratesToSave.push({
+              stepId: 11,
+              days: holidaySpecialAllowanceDays,
+              rate: holidaySpecialAllowance.rate,
+            });
+          }
+        } else if (schedule?.category.id !== 1 && body.trip.holidays?.length) {
+          throw new BadRequestException(
+            'bad_request_trip_holidays_not_allowed',
+          );
+        }
+
+        if (schedule?.category.id === 2) {
+          const startDate = dayjs(schedule.start).startOf('day');
+          const endDate = dayjs(schedule.end).startOf('day');
+          const durationDays = endDate.diff(startDate, 'day') + 1;
+
+          if (durationDays <= 0) {
+            throw new BadRequestException(
+              'bad_request_trip_schedule_range_invalid',
+            );
+          }
+
+          // 해외 일비는 직급에 따라 하나의 항목만 적용한다.
+          // 매니저는 step 21, 책임 매니저는 step 22, 그 외 직급은 step 23이다.
+          const overseasDailyStepId =
+            user.rank?.id === 4 ? 21 : user.rank?.id === 3 ? 22 : 23;
+          const overseasDailyRegulation = await queryRunner.manager.findOne(
+            TripRegulation,
+            {
+              where: { step: { id: overseasDailyStepId } },
+              relations: { step: true },
+            },
+          );
+
+          if (!overseasDailyRegulation) {
+            throw new NotFoundException(
+              'not_found_overseas_daily_allowance_regulation',
+            );
+          }
+
+          // 해외 일비와 명절 특별 수당은 클라이언트 입력을 사용하지 않고
+          // 출장 일정, 사용자 직급, 공휴일 API 결과를 기준으로 다시 계산한다.
+          ratesToSave = ratesToSave.filter(
+            (rate) => ![21, 22, 23, 24].includes(rate.stepId),
+          );
+          ratesToSave.push({
+            stepId: overseasDailyStepId,
+            days: durationDays,
+            rate: overseasDailyRegulation.rate,
+          });
+
+          const holidays = await this.holidayService.getHolidaysBetween(
+            schedule.start,
+            schedule.end,
+          );
+          const holidaySpecialAllowanceDays = new Set(
+            holidays
+              .filter(
+                (holiday) => holiday.name === '설날' || holiday.name === '추석',
+              )
+              .map((holiday) => holiday.date),
+          ).size;
+
+          if (holidaySpecialAllowanceDays > 0) {
+            const holidaySpecialAllowance = await queryRunner.manager.findOne(
+              TripRegulation,
+              {
+                where: { step: { id: 24 } },
+                relations: { step: true },
+              },
+            );
+
+            if (!holidaySpecialAllowance) {
+              throw new NotFoundException(
+                'not_found_overseas_holiday_special_allowance_regulation',
+              );
+            }
+
+            ratesToSave.push({
+              stepId: 24,
+              days: holidaySpecialAllowanceDays,
+              rate: holidaySpecialAllowance.rate,
+            });
+          }
+        }
+
+        // holidays를 보내지 않는 기존 요청에서도 임원급의 step 11이
+        // 저장되지 않도록 마지막으로 제거한다.
+        if (schedule?.category.id === 1 && isHolidaySpecialAllowanceExcluded) {
+          ratesToSave = ratesToSave.filter((rate) => rate.stepId !== 11);
+        }
 
         // 2-1. Expense 생성 (TripReport에 연결)
         let savedExpenses: TripActualExpense[] = [];
         if (body.trip.expenses) {
-          const expenseEntities = body.trip.expenses.map(
-            (expenseDto: CreateActualExpenseDto) => {
-              const expense = new TripActualExpense();
-              expense.trip = savedTrip; // ⭐️ report 대신 trip에 연결
-              expense.step = { id: expenseDto.stepId } as TripStep;
-              expense.price = expenseDto.price;
-              expense.details = expenseDto.details;
-              return expense;
-            },
+          const stepIds = [
+            ...new Set(body.trip.expenses.map((expense) => expense.stepId)),
+          ];
+          const steps = await queryRunner.manager.findBy(TripStep, {
+            id: In(stepIds),
+          });
+
+          if (steps.length !== stepIds.length) {
+            throw new BadRequestException('bad_request_trip_step_invalid');
+          }
+
+          const stepById = new Map(steps.map((step) => [step.id, step]));
+          const krwCurrency = await queryRunner.manager.findOneBy(Currency, {
+            code: 'KRW',
+          });
+
+          if (!krwCurrency) {
+            throw new InternalServerErrorException(
+              'internal_server_error_krw_currency_not_found',
+            );
+          }
+
+          const currencyIds = [
+            ...new Set(
+              body.trip.expenses
+                .filter(
+                  (expense) =>
+                    stepById.get(expense.stepId)?.requiresExpenseCurrency,
+                )
+                .map((expense) => {
+                  if (!expense.currencyId) {
+                    throw new BadRequestException(
+                      'bad_request_expense_currency_required',
+                    );
+                  }
+
+                  if (!expense.paymentDate) {
+                    throw new BadRequestException(
+                      'bad_request_expense_payment_date_required',
+                    );
+                  }
+
+                  return expense.currencyId;
+                }),
+            ),
+          ];
+          const currencies = await queryRunner.manager.findBy(Currency, {
+            id: In(currencyIds),
+          });
+
+          if (currencies.length !== currencyIds.length) {
+            throw new BadRequestException('bad_request_currency_invalid');
+          }
+
+          const currencyById = new Map(
+            currencies.map((currency) => [currency.id, currency]),
+          );
+          const exchangeRateCache = new Map<
+            string,
+            Promise<{ rate: number; appliedDate: string | null }>
+          >();
+
+          const expenseEntities = await Promise.all(
+            body.trip.expenses.map(
+              async (expenseDto: CreateActualExpenseDto) => {
+                const step = stepById.get(expenseDto.stepId);
+
+                if (!step) {
+                  throw new BadRequestException(
+                    'bad_request_trip_step_invalid',
+                  );
+                }
+
+                const requiresCurrency = step.requiresExpenseCurrency;
+                const currency = requiresCurrency
+                  ? currencyById.get(expenseDto.currencyId!)
+                  : krwCurrency;
+
+                if (!currency) {
+                  throw new BadRequestException('bad_request_currency_invalid');
+                }
+
+                const paymentDate = requiresCurrency
+                  ? expenseDto.paymentDate
+                  : undefined;
+                const snapshot = requiresCurrency
+                  ? await this.getExpenseExchangeRate(
+                      this.formatExpenseDate(paymentDate!),
+                      currency,
+                      exchangeRateCache,
+                    )
+                  : { rate: 1, appliedDate: null };
+                const expense = new TripActualExpense();
+                expense.trip = savedTrip; // ⭐️ report 대신 trip에 연결
+                expense.step = step;
+                expense.currency = currency;
+                expense.price = expenseDto.price;
+                expense.paymentDate = paymentDate;
+                expense.exchangeRate = snapshot.rate;
+                expense.exchangeRateAppliedDate =
+                  snapshot.appliedDate != null
+                    ? new Date(`${snapshot.appliedDate}T00:00:00.000Z`)
+                    : undefined;
+                expense.details = expenseDto.details;
+                return expense;
+              },
+            ),
           );
           savedExpenses = await queryRunner.manager.save(expenseEntities);
         }
 
         // 2-2. Rate 생성 (TripReport에 연결)
         let savedRates: TripRegulationRate[] = [];
-        if (body.trip.rates) {
-          const rateEntities = body.trip.rates.map(
+        if (ratesToSave.length > 0) {
+          const rateEntities = ratesToSave.map(
             (rateDto: CreateRegulationRateDto) => {
               const rate = new TripRegulationRate();
               rate.trip = savedTrip; // ⭐️ report 대신 trip에 연결
@@ -1414,16 +1960,22 @@ export class ReportService {
           'schedule.category',
           'project',
           'createdBy',
+          'createdBy.rank',
           'updatedBy',
           'trip',
           'trip.expenses',
+          'trip.expenses.step',
+          'trip.expenses.currency',
           'trip.rates',
+          'trip.rates.step',
+          'schedule.holidays',
           'trip.fuel',
           'trip.exchangeRate',
+          'attachments',
         ],
       });
 
-      if (!report) throw new NotFoundException('report_not_found');
+      if (!report) throw new NotFoundException('not_found_report');
 
       assertOwnerOrAdmin(user, report.createdBy.id);
 
@@ -1445,7 +1997,7 @@ export class ReportService {
 
       // --- attachments 처리 ---
       if (body.attachments) {
-        const oldAttachments = report.attachments || [];
+        const oldAttachments = report.attachments;
         const toRemove = oldAttachments.filter(
           (oldAtt) =>
             !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
@@ -1467,15 +2019,13 @@ export class ReportService {
           (att) => !toRemove.includes(att),
         );
         const newAttachments = body.attachments
-          .filter(
-            (att) => !report.attachments?.some((old) => old.id === att.id),
-          )
+          .filter((att) => !report.attachments.some((old) => old.id === att.id))
           .map((att) =>
             queryRunner.manager.create(ReportAttachment, {
               filename: att.filename,
               path: att.path,
               size: att.size,
-              report: report,
+              report,
             }),
           );
 
@@ -1491,23 +2041,30 @@ export class ReportService {
       if (!trip && isTripReportNow) {
         trip = queryRunner.manager.create(TripReport, {
           report: report,
-          isDeducted: body.trip.isDeducted, // UpdateReportDto에 isDeducted가 있다고 가정
+          isDeducted: body.trip?.isDeducted ?? false,
         });
         trip = await queryRunner.manager.save(trip);
+        trip.expenses = [];
+        trip.rates = [];
         report.trip = trip;
       }
 
       // 2. 출장 관련 데이터가 있다면 TripReport 필드 업데이트
-      if (trip) {
-        const isOverseasTrip = report.schedule?.category?.id !== 1;
+      if (trip && body.trip) {
+        const scheduleCategoryId = report.schedule?.category?.id;
+        const isOverseasTrip = scheduleCategoryId !== 1;
 
-        // isDeducted 업데이트
-        if (body.trip.isDeducted !== undefined) {
+        // 해외 출장(category 2)은 택시/렌탈 비용으로 공제 여부를 자동 계산하므로
+        // 클라이언트가 보낸 isDeducted 값을 사용하지 않는다.
+        if (scheduleCategoryId !== 2 && body.trip.isDeducted != null) {
           trip.isDeducted = body.trip.isDeducted;
         }
         await queryRunner.manager.save(trip);
 
         if (body.trip.expenses) {
+          const existingExpenseById = new Map(
+            trip.expenses.map((expense) => [expense.id, expense]),
+          );
           const currentExpenseIds = trip.expenses.map((e) => e.id);
           const incomingExpenseIds = body.trip.expenses
             .map((e) => e.id)
@@ -1525,32 +2082,204 @@ export class ReportService {
             );
           }
 
+          const resolvedExpenses = body.trip.expenses.map((expense) => {
+            const existingExpense = expense.id
+              ? existingExpenseById.get(expense.id)
+              : undefined;
+            const stepId = expense.stepId ?? existingExpense?.step?.id;
+
+            if (!stepId) {
+              throw new BadRequestException('bad_request_trip_step_invalid');
+            }
+
+            return { expense, existingExpense, stepId };
+          });
+          const stepIds = [
+            ...new Set(resolvedExpenses.map(({ stepId }) => stepId)),
+          ];
+          const steps = await queryRunner.manager.findBy(TripStep, {
+            id: In(stepIds),
+          });
+
+          if (steps.length !== stepIds.length) {
+            throw new BadRequestException('bad_request_trip_step_invalid');
+          }
+
+          const stepById = new Map(steps.map((step) => [step.id, step]));
+          const krwCurrency = await queryRunner.manager.findOneBy(Currency, {
+            code: 'KRW',
+          });
+
+          if (!krwCurrency) {
+            throw new InternalServerErrorException(
+              'internal_server_error_krw_currency_not_found',
+            );
+          }
+
+          const normalizedExpenses = resolvedExpenses.map(
+            ({ expense, existingExpense, stepId }) => {
+              const step = stepById.get(stepId);
+
+              if (!step) {
+                throw new BadRequestException('bad_request_trip_step_invalid');
+              }
+
+              const requiresCurrency = step.requiresExpenseCurrency;
+              const currencyId = requiresCurrency
+                ? (expense.currencyId ?? existingExpense?.currency?.id)
+                : krwCurrency.id;
+
+              if (!currencyId) {
+                throw new BadRequestException(
+                  'bad_request_expense_currency_required',
+                );
+              }
+
+              const paymentDate = requiresCurrency
+                ? (expense.paymentDate ?? existingExpense?.paymentDate)
+                : undefined;
+
+              if (requiresCurrency && !paymentDate) {
+                throw new BadRequestException(
+                  'bad_request_expense_payment_date_required',
+                );
+              }
+
+              return {
+                expense,
+                existingExpense,
+                step,
+                currencyId,
+                paymentDate,
+                requiresCurrency,
+              };
+            },
+          );
+          const currencyIds = [
+            ...new Set(normalizedExpenses.map(({ currencyId }) => currencyId)),
+          ];
+          const currencies =
+            currencyIds.length > 0
+              ? await queryRunner.manager.findBy(Currency, {
+                  id: In(currencyIds),
+                })
+              : [];
+
+          if (currencies.length !== currencyIds.length) {
+            throw new BadRequestException('bad_request_currency_invalid');
+          }
+
+          const currencyById = new Map(
+            currencies.map((currency) => [currency.id, currency]),
+          );
+          const exchangeRateCache = new Map<
+            string,
+            Promise<{ rate: number; appliedDate: string | null }>
+          >();
+
           // 생성 또는 업데이트할 항목 엔티티 생성
-          const expenseEntities = body.trip.expenses.map(
-            (e: UpdateActualExpenseDto) =>
-              queryRunner.manager.create(TripActualExpense, {
-                id: e.id,
-                trip: trip, // TripReport에 연결
-                step: { id: e.stepId } as TripStep,
-                price: e.price,
-                details: e.details,
-              }),
+          const expenseEntities = await Promise.all(
+            normalizedExpenses.map(
+              async ({
+                expense: e,
+                existingExpense,
+                step,
+                currencyId,
+                paymentDate,
+                requiresCurrency,
+              }) => {
+                const currency = currencyById.get(currencyId);
+
+                if (!currency) {
+                  throw new BadRequestException('bad_request_currency_invalid');
+                }
+
+                const canReuseSnapshot =
+                  existingExpense?.currency?.id === currency.id &&
+                  existingExpense?.paymentDate?.getTime() ===
+                    paymentDate?.getTime() &&
+                  existingExpense.exchangeRate != null;
+                let exchangeRate = requiresCurrency
+                  ? (existingExpense?.exchangeRate ?? 1)
+                  : 1;
+                let exchangeRateAppliedDate = requiresCurrency
+                  ? existingExpense?.exchangeRateAppliedDate
+                  : undefined;
+
+                if (requiresCurrency && !canReuseSnapshot) {
+                  const snapshot = await this.getExpenseExchangeRate(
+                    this.formatExpenseDate(paymentDate!),
+                    currency,
+                    exchangeRateCache,
+                  );
+                  exchangeRate = snapshot.rate;
+                  exchangeRateAppliedDate =
+                    snapshot.appliedDate != null
+                      ? new Date(`${snapshot.appliedDate}T00:00:00.000Z`)
+                      : undefined;
+                }
+
+                return queryRunner.manager.create(TripActualExpense, {
+                  id: e.id,
+                  trip: trip, // TripReport에 연결
+                  step,
+                  currency,
+                  price: e.price,
+                  paymentDate,
+                  exchangeRate,
+                  exchangeRateAppliedDate,
+                  details: e.details,
+                });
+              },
+            ),
           );
           trip.expenses = await queryRunner.manager.save(expenseEntities);
         }
 
+        if (scheduleCategoryId === 2) {
+          // 택시(step 18) 또는 렌탈(step 19)의 원화 비용이 하나라도 있으면
+          // 해외 일비에 10% 공제를 적용한다. 해당 비용이 모두 제거되면 false가 된다.
+          trip.isDeducted = trip.expenses.some(
+            (expense) =>
+              [18, 19].includes(expense.step.id) && expense.price > 0,
+          );
+          await queryRunner.manager.save(trip);
+        }
+
         if (body.trip.rates) {
-          const currentRateIds = trip.rates.map((r) => r.id);
-          const incomingRateIds = body.trip.rates
+          // 국내 step 11과 해외 step 21~24는 서버가 계산한 항목이므로
+          // 클라이언트 수정 목록에서 제외하고 기존 값을 보호한다.
+          const protectedStepIds =
+            scheduleCategoryId === 1
+              ? [11]
+              : scheduleCategoryId === 2
+                ? [21, 22, 23, 24]
+                : [];
+          const protectedRates = trip.rates.filter((rate) =>
+            protectedStepIds.includes(rate.step.id),
+          );
+          const protectedRateIds = new Set(
+            protectedRates.map((rate) => rate.id),
+          );
+          const editableRates = trip.rates.filter(
+            (rate) => !protectedRateIds.has(rate.id),
+          );
+          const incomingEditableRates = body.trip.rates.filter(
+            (rate) =>
+              !protectedStepIds.includes(rate.stepId) &&
+              !protectedRateIds.has(rate.id),
+          );
+          const incomingRateIds = incomingEditableRates
             .map((r) => r.id)
             .filter((id) => id);
-          const ratesToDelete = currentRateIds.filter(
-            (id) => !incomingRateIds.includes(id),
-          );
+          const ratesToDelete = editableRates
+            .map((rate) => rate.id)
+            .filter((id) => !incomingRateIds.includes(id));
+
           if (ratesToDelete.length)
             await queryRunner.manager.delete(TripRegulationRate, ratesToDelete);
 
-          const rateEntities = body.trip.rates.map(
+          const rateEntities = incomingEditableRates.map(
             (r: UpdateRegulationRateDto) =>
               queryRunner.manager.create(TripRegulationRate, {
                 id: r.id,
@@ -1561,7 +2290,150 @@ export class ReportService {
                 details: r.details,
               }),
           );
-          trip.rates = await queryRunner.manager.save(rateEntities);
+          const savedEditableRates =
+            rateEntities.length > 0
+              ? await queryRunner.manager.save(rateEntities)
+              : [];
+          trip.rates = [...protectedRates, ...savedEditableRates];
+        }
+
+        if (scheduleCategoryId === 1) {
+          const isHolidaySpecialAllowanceExcluded =
+            (report.createdBy.rank?.id ?? Number.POSITIVE_INFINITY) <= 2;
+
+          if (body.trip.holidays !== undefined) {
+            // 일정에 저장된 휴일과 정확히 일치하는지 검증한 후
+            // 이동 여부와 대체휴무일만 갱신한다.
+            const scheduleHolidays = report.schedule.holidays ?? [];
+            const holidayInputs = body.trip.holidays;
+            const inputByDate = new Map(
+              holidayInputs.map((holiday) => [
+                dayjs(holiday.date).format('YYYY-MM-DD'),
+                holiday,
+              ]),
+            );
+
+            if (inputByDate.size !== holidayInputs.length) {
+              throw new BadRequestException(
+                'bad_request_trip_holiday_date_duplicate',
+              );
+            }
+
+            const expectedDates = new Set(
+              scheduleHolidays.map((holiday) =>
+                dayjs(holiday.date).format('YYYY-MM-DD'),
+              ),
+            );
+            const hasUnexpectedDate = holidayInputs.some(
+              (holiday) =>
+                !expectedDates.has(dayjs(holiday.date).format('YYYY-MM-DD')),
+            );
+            const hasMissingDate = scheduleHolidays.some(
+              (holiday) =>
+                !inputByDate.has(dayjs(holiday.date).format('YYYY-MM-DD')),
+            );
+
+            if (hasUnexpectedDate || hasMissingDate) {
+              throw new BadRequestException(
+                'bad_request_trip_holiday_dates_invalid',
+              );
+            }
+
+            const compensatoryLeaveDates = holidayInputs
+              .map((holiday) => holiday.compensatoryLeaveDate)
+              .filter((date): date is Date => Boolean(date))
+              .map((date) => dayjs(date).format('YYYY-MM-DD'));
+
+            if (
+              new Set(compensatoryLeaveDates).size !==
+              compensatoryLeaveDates.length
+            ) {
+              throw new BadRequestException(
+                'bad_request_compensatory_leave_date_duplicate',
+              );
+            }
+
+            const holidayEntities = scheduleHolidays.map((holiday) => {
+              const input = inputByDate.get(
+                dayjs(holiday.date).format('YYYY-MM-DD'),
+              );
+              holiday.isTravelOnly = input.isTravelOnly;
+              holiday.compensatoryLeaveDate = input.compensatoryLeaveDate
+                ? dayjs(input.compensatoryLeaveDate).toDate()
+                : undefined;
+
+              return holiday;
+            });
+            report.schedule.holidays =
+              holidayEntities.length > 0
+                ? await queryRunner.manager.save(holidayEntities)
+                : [];
+
+            // 휴일 정보가 바뀌면 기존 step 11은 폐기하고 서버 정책으로 재계산한다.
+            const existingHolidayRates = trip.rates.filter(
+              (rate) => rate.step.id === 11,
+            );
+
+            if (existingHolidayRates.length > 0) {
+              await queryRunner.manager.delete(
+                TripRegulationRate,
+                existingHolidayRates.map((rate) => rate.id),
+              );
+            }
+            trip.rates = trip.rates.filter((rate) => rate.step.id !== 11);
+
+            const holidaySpecialAllowanceDays = holidayInputs.filter(
+              (holiday) => !holiday.isTravelOnly,
+            ).length;
+
+            if (
+              !isHolidaySpecialAllowanceExcluded &&
+              holidaySpecialAllowanceDays > 0
+            ) {
+              const holidaySpecialAllowance = await queryRunner.manager.findOne(
+                TripRegulation,
+                {
+                  where: { step: { id: 11 } },
+                  relations: { step: true },
+                },
+              );
+
+              if (!holidaySpecialAllowance) {
+                throw new NotFoundException(
+                  'not_found_holiday_special_allowance_regulation',
+                );
+              }
+
+              const savedHolidayRate = await queryRunner.manager.save(
+                queryRunner.manager.create(TripRegulationRate, {
+                  trip,
+                  step: { id: 11 } as TripStep,
+                  days: holidaySpecialAllowanceDays,
+                  rate: holidaySpecialAllowance.rate,
+                }),
+              );
+              trip.rates.push(savedHolidayRate);
+            }
+          }
+
+          // 직급 ID 1, 2는 holidays 수정 여부와 무관하게 step 11을 가질 수 없다.
+          if (isHolidaySpecialAllowanceExcluded) {
+            const excludedHolidayRates = trip.rates.filter(
+              (rate) => rate.step.id === 11,
+            );
+
+            if (excludedHolidayRates.length > 0) {
+              await queryRunner.manager.delete(
+                TripRegulationRate,
+                excludedHolidayRates.map((rate) => rate.id),
+              );
+            }
+            trip.rates = trip.rates.filter((rate) => rate.step.id !== 11);
+          }
+        } else if (body.trip.holidays?.length) {
+          throw new BadRequestException(
+            'bad_request_trip_holidays_not_allowed',
+          );
         }
 
         if (body.trip.fuel) {
@@ -1602,13 +2474,6 @@ export class ReportService {
             }),
           );
         }
-      } else if (!isTripReportNow && trip) {
-        // 3. 기존 TripReport였는데, 업데이트 시 모든 출장 관련 데이터가 제거된 경우
-        // TripReport 엔티티와 그 하위 관계들을 정리합니다.
-
-        // cascade 옵션을 사용하면 하위 항목은 자동으로 삭제되므로 TripReport만 제거
-        await queryRunner.manager.remove(trip);
-        report.trip = null; // Report에서 관계 제거
       }
 
       // 🚨 isDeducted 필드는 Report에서 제거되었으므로, Report 엔티티 업데이트에서 제거합니다.
@@ -1690,7 +2555,7 @@ export class ReportService {
       });
 
       if (!report) {
-        throw new NotFoundException('report_not_found');
+        throw new NotFoundException('not_found_report');
       }
 
       // 연관된 TripReport soft delete (유니크 제약 조건 위반 방지)

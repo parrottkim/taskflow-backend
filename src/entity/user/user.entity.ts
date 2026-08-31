@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { UserPosition } from './user-position.entity';
+import { UserRank } from './user-rank.entity';
 import { UserDepartment } from './user-department.entity';
 import { Project } from '../project/project.entity';
 import { Issue } from '../issue/issue.entity';
@@ -43,10 +44,15 @@ export class User {
   isGuest: boolean;
 
   @Column({ type: 'varchar', nullable: true })
-  refreshToken: string;
+  refreshToken: string | null;
 
-  @ManyToOne(() => UserPosition, (position) => position.users)
-  position: UserPosition;
+  @ManyToOne(() => UserRank, (rank) => rank.users)
+  rank: UserRank;
+
+  @ManyToOne(() => UserPosition, (position) => position.users, {
+    nullable: true,
+  })
+  position?: UserPosition | null;
 
   @ManyToOne(() => UserDepartment, (department) => department.users)
   department: UserDepartment;

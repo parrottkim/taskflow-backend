@@ -1,4 +1,8 @@
-import { Inject, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import config from '@/config/config';
@@ -24,9 +28,15 @@ export class JwtAccessStrategy extends PassportStrategy(
   }
 
   async validate(payload: any) {
-    const user = await this.userService.getUser(payload.sub);
+    const user = await this.userService.findById(payload.sub);
     if (!user) {
-      throw new UnauthorizedException('user_not_found');
+      throw new UnauthorizedException('unauthorized_user_not_found');
+    }
+    if (!user.isAuthorized) {
+      await this.userService.updateAuthentication(user.id, {
+        refreshToken: null,
+      });
+      throw new ForbiddenException('forbidden_user_not_approved');
     }
 
     return user;
