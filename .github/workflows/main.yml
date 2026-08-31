@@ -116,7 +116,7 @@ jobs:
 
           # 1. ENV 파일 작성
           Set-Content -Path $EnvFilePath -Value $EnvContent -Force
-          
+
           # 2. SFTP SSH Key 파일 작성 (다중 줄 Secret)
           # $KeyContent 변수는 이미 리터럴 문자열로 할당되었으므로 안전하게 사용 가능
           Set-Content -Path $SftpFilePath -Value $KeyContent -Force
@@ -124,26 +124,36 @@ jobs:
           # 3. Google Calendar JSON Key 파일 작성 (다중 줄 Secret)
           # $GoogleCalendarSecret 변수는 이미 리터럴 문자열로 할당되었으므로 안전하게 사용 가능
           Set-Content -Path $GoogleCalendarFilePath -Value $GoogleCalendarSecret -Force
-          
+
           # 4. 권한 설정
           icacls $SftpFilePath /inheritance:r /grant:r "${{ secrets.SERVER_USER }}:F"
 
       - name: Deploy service
         shell: powershell
+        env:
+          DEV_MIGRATION_PASSWORD: ${{ secrets.DEV_MIGRATION_PASSWORD }}
+          PROD_MIGRATION_PASSWORD: ${{ secrets.PROD_MIGRATION_PASSWORD }}
         run: |
           $Env = "${{ env.ENV }}"
           $RemoteDir = "${{ env.REMOTE_DIR }}"
           $Service = "${{ env.COMPOSE_SERVICE }}"
           $ComposeFile = "${{ env.COMPOSE_FILE }}"
+          $MigrationUser = "migration"
 
           Set-Location -Path $RemoteDir
 
           if ($Env -eq "dev") {
               $EnvFile = ".dev.env"
               $SftpFile = "sftpuser-dev_id_rsa"
+              $MigrationPassword = $env:DEV_MIGRATION_PASSWORD
           } else {
               $EnvFile = ".prod.env"
               $SftpFile = "sftpuser_id_rsa"
+              $MigrationPassword = $env:PROD_MIGRATION_PASSWORD
+          }
+
+          if ([string]::IsNullOrWhiteSpace($MigrationPassword)) {
+              throw "Migration database password is not configured for the $Env environment."
           }
 
           $EnvFilePath = Join-Path $RemoteDir $EnvFile
@@ -156,4 +166,19 @@ jobs:
           docker compose -f $ComposeFile --profile $Env up -d $Service doc-converter redis
 
           Write-Host "Running migrations..."
-          docker compose -f $ComposeFile --profile $Env run --rm $Service npm run typeorm:migrate
+          $env:POSTGRES_USER = $MigrationUser
+          $env:POSTGRES_PASSWORD = $MigrationPassword
+
+          try {
+              docker compose -f $ComposeFile --profile $Env run --rm `
+                  -e POSTGRES_USER `
+                  -e POSTGRES_PASSWORD `
+                  $Service npm run typeorm:migrate
+
+              if ($LASTEXITCODE -ne 0) {
+                  throw "Database migration failed with exit code $LASTEXITCODE."
+              }
+          } finally {
+              Remove-Item Env:POSTGRES_USER -ErrorAction SilentlyContinue
+              Remove-Item Env:POSTGRES_PASSWORD -ErrorAction SilentlyContinue
+          }
