@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  ForbiddenException,
+  HttpException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -16,6 +18,12 @@ import { UploadInlineImageDto } from './dto/upload-inline-image';
 import { plainToInstance } from 'class-transformer';
 import { assertWriteAccess } from '@/common/policies/write-access.policy';
 import { assertAdmin } from '@/common/policies/admin-access.policy';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { DocumentAttachment } from '@/entity/document/document-attachment.entity';
+import { IssueAttachment } from '@/entity/issue/issue-attachment.entity';
+import { ReportAttachment } from '@/entity/report/report-attachment.entity';
+import { posix } from 'node:path';
 
 interface UploadedAttachment {
   filename: string;
@@ -29,6 +37,12 @@ export class SftpService {
   constructor(
     @Inject(config.KEY)
     private readonly configService: ConfigType<typeof config>,
+    @InjectRepository(DocumentAttachment)
+    private readonly documentAttachmentRepository: Repository<DocumentAttachment>,
+    @InjectRepository(IssueAttachment)
+    private readonly issueAttachmentRepository: Repository<IssueAttachment>,
+    @InjectRepository(ReportAttachment)
+    private readonly reportAttachmentRepository: Repository<ReportAttachment>,
   ) {}
 
   private async withSftp<T>(action: (sftp: Client) => Promise<T>): Promise<T> {
@@ -51,7 +65,12 @@ export class SftpService {
 
       return await action(sftp);
     } catch (err) {
-      throw new InternalServerErrorException('sftp_connection_failed');
+      if (err instanceof HttpException) {
+        throw err;
+      }
+      throw new InternalServerErrorException(
+        'internal_server_error_sftp_connection_failed',
+      );
     } finally {
       try {
         await sftp.end();
@@ -69,7 +88,7 @@ export class SftpService {
       normalized.includes('..') ||
       /^[a-z]+:\/\//i.test(normalized)
     ) {
-      throw new BadRequestException('invalid_sftp_path');
+      throw new BadRequestException('bad_request_sftp_path_invalid');
     }
 
     return normalized;
@@ -82,6 +101,47 @@ export class SftpService {
     );
 
     return [basePath, ...normalizedSegments].filter(Boolean).join('/');
+  }
+
+  private normalizeDownloadPath(path: string): string {
+    const suppliedPath = path.trim();
+    const basePath = posix.normalize(
+      this.configService.sftp.path.trim().replace(/\/+$/g, ''),
+    );
+    const normalizedPath = posix.normalize(suppliedPath);
+
+    if (
+      !suppliedPath ||
+      suppliedPath.includes('\\') ||
+      suppliedPath.includes('\0') ||
+      normalizedPath !== suppliedPath ||
+      normalizedPath === basePath ||
+      !normalizedPath.startsWith(`${basePath}/`)
+    ) {
+      throw new BadRequestException('bad_request_sftp_path_invalid');
+    }
+
+    return normalizedPath;
+  }
+
+  private async findAttachmentByPath(path: string) {
+    const [documentAttachment, issueAttachment, reportAttachment] =
+      await Promise.all([
+        this.documentAttachmentRepository.findOne({
+          where: { path },
+          relations: ['document'],
+        }),
+        this.issueAttachmentRepository.findOne({
+          where: { path },
+          relations: ['issue'],
+        }),
+        this.reportAttachmentRepository.findOne({
+          where: { path },
+          relations: ['report'],
+        }),
+      ]);
+
+    return documentAttachment ?? issueAttachment ?? reportAttachment;
   }
 
   async uploadFile(buffer: Buffer, path: string) {
@@ -100,15 +160,32 @@ export class SftpService {
     });
   }
 
-  async downloadFile(path: string) {
+  async downloadFile(user: User, path: string) {
+    const normalizedPath = this.normalizeDownloadPath(path);
+    const attachment = await this.findAttachmentByPath(normalizedPath);
+
+    if (!attachment) {
+      throw new NotFoundException('not_found_attachment');
+    }
+
+    // 현재 문서/이슈/보고서 읽기 정책은 승인된 사용자 전체 공개다.
+    // 부모 relation까지 조회하여 삭제된 리소스의 고아 첨부파일 접근도 차단한다.
+    const hasParent =
+      ('document' in attachment && Boolean(attachment.document)) ||
+      ('issue' in attachment && Boolean(attachment.issue)) ||
+      ('report' in attachment && Boolean(attachment.report));
+    if (!user.isAuthorized || !hasParent) {
+      throw new ForbiddenException('forbidden_access_denied');
+    }
+
     return this.withSftp(async (sftp) => {
-      const exists = await sftp.exists(path);
+      const exists = await sftp.exists(normalizedPath);
       if (!exists) {
-        throw new NotFoundException('file_not_found');
+        throw new NotFoundException('not_found_file');
       }
 
-      const buffer = (await sftp.get(path)) as Buffer;
-      const filename = path.substring(path.lastIndexOf('/') + 1);
+      const buffer = (await sftp.get(normalizedPath)) as Buffer;
+      const filename = attachment.filename;
 
       return { buffer, filename };
     });
@@ -118,7 +195,9 @@ export class SftpService {
     const baseUrl = this.configService.sftp.url;
 
     if (!url.startsWith(baseUrl)) {
-      throw new InternalServerErrorException('invalid_sftp_url');
+      throw new InternalServerErrorException(
+        'internal_server_error_sftp_url_invalid',
+      );
     }
 
     const path = url.replace(baseUrl, '');
@@ -171,7 +250,7 @@ export class SftpService {
     assertWriteAccess(user);
     if (!files.length) return [];
     if (!Number.isInteger(resourceId) || resourceId < 1) {
-      throw new BadRequestException('invalid_resource_id');
+      throw new BadRequestException('bad_request_resource_id_invalid');
     }
 
     const directory = 'inline-images';

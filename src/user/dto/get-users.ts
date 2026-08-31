@@ -28,6 +28,13 @@ export class GetUsersDto {
   @Type(() => Number)
   @IsOptional()
   @IsInt()
+  @Expose({ name: 'rank_id' })
+  rankId?: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
   @Expose({ name: 'position_id' })
   positionId?: number;
 

@@ -11,6 +11,7 @@ import { UserModule } from '@/user/user.module';
 import { ConfigService } from '@nestjs/config';
 import { MailModule } from '@/mail/mail.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
+import { AuthOriginGuard } from '@/common/guards/auth-origin.guard';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
     LocalStrategy,
     JwtAccessStrategy,
     JwtRefreshStrategy,
+    AuthOriginGuard,
   ],
   controllers: [AuthController],
 })

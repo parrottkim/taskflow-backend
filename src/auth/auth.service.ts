@@ -1,6 +1,8 @@
 import {
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   UnauthorizedException,
@@ -20,6 +22,14 @@ import { ForgotPasswordDto } from './dto/forgot-password';
 import { ResetPasswordDto } from './dto/reset-password';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
+import { createHash, randomUUID } from 'node:crypto';
+
+interface RefreshSession {
+  id: number;
+  email: string;
+  persistLogin?: boolean;
+  refreshToken: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -36,11 +46,11 @@ export class AuthService {
     const user = await this.userService.findByEmail(email);
 
     if (!user) {
-      throw new UnauthorizedException('user_not_found');
+      throw new UnauthorizedException('unauthorized_credentials_invalid');
     }
 
     if (!user.isAuthorized) {
-      throw new ForbiddenException('not_approved');
+      throw new ForbiddenException('forbidden_user_not_approved');
     }
 
     if (user && (await bcrypt.compare(pass, user.password))) {
@@ -50,8 +60,8 @@ export class AuthService {
     return null;
   }
 
-  async login(user: User) {
-    const payload = { email: user.email, sub: user.id };
+  async login(user: User, persistLogin = false) {
+    const payload = { email: user.email, sub: user.id, persistLogin };
     const accessTokenExpiresIn = this.configService.jwt
       .accessTokenExpiration as any;
     const refreshTokenExpiresIn = this.configService.jwt
@@ -60,20 +70,34 @@ export class AuthService {
       secret: this.configService.jwt.jwtAccessSecret,
       expiresIn: accessTokenExpiresIn,
     });
-    const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.jwt.jwtRefreshSecret,
-      expiresIn: refreshTokenExpiresIn,
-    });
+    const refreshToken = this.jwtService.sign(
+      { ...payload, jti: randomUUID() },
+      {
+        secret: this.configService.jwt.jwtRefreshSecret,
+        expiresIn: refreshTokenExpiresIn,
+      },
+    );
 
     if (!user.isAuthorized) {
-      throw new ForbiddenException('not_approved');
+      throw new ForbiddenException('forbidden_user_not_approved');
     }
 
-    await this.userService.update(user.id, { refreshToken: refreshToken });
+    await this.userService.updateAuthentication(user.id, {
+      refreshToken: this.hashRefreshToken(refreshToken),
+    });
 
     return {
       accessToken,
       refreshToken,
+      refreshTokenMaxAge: persistLogin
+        ? Math.max(
+            ((this.jwtService.decode(refreshToken) as { exp?: number })?.exp ||
+              0) *
+              1000 -
+              Date.now(),
+            0,
+          )
+        : undefined,
     };
   }
 
@@ -88,7 +112,7 @@ export class AuthService {
       // TypeORM/Postgres 에러 코드 확인을 위한 타입 가드
       if (error && typeof error === 'object' && 'code' in error) {
         if (error.code === '23505') {
-          throw new ConflictException('user_exists');
+          throw new ConflictException('conflict_user_email_already_exists');
         }
       }
 
@@ -97,12 +121,23 @@ export class AuthService {
     }
   }
 
-  async refreshToken(user: User) {
-    const payload = { email: user.email, sub: user.id };
-    const existingUser = await this.userService.findById(payload.sub);
+  async refreshToken(user: RefreshSession) {
+    const existingUser = await this.userService.findById(user.id);
     if (!existingUser) {
-      throw new UnauthorizedException('user_not_found');
+      throw new UnauthorizedException('unauthorized_user_not_found');
     }
+    if (!existingUser.isAuthorized) {
+      await this.userService.updateAuthentication(existingUser.id, {
+        refreshToken: null,
+      });
+      throw new ForbiddenException('forbidden_user_not_approved');
+    }
+
+    const payload = {
+      email: existingUser.email,
+      sub: existingUser.id,
+      persistLogin: user.persistLogin === true,
+    };
     const accessTokenExpiresIn = this.configService.jwt
       .accessTokenExpiration as any;
     const refreshTokenExpiresIn = this.configService.jwt
@@ -111,17 +146,60 @@ export class AuthService {
       secret: this.configService.jwt.jwtAccessSecret,
       expiresIn: accessTokenExpiresIn,
     });
-    const newRefreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.jwt.jwtRefreshSecret,
-      expiresIn: refreshTokenExpiresIn,
-    });
+    const newRefreshToken = this.jwtService.sign(
+      { ...payload, jti: randomUUID() },
+      {
+        secret: this.configService.jwt.jwtRefreshSecret,
+        expiresIn: refreshTokenExpiresIn,
+      },
+    );
 
-    await this.userService.update(user.id, { refreshToken: newRefreshToken });
+    const rotated = await this.userService.rotateRefreshToken(
+      existingUser.id,
+      this.hashRefreshToken(user.refreshToken),
+      this.hashRefreshToken(newRefreshToken),
+    );
+    if (!rotated) {
+      throw new UnauthorizedException('unauthorized_refresh_token_reused');
+    }
 
     return {
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
+      refreshTokenMaxAge: user.persistLogin
+        ? Math.max(
+            ((this.jwtService.decode(newRefreshToken) as { exp?: number })
+              ?.exp || 0) *
+              1000 -
+              Date.now(),
+            0,
+          )
+        : undefined,
     };
+  }
+
+  async logout(refreshToken: string | null) {
+    if (!refreshToken) return;
+
+    try {
+      const payload = this.jwtService.verify<{ sub: number }>(refreshToken, {
+        secret: this.configService.jwt.jwtRefreshSecret,
+        ignoreExpiration: true,
+      });
+      const user = await this.userService.findById(payload.sub);
+
+      if (user?.refreshToken === this.hashRefreshToken(refreshToken)) {
+        await this.userService.updateAuthentication(user.id, {
+          refreshToken: null,
+        });
+      }
+    } catch {
+      // Logout is idempotent: malformed/expired sessions still have cookies cleared.
+    }
+  }
+
+  private hashRefreshToken(refreshToken: string): string {
+    return createHash('sha256').update(refreshToken).digest('hex');
   }
 
   async forgotPassword(value: ForgotPasswordDto) {
@@ -134,7 +212,10 @@ export class AuthService {
 
     if (isCooldown) {
       // 쿨다운 기간 내에 다시 요청했을 경우 에러 발생
-      throw new ConflictException('too_many_forgot_password_requests');
+      throw new HttpException(
+        'too_many_requests_forgot_password',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     try {
@@ -173,20 +254,27 @@ export class AuthService {
     const userIdString = await this.redisClient.get(redisKey);
 
     if (!userIdString) {
-      throw new UnauthorizedException('reset_token_expired_or_invalid');
+      throw new UnauthorizedException(
+        'unauthorized_reset_token_invalid_or_expired',
+      );
     }
 
     const userId = parseInt(userIdString, 10);
     const user = await this.userService.findById(userId);
 
     if (!user) {
-      throw new UnauthorizedException('user_not_found');
+      throw new UnauthorizedException(
+        'unauthorized_reset_token_invalid_or_expired',
+      );
     }
 
     // 3. 새 비밀번호 해싱 및 업데이트
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(value.newPassword, salt);
-    await this.userService.update(userId, { password: hashedPassword });
+    await this.userService.updateAuthentication(userId, {
+      password: hashedPassword,
+      refreshToken: null,
+    });
 
     // 4. 토큰 무효화: 비밀번호 업데이트 후 Redis에서 토큰 삭제 (DEL key)
     await this.redisClient.del(redisKey);

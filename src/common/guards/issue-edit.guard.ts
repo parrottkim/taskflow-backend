@@ -32,7 +32,7 @@ export class IssueEditGuard implements CanActivate {
       },
     });
 
-    if (!issue) throw new NotFoundException('issue_not_found');
+    if (!issue) throw new NotFoundException('not_found_issue');
 
     // 권한 체크 로직 (예: 작성자 본인이거나, 프로젝트 관리자이거나, 어드민인 경우)
     assertOwnerOrAdmin(user, issue.createdBy.id);

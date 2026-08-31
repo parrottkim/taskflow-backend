@@ -1,6 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Expose, Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Expose, Transform } from 'class-transformer';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class TripStepDto {
   @ApiProperty()
@@ -10,10 +16,9 @@ export class TripStepDto {
   id: number;
 
   @ApiProperty()
-  @IsInt()
-  @IsNotEmpty()
+  @Transform(({ obj }) => obj.category?.id)
   @Expose()
-  categoryId: Number;
+  categoryId: number;
 
   @ApiProperty()
   @IsString()
@@ -26,4 +31,10 @@ export class TripStepDto {
   @IsOptional()
   @Expose()
   description?: string;
+
+  @ApiProperty()
+  @IsBoolean()
+  @IsNotEmpty()
+  @Expose()
+  requiresExpenseCurrency: boolean;
 }

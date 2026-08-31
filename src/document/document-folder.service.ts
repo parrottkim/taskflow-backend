@@ -254,7 +254,7 @@ export class DocumentFolderService {
       const positiveInputIds = this.collectPositiveFolderIds(body.items);
 
       if (new Set(positiveInputIds).size !== positiveInputIds.length) {
-        throw new BadRequestException('duplicated_folder_id');
+        throw new BadRequestException('bad_request_folder_id_duplicate');
       }
 
       const existingFolders = await queryRunner.manager.find(DocumentFolder);
@@ -275,7 +275,7 @@ export class DocumentFolderService {
           const existing = existingById.get(input.id);
 
           if (!existing) {
-            throw new NotFoundException('folder_not_found');
+            throw new NotFoundException('not_found_folder');
           }
 
           folder = existing;
@@ -303,7 +303,9 @@ export class DocumentFolderService {
         );
 
         if (folder.fixed && previousParentId !== parentId) {
-          throw new ForbiddenException('fixed_folder_cannot_move');
+          throw new ForbiddenException(
+            'forbidden_fixed_folder_move_not_allowed',
+          );
         }
 
         parentByFolderId.set(folder.id, parentId);
@@ -362,7 +364,7 @@ export class DocumentFolderService {
         );
 
         if (!parentClosures.length) {
-          throw new NotFoundException('parent_folder_not_found');
+          throw new NotFoundException('not_found_parent_folder');
         }
 
         const newClosures = parentClosures.map((parentClosure) =>

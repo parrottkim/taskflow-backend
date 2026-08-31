@@ -26,7 +26,7 @@ export class ReportEditGuard implements CanActivate {
       relations: ['createdBy'],
     });
 
-    if (!report) throw new NotFoundException('report_not_found');
+    if (!report) throw new NotFoundException('not_found_report');
 
     assertOwnerOrAdmin(user, report.createdBy.id);
 

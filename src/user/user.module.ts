@@ -4,6 +4,7 @@ import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { User } from '@/entity/user/user.entity';
 import { UserPosition } from '@/entity/user/user-position.entity';
+import { UserRank } from '@/entity/user/user-rank.entity';
 import { UserDepartment } from '@/entity/user/user-department.entity';
 import { UserDepartmentClosure } from '@/entity/user/user-department-closure.entity';
 
@@ -11,6 +12,7 @@ import { UserDepartmentClosure } from '@/entity/user/user-department-closure.ent
   imports: [
     TypeOrmModule.forFeature([
       User,
+      UserRank,
       UserPosition,
       UserDepartment,
       UserDepartmentClosure,

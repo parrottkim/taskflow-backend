@@ -19,6 +19,7 @@ import { ReportAttachmentSubscriber } from '@/common/subscribers/report-attachme
 import { MailModule } from '@/mail/mail.module';
 import { ProjectModule } from '@/project/project.module';
 import { ReportEditGuard } from '@/common/guards/report-edit.guard';
+import { HolidayModule } from '@/holiday/holiday.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ReportEditGuard } from '@/common/guards/report-edit.guard';
     ScheduleModule,
     UserModule,
     CurrencyModule,
+    HolidayModule,
     SftpModule,
     MailModule,
   ],

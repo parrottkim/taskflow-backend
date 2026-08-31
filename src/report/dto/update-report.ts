@@ -94,7 +94,11 @@ export class UpdateTripReportDto extends PartialType(UpdateTripReportBaseDto) {
   @Type(() => UpdateFuelExpenseDto)
   fuel?: UpdateFuelExpenseDto;
 
-  @ApiProperty({ required: false, description: '공제 여부 (업데이트용)' })
+  @ApiProperty({
+    required: false,
+    description:
+      '공제 여부. 해외 출장(category 2)은 택시/렌탈 비용에 따라 서버에서 자동 계산',
+  })
   @IsOptional()
   @IsBoolean()
   isDeducted?: boolean;

@@ -1,11 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Expose, Transform } from 'class-transformer';
+import { Expose, Transform, Type } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
   IsString,
   IsOptional,
   IsNumber,
+  IsDate,
 } from 'class-validator';
 
 export class TripActualExpenseDto {
@@ -21,12 +22,65 @@ export class TripActualExpenseDto {
   @Expose()
   stepId: number;
 
-  @ApiProperty({ description: '실제 지출 금액' })
-  @Transform(({ value }) => value.toLocaleString('ko-KR'))
+  @ApiProperty()
+  @IsInt()
+  @IsNotEmpty()
+  @Transform(({ obj }) => obj.currency?.id ?? obj.currencyId)
+  @Expose()
+  currencyId: number;
+
+  @ApiProperty({
+    description: '외화 경비 결제일',
+    required: false,
+    nullable: true,
+  })
+  @Type(() => Date)
+  @IsOptional()
+  @IsDate()
+  @Expose()
+  paymentDate?: Date | null;
+
+  @ApiProperty({ description: '원화 환산에 적용한 환율' })
   @IsNumber()
+  @Expose()
+  exchangeRate: number;
+
+  @ApiProperty({
+    description: '환율 적용 기준일',
+    required: false,
+    nullable: true,
+  })
+  @Type(() => Date)
+  @IsOptional()
+  @IsDate()
+  @Expose()
+  exchangeRateAppliedDate?: Date | null;
+
+  @ApiProperty({ description: '환율을 적용한 원화 금액' })
+  @Transform(({ obj }) =>
+    Math.round(Number(obj.price) * Number(obj.exchangeRate ?? 1)),
+  )
+  @IsNumber()
+  @Expose()
+  convertedPrice: number;
+
+  @ApiProperty({ description: '실제 지출 금액' })
+  @Transform(({ value, obj }) => {
+    if (value == null) {
+      return value;
+    }
+
+    const fractionDigits = (obj.currency?.code ?? 'KRW') === 'KRW' ? 0 : 2;
+
+    return Number(value).toLocaleString('ko-KR', {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    });
+  })
+  @IsString()
   @IsOptional()
   @Expose()
-  price?: number; // DB 저장 시 숫자(Number) 타입 권장
+  price?: string;
 
   @ApiProperty({ description: '상세 내용' })
   @IsString()
