@@ -12,14 +12,4 @@ export class UpdateProjectDto extends PartialType(CreateProjectDto) {
   @IsBoolean()
   @IsOptional()
   isContracted?: boolean;
-
-  @ApiProperty()
-  @IsBoolean()
-  @IsOptional()
-  isClosed?: boolean;
-
-  @ApiProperty()
-  @IsString()
-  @IsOptional()
-  closureMessage?: string;
 }
