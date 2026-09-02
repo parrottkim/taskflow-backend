@@ -6,7 +6,13 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
 import { Project } from '@/entity/project/project.entity';
-import { Brackets, DataSource, Repository } from 'typeorm';
+import {
+  Brackets,
+  DataSource,
+  EntityManager,
+  IsNull,
+  Repository,
+} from 'typeorm';
 import { ProjectClientService } from './project-client.service';
 import { ProjectClientDto } from './dto/project-client';
 import { GetProjectsDto } from './dto/get-projects';
@@ -21,6 +27,8 @@ import { ProjectDto, ProjectListDto } from './dto/project';
 import { ProjectItemCountDto } from './dto/project-item-count';
 import { Report } from '@/entity/report/report.entity';
 import { Issue } from '@/entity/issue/issue.entity';
+import { CloseProjectDto } from './dto/close-project';
+import { TransactionIssueItem } from '@/entity/issue/transaction/transaction-issue-item.entity';
 
 @Injectable()
 export class ProjectService {
@@ -34,6 +42,21 @@ export class ProjectService {
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
   ) {}
+
+  private hasUnpaidTransactionItem(manager: EntityManager, projectId: number) {
+    return manager.exists(TransactionIssueItem, {
+      where: [
+        {
+          project: { id: projectId },
+          isPaid: false,
+        },
+        {
+          project: { id: projectId },
+          isPaid: IsNull(),
+        },
+      ],
+    });
+  }
 
   async findProjectById(id: number, user?: User) {
     const queryBuilder = this.projectRepository
@@ -287,7 +310,16 @@ export class ProjectService {
       throw new NotFoundException('not_found_project');
     }
 
-    return this.getProjectForEdit(user, id);
+    const projectDto = await this.getProjectForEdit(user, id);
+
+    const hasUnpaidItem = await this.hasUnpaidTransactionItem(
+      this.dataSource.manager,
+      id,
+    );
+
+    projectDto.isClosable = !projectDto.isClosed && !hasUnpaidItem;
+
+    return projectDto;
   }
 
   async getProjectWithoutUser(id: number) {
@@ -474,7 +506,8 @@ export class ProjectService {
         const existingProject = await queryRunner.manager.findOne(Project, {
           where: { code: body.projectCode },
         });
-        if (existingProject) throw new ConflictException('conflict_project_code_already_exists');
+        if (existingProject)
+          throw new ConflictException('conflict_project_code_already_exists');
         project.code = body.projectCode;
       }
 
@@ -482,8 +515,6 @@ export class ProjectService {
       project.name = body.projectName ?? project.name;
       project.isPreexecuted = body.isPreexecuted ?? project.isPreexecuted;
       project.isContracted = body.isContracted ?? project.isContracted;
-      project.isClosed = body.isClosed ?? project.isClosed;
-      project.closureMessage = body.closureMessage ?? project.closureMessage;
 
       // 연관 엔티티 업데이트
       if (body.managerId) {
@@ -539,6 +570,71 @@ export class ProjectService {
       );
 
       return projectDto;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async closeProject(user: User, id: number, body: CloseProjectDto) {
+    assertWriteAccess(user);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const project = await queryRunner.manager
+        .getRepository(Project)
+        .createQueryBuilder('project')
+        .leftJoinAndSelect('project.createdBy', 'createdBy')
+        .where('project.id = :id', { id })
+        .setLock('pessimistic_write')
+        .getOne();
+
+      if (!project) {
+        throw new NotFoundException('not_found_project');
+      }
+
+      assertOwnerOrAdmin(user, project.createdBy.id);
+
+      if (project.isClosed) {
+        throw new ConflictException('conflict_project_already_closed');
+      }
+
+      const hasUnpaidItem = await queryRunner.manager.exists(
+        TransactionIssueItem,
+        {
+          where: [
+            {
+              project: { id: project.id },
+              isPaid: false,
+            },
+            {
+              project: { id: project.id },
+              isPaid: IsNull(),
+            },
+          ],
+        },
+      );
+
+      if (hasUnpaidItem) {
+        throw new ConflictException(
+          'conflict_project_has_unpaid_transaction_item',
+        );
+      }
+
+      project.isClosed = true;
+      project.closedAt = new Date();
+      project.closureMessage = body.closureMessage ?? null;
+      project.updatedBy = user;
+
+      const saved = await queryRunner.manager.save(project);
+
+      await queryRunner.commitTransaction();
+
+      return saved;
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;

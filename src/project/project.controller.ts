@@ -23,6 +23,7 @@ import { UpdateProjectDto } from './dto/update-project';
 import { ProjectItemCountDto } from './dto/project-item-count';
 import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 import { ProjectEditGuard } from '@/common/guards/project-edit.guard';
+import { CloseProjectDto } from './dto/close-project';
 
 @ApiTags('Project (프로젝트)')
 @Controller('project')
@@ -109,6 +110,23 @@ export class ProjectController {
     @Body() body: UpdateProjectDto,
   ) {
     return this.projectService.updateProject(req.user, id, body);
+  }
+
+  @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)
+  @ApiOperation({ summary: '프로젝트 종결' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: ProjectDto,
+  })
+  @Patch(':id/close')
+  closeProject(
+    @Request() req,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CloseProjectDto,
+  ) {
+    return this.projectService.closeProject(req.user, id, body);
   }
 
   @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)

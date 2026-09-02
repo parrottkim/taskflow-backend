@@ -68,6 +68,13 @@ export class ProjectDto {
   @Expose()
   isBookmarked: boolean;
 
+  @ApiProperty({
+    description: '프로젝트 종결 가능 여부',
+    example: true,
+  })
+  @Expose()
+  isClosable: boolean;
+
   @ApiProperty()
   @Type(() => Date)
   @Expose()
