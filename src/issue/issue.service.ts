@@ -257,10 +257,10 @@ export class IssueService {
   async getLatestIssues(value: GetLatestIssuesDto) {
     const [issues, total] = await this.issueRepository
       .createQueryBuilder('issue')
-      .leftJoinAndSelect('issue.project', 'project')
+      .innerJoinAndSelect('issue.project', 'project')
       .leftJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.createdBy', 'createdBy')
-      .leftJoinAndSelect('project.client', 'client')
+      .innerJoinAndSelect('project.client', 'client')
       .orderBy('issue.createdAt', 'DESC')
       .skip((value.page - 1) * value.limit)
       .take(value.limit)
