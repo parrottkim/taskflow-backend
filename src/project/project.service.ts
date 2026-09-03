@@ -312,6 +312,12 @@ export class ProjectService {
       },
     );
 
+    projectDto.isClosable = await this.isProjectClosable(
+      this.dataSource.manager,
+      id,
+      projectDto.isClosed,
+    );
+
     return projectDto;
   }
 
@@ -331,15 +337,7 @@ export class ProjectService {
       throw new NotFoundException('not_found_project');
     }
 
-    const projectDto = await this.getProjectForEdit(user, id);
-
-    projectDto.isClosable = await this.isProjectClosable(
-      this.dataSource.manager,
-      id,
-      projectDto.isClosed,
-    );
-
-    return projectDto;
+    return this.getProjectForEdit(user, id);
   }
 
   async getProjectWithoutUser(id: number) {
