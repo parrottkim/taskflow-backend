@@ -58,6 +58,27 @@ export class ProjectService {
     });
   }
 
+  private async isProjectClosable(
+    manager: EntityManager,
+    projectId: number,
+    isClosed: boolean,
+  ) {
+    if (isClosed) return false;
+
+    const hasTransactionItem = await manager.exists(TransactionIssueItem, {
+      where: { project: { id: projectId } },
+    });
+
+    if (!hasTransactionItem) return false;
+
+    const hasUnpaidItem = await this.hasUnpaidTransactionItem(
+      manager,
+      projectId,
+    );
+
+    return !hasUnpaidItem;
+  }
+
   async findProjectById(id: number, user?: User) {
     const queryBuilder = this.projectRepository
       .createQueryBuilder('project')
@@ -312,12 +333,11 @@ export class ProjectService {
 
     const projectDto = await this.getProjectForEdit(user, id);
 
-    const hasUnpaidItem = await this.hasUnpaidTransactionItem(
+    projectDto.isClosable = await this.isProjectClosable(
       this.dataSource.manager,
       id,
+      projectDto.isClosed,
     );
-
-    projectDto.isClosable = !projectDto.isClosed && !hasUnpaidItem;
 
     return projectDto;
   }
@@ -452,6 +472,7 @@ export class ProjectService {
       });
 
       projectDto.isBookmarked = false;
+      projectDto.isClosable = false;
 
       projectDto.clients = ancestors.map((ancestor) =>
         plainToInstance(ProjectClientDto, ancestor, {
@@ -548,6 +569,11 @@ export class ProjectService {
       const saved = await queryRunner.manager.save(project);
 
       const isBookmarked = project.bookmarks?.length > 0;
+      const isClosable = await this.isProjectClosable(
+        queryRunner.manager,
+        saved.id,
+        saved.isClosed,
+      );
 
       // client 계층 조회
       const ancestors = await this.projectClientService.findAncestors(
@@ -568,6 +594,7 @@ export class ProjectService {
           excludeExtraneousValues: true,
         }),
       );
+      projectDto.isClosable = isClosable;
 
       return projectDto;
     } catch (err) {
