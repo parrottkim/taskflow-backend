@@ -614,8 +614,22 @@ export class ProjectService {
         .getRepository(Project)
         .createQueryBuilder('project')
         .leftJoinAndSelect('project.createdBy', 'createdBy')
+        .leftJoinAndSelect('project.updatedBy', 'updatedBy')
+        .leftJoinAndSelect('project.manager', 'manager')
+        .leftJoinAndSelect('project.latestCategory', 'latestCategory')
+        .leftJoinAndSelect('createdBy.rank', 'rank')
+        .leftJoinAndSelect('createdBy.department', 'department')
+        .leftJoinAndSelect('updatedBy.rank', 'updatedByRank')
+        .leftJoinAndSelect('updatedBy.department', 'updatedByDepartment')
+        .leftJoinAndSelect('project.client', 'client')
+        .leftJoinAndSelect(
+          'project.bookmarks',
+          'bookmark',
+          'bookmark.user_id = :userId',
+          { userId: user.id },
+        )
         .where('project.id = :id', { id })
-        .setLock('pessimistic_write')
+        .setLock('pessimistic_write', undefined, ['project'])
         .getOne();
 
       if (!project) {
@@ -657,9 +671,29 @@ export class ProjectService {
 
       const saved = await queryRunner.manager.save(project);
 
+      const isBookmarked = project.bookmarks?.length > 0;
+
+      const ancestors = await this.projectClientService.findAncestors(
+        saved.client.id,
+      );
+
       await queryRunner.commitTransaction();
 
-      return saved;
+      const projectDto = plainToInstance(
+        ProjectDto,
+        { ...saved, isBookmarked },
+        {
+          excludeExtraneousValues: true,
+        },
+      );
+      projectDto.clients = ancestors.map((ancestor) =>
+        plainToInstance(ProjectClientDto, ancestor, {
+          excludeExtraneousValues: true,
+        }),
+      );
+      projectDto.isClosable = false;
+
+      return projectDto;
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
