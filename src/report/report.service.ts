@@ -99,8 +99,33 @@ export class ReportService {
   private getApplicableTripRates(
     rates: TripRegulationRate[] | null | undefined,
     isDomestic: boolean,
+    excludeDomesticDailyAllowance: boolean,
   ) {
-    return (rates ?? []).filter((rate) => !(isDomestic && rate.step.id === 11));
+    return (rates ?? []).filter(
+      (rate) =>
+        !(
+          isDomestic &&
+          (rate.step.id === 11 ||
+            (excludeDomesticDailyAllowance && rate.step.id === 10))
+        ),
+    );
+  }
+
+  private isExecutive(
+    user: { rank?: { id: number } | null } | null | undefined,
+  ) {
+    return [1, 2].includes(user?.rank?.id ?? 0);
+  }
+
+  private isSameDayTrip(
+    schedule: { start: Date | string; end: Date | string } | null | undefined,
+  ) {
+    return Boolean(
+      schedule &&
+      dayjs(schedule.start)
+        .startOf('day')
+        .isSame(dayjs(schedule.end).startOf('day')),
+    );
   }
 
   private formatExpenseDate(date: Date) {
@@ -182,6 +207,7 @@ export class ReportService {
       .leftJoinAndSelect('schedule.holidays', 'holiday')
       .leftJoinAndSelect('report.createdBy', 'createdBy')
       .leftJoinAndSelect('createdBy.department', 'department')
+      .leftJoinAndSelect('createdBy.rank', 'rank')
       .leftJoinAndSelect('report.updatedBy', 'updatedBy')
       .leftJoinAndSelect('report.trip', 'trip')
       .leftJoinAndSelect('trip.expenses', 'expense')
@@ -233,20 +259,28 @@ export class ReportService {
     return result;
   }
 
-  async getAllTripSteps(id: number) {
+  async getAllTripSteps(user: User, id: number) {
     const steps = await this.findAllTripSteps(id);
+    const applicableSteps =
+      id === 1 && this.isExecutive(user)
+        ? steps.filter((step) => step.id !== 10)
+        : steps;
 
-    const result = plainToInstance(TripStepDto, steps, {
+    const result = plainToInstance(TripStepDto, applicableSteps, {
       excludeExtraneousValues: true,
     });
 
     return result;
   }
 
-  async getAllTripRegulations(id: number) {
+  async getAllTripRegulations(user: User, id: number) {
     const regulations = await this.findAllTripRegulations(id);
+    const applicableRegulations =
+      id === 1 && this.isExecutive(user)
+        ? regulations.filter((regulation) => regulation.step.id !== 10)
+        : regulations;
 
-    const result = plainToInstance(TripRegulationDto, regulations, {
+    const result = plainToInstance(TripRegulationDto, applicableRegulations, {
       excludeExtraneousValues: true,
     });
 
@@ -312,8 +346,9 @@ export class ReportService {
       }
 
       const dailyRate = dailyRegulation.rate;
-      // 국내 당일 출장은 기본 일비 지급 대상이 아니다.
-      const dailyAllowanceDays = totalTripDays === 1 ? 0 : totalTripDays;
+      // 국내 당일 출장과 임원(rank 1, 2)은 기본 일비 지급 대상이 아니다.
+      const dailyAllowanceDays =
+        totalTripDays === 1 || this.isExecutive(user) ? 0 : totalTripDays;
       const dailyAmount = dailyRate * dailyAllowanceDays;
       const holidayWorkDays = holidays.filter(
         (holiday) => !holiday.isTravelOnly,
@@ -696,7 +731,7 @@ export class ReportService {
         worksheet.getCell('H30').value = accommodationSettlement;
 
         const weekdayDailyRate =
-          durationDays === 1
+          durationDays === 1 || this.isExecutive(report.createdBy)
             ? { rate: 0, days: 0 }
             : (report.trip.rates.find((rate) => rate.step.id == 10) ?? {
                 rate: 0,
@@ -1147,6 +1182,8 @@ export class ReportService {
               rates: this.getApplicableTripRates(
                 report.trip.rates,
                 schedule?.category.id === 1,
+                this.isSameDayTrip(schedule) ||
+                  this.isExecutive(report.createdBy),
               ).map((rate) => ({
                 ...rate,
                 stepId: rate.step?.id,
@@ -1179,7 +1216,7 @@ export class ReportService {
         if (report.trip && schedule) {
           const isDomestic = schedule.category.id === 1;
           calculations = isDomestic
-            ? await this.calculateDomesticTripCosts(report)
+            ? await this.calculateDomesticTripCosts(report, createdBy)
             : await this.calculateOverseasTripCosts(report);
         }
 
@@ -1199,6 +1236,7 @@ export class ReportService {
                 rates: this.getApplicableTripRates(
                   report.trip.rates,
                   schedule?.category.id === 1,
+                  this.isSameDayTrip(schedule) || this.isExecutive(createdBy),
                 ).map((rate) => ({
                   ...rate,
                   stepId: rate.step?.id,
@@ -1315,7 +1353,10 @@ export class ReportService {
     return await this.calculateOverseasTripCosts(report);
   }
 
-  private async calculateDomesticTripCosts(report: Report) {
+  private async calculateDomesticTripCosts(
+    report: Report,
+    traveler: { rank?: { id: number } | null } = report.createdBy,
+  ) {
     // 헬퍼 함수: stepIds로 지정된 항목들의 합계 계산
     const sumExpensesByStepIds = (stepIds: number[]): number => {
       return report.trip.expenses
@@ -1338,11 +1379,10 @@ export class ReportService {
     const accommodationSettlement = accommodationRate - accommodationCost;
 
     // 국내 출장은 특근비(step 11)를 지급하지 않으며,
-    // 당일 출장인 경우 기본 일비(step 10)도 지급하지 않는다.
-    const isSameDayTrip = dayjs(report.schedule.start)
-      .startOf('day')
-      .isSame(dayjs(report.schedule.end).startOf('day'));
-    const dailyStepIds = isSameDayTrip ? [] : [10];
+    // 당일 출장 또는 임원(rank 1, 2)은 기본 일비(step 10)도 지급하지 않는다.
+    const excludeDailyAllowance =
+      this.isSameDayTrip(report.schedule) || this.isExecutive(traveler);
+    const dailyStepIds = excludeDailyAllowance ? [] : [10];
     const dailyRate = dailyStepIds.reduce((sum, stepId) => {
       const rate = report.trip.rates.find((r) => r.step.id === stepId);
       return sum + (rate?.rate ?? 0) * (rate?.days ?? 0);
@@ -1465,6 +1505,8 @@ export class ReportService {
               rates: this.getApplicableTripRates(
                 report.trip.rates,
                 schedule?.category.id === 1,
+                this.isSameDayTrip(schedule) ||
+                  this.isExecutive(report.createdBy),
               ).map((rate) => ({
                 ...rate,
                 stepId: rate.step?.id,
@@ -1555,8 +1597,8 @@ export class ReportService {
           const startDate = dayjs(schedule.start).startOf('day');
           const endDate = dayjs(schedule.end).startOf('day');
 
-          // 국내 당일 출장은 기본 일비(step 10)를 저장하지 않는다.
-          if (startDate.isSame(endDate)) {
+          // 국내 당일 출장과 임원(rank 1, 2)은 기본 일비(step 10)를 저장하지 않는다.
+          if (startDate.isSame(endDate) || this.isExecutive(user)) {
             ratesToSave = ratesToSave.filter((rate) => rate.stepId !== 10);
           }
 
@@ -1929,6 +1971,7 @@ export class ReportService {
                 rates: this.getApplicableTripRates(
                   saved.trip.rates,
                   schedule?.category.id === 1,
+                  this.isSameDayTrip(schedule) || this.isExecutive(user),
                 ).map((r) => ({ ...r, stepId: r.step.id })),
                 fuel: saved.trip.fuel,
                 exchangeRate: saved.trip.exchangeRate ?? null,
@@ -2057,11 +2100,10 @@ export class ReportService {
       if (trip && body.trip) {
         const scheduleCategoryId = report.schedule?.category?.id;
         const isOverseasTrip = scheduleCategoryId !== 1;
-        const isSameDayDomesticTrip =
+        const excludeDomesticDailyAllowance =
           scheduleCategoryId === 1 &&
-          dayjs(report.schedule.start)
-            .startOf('day')
-            .isSame(dayjs(report.schedule.end).startOf('day'));
+          (this.isSameDayTrip(report.schedule) ||
+            this.isExecutive(report.createdBy));
 
         // 해외 출장(category 2)은 택시/렌탈 비용으로 공제 여부를 자동 계산하므로
         // 클라이언트가 보낸 isDeducted 값을 사용하지 않는다.
@@ -2273,7 +2315,7 @@ export class ReportService {
             (rate) =>
               !protectedStepIds.includes(rate.stepId) &&
               !(scheduleCategoryId === 1 && rate.stepId === 11) &&
-              !(isSameDayDomesticTrip && rate.stepId === 10) &&
+              !(excludeDomesticDailyAllowance && rate.stepId === 10) &&
               !protectedRateIds.has(rate.id),
           );
           const incomingRateIds = incomingEditableRates
@@ -2304,12 +2346,12 @@ export class ReportService {
           trip.rates = [...protectedRates, ...savedEditableRates];
         }
 
-        // 국내 특근비와 국내 당일 출장의 기본 일비는 요청 포함 여부와 관계없이 제거한다.
+        // 국내 특근비와 지급 대상이 아닌 기본 일비는 요청 포함 여부와 관계없이 제거한다.
         if (scheduleCategoryId === 1) {
           const disallowedDomesticRates = trip.rates.filter(
             (rate) =>
               rate.step.id === 11 ||
-              (isSameDayDomesticTrip && rate.step.id === 10),
+              (excludeDomesticDailyAllowance && rate.step.id === 10),
           );
 
           if (disallowedDomesticRates.length > 0) {
@@ -2321,7 +2363,7 @@ export class ReportService {
           trip.rates = trip.rates.filter(
             (rate) =>
               rate.step.id !== 11 &&
-              !(isSameDayDomesticTrip && rate.step.id === 10),
+              !(excludeDomesticDailyAllowance && rate.step.id === 10),
           );
         }
 
@@ -2488,6 +2530,8 @@ export class ReportService {
                 rates: this.getApplicableTripRates(
                   saved.trip.rates,
                   schedule?.category.id === 1,
+                  this.isSameDayTrip(schedule) ||
+                    this.isExecutive(saved.createdBy),
                 ).map((r) => ({ ...r, stepId: r.step.id })),
                 fuel: saved.trip.fuel,
                 exchangeRate: saved.trip.exchangeRate ?? null,
