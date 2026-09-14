@@ -98,7 +98,7 @@ export class DailyAllowancePreviewDto {
 
   @ApiProperty({
     description:
-      '일비 적용 일수 × 일비 단가. 국내 당일 출장은 일비가 지급되지 않음',
+      '일비 적용 일수 × 일비 단가. 국내 당일 출장 및 임원은 일비가 지급되지 않음',
     example: 175000,
   })
   dailyAmount: number;
