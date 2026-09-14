@@ -96,6 +96,13 @@ export class ReportService {
     return this.convertAmountToKrw(expense.price, expense.exchangeRate ?? 1);
   }
 
+  private getApplicableTripRates(
+    rates: TripRegulationRate[] | null | undefined,
+    isDomestic: boolean,
+  ) {
+    return (rates ?? []).filter((rate) => !(isDomestic && rate.step.id === 11));
+  }
+
   private formatExpenseDate(date: Date) {
     return date.toISOString().slice(0, 10).replaceAll('-', '');
   }
@@ -135,23 +142,35 @@ export class ReportService {
   }
 
   async findAllTripSteps(id: number) {
-    return await this.tripStepRepository
+    const query = this.tripStepRepository
       .createQueryBuilder('step')
       .leftJoinAndSelect('step.category', 'category')
       .leftJoin('step.scheduleCategory', 'scheduleCategory')
-      .where('scheduleCategory.id = :id', { id })
-      .orderBy('step.id', 'ASC')
-      .getMany();
+      .where('scheduleCategory.id = :id', { id });
+
+    if (id === 1) {
+      query.andWhere('step.id != :domesticSpecialWorkStepId', {
+        domesticSpecialWorkStepId: 11,
+      });
+    }
+
+    return await query.orderBy('step.id', 'ASC').getMany();
   }
 
   async findAllTripRegulations(id: number) {
-    return await this.reportRegulationRepository
+    const query = this.reportRegulationRepository
       .createQueryBuilder('regulation')
       .leftJoinAndSelect('regulation.step', 'step')
       .leftJoin('step.scheduleCategory', 'scheduleCategory')
-      .where('scheduleCategory.id = :id', { id })
-      .orderBy('regulation.id', 'ASC')
-      .getMany();
+      .where('scheduleCategory.id = :id', { id });
+
+    if (id === 1) {
+      query.andWhere('step.id != :domesticSpecialWorkStepId', {
+        domesticSpecialWorkStepId: 11,
+      });
+    }
+
+    return await query.orderBy('regulation.id', 'ASC').getMany();
   }
 
   async findReportById(id: number) {
@@ -293,7 +312,9 @@ export class ReportService {
       }
 
       const dailyRate = dailyRegulation.rate;
-      const dailyAmount = dailyRate * totalTripDays;
+      // 국내 당일 출장은 기본 일비 지급 대상이 아니다.
+      const dailyAllowanceDays = totalTripDays === 1 ? 0 : totalTripDays;
+      const dailyAmount = dailyRate * dailyAllowanceDays;
       const holidayWorkDays = holidays.filter(
         (holiday) => !holiday.isTravelOnly,
       ).length;
@@ -674,9 +695,13 @@ export class ReportService {
 
         worksheet.getCell('H30').value = accommodationSettlement;
 
-        const weekdayDailyRate = report.trip.rates.find(
-          (rate) => rate.step.id == 10,
-        ) ?? { rate: 0, days: 0 };
+        const weekdayDailyRate =
+          durationDays === 1
+            ? { rate: 0, days: 0 }
+            : (report.trip.rates.find((rate) => rate.step.id == 10) ?? {
+                rate: 0,
+                days: 0,
+              });
         const totalWeekdayDailyRate =
           weekdayDailyRate.rate * weekdayDailyRate.days;
 
@@ -1119,11 +1144,13 @@ export class ReportService {
                   price: expense.price !== null ? expense.price : null,
                   stepId: expense.step?.id,
                 })) ?? [],
-              rates:
-                report.trip.rates?.map((rate) => ({
-                  ...rate,
-                  stepId: rate.step?.id,
-                })) ?? [],
+              rates: this.getApplicableTripRates(
+                report.trip.rates,
+                schedule?.category.id === 1,
+              ).map((rate) => ({
+                ...rate,
+                stepId: rate.step?.id,
+              })),
               fuel: report.trip.fuel ?? null,
               exchangeRate: report.trip.exchangeRate ?? null,
               calculations,
@@ -1169,11 +1196,13 @@ export class ReportService {
                     price: expense.price !== null ? expense.price : null,
                     stepId: expense.step?.id,
                   })) ?? [],
-                rates:
-                  report.trip.rates?.map((rate) => ({
-                    ...rate,
-                    stepId: rate.step?.id,
-                  })) ?? [],
+                rates: this.getApplicableTripRates(
+                  report.trip.rates,
+                  schedule?.category.id === 1,
+                ).map((rate) => ({
+                  ...rate,
+                  stepId: rate.step?.id,
+                })),
                 fuel: report.trip.fuel ?? null,
                 exchangeRate: report.trip.exchangeRate ?? null,
                 calculations: calculations,
@@ -1308,8 +1337,13 @@ export class ReportService {
     const accommodationCost = sumExpensesByStepIds([7, 8, 9]);
     const accommodationSettlement = accommodationRate - accommodationCost;
 
-    // 일비 (step 10, 11)
-    const dailyRate = [10, 11].reduce((sum, stepId) => {
+    // 국내 출장은 특근비(step 11)를 지급하지 않으며,
+    // 당일 출장인 경우 기본 일비(step 10)도 지급하지 않는다.
+    const isSameDayTrip = dayjs(report.schedule.start)
+      .startOf('day')
+      .isSame(dayjs(report.schedule.end).startOf('day'));
+    const dailyStepIds = isSameDayTrip ? [] : [10];
+    const dailyRate = dailyStepIds.reduce((sum, stepId) => {
       const rate = report.trip.rates.find((r) => r.step.id === stepId);
       return sum + (rate?.rate ?? 0) * (rate?.days ?? 0);
     }, 0);
@@ -1428,11 +1462,13 @@ export class ReportService {
                   price: expense.price !== null ? expense.price : null,
                   stepId: expense.step?.id,
                 })) ?? [],
-              rates:
-                report.trip.rates?.map((rate) => ({
-                  ...rate,
-                  stepId: rate.step?.id,
-                })) ?? [],
+              rates: this.getApplicableTripRates(
+                report.trip.rates,
+                schedule?.category.id === 1,
+              ).map((rate) => ({
+                ...rate,
+                stepId: rate.step?.id,
+              })),
               fuel: report.trip.fuel ?? null,
               exchangeRate: report.trip.exchangeRate ?? null,
             }
@@ -1515,12 +1551,15 @@ export class ReportService {
             : [];
         let ratesToSave = body.trip.rates ?? [];
 
-        // 직급 ID 1, 2는 임원급이므로 국내 출장 휴일 특별 수당 대상에서 제외한다.
-        // 클라이언트가 step 11을 직접 보내더라도 아래에서 제거한다.
-        const isHolidaySpecialAllowanceExcluded =
-          (user.rank?.id ?? Number.POSITIVE_INFINITY) <= 2;
-
         if (schedule?.category.id === 1) {
+          const startDate = dayjs(schedule.start).startOf('day');
+          const endDate = dayjs(schedule.end).startOf('day');
+
+          // 국내 당일 출장은 기본 일비(step 10)를 저장하지 않는다.
+          if (startDate.isSame(endDate)) {
+            ratesToSave = ratesToSave.filter((rate) => rate.stepId !== 10);
+          }
+
           // 휴일 날짜와 명칭은 일정 생성 시 서버가 확정한 값을 사용하고,
           // 일정 생성 시 저장한 이동 여부와 대체휴무일을 기본값으로 사용한다.
           const holidayInputs =
@@ -1596,38 +1635,8 @@ export class ReportService {
             savedHolidays = await queryRunner.manager.save(holidayEntities);
           }
 
-          // step 11은 클라이언트 입력을 사용하지 않고 서버에서 다시 계산한다.
-          // 업무 없이 이동만 한 휴일은 기본 일비 대상일 수 있지만 특근비에서는 제외한다.
+          // 국내 출장은 특근비(step 11)를 저장하지 않는다.
           ratesToSave = ratesToSave.filter((rate) => rate.stepId !== 11);
-
-          const holidaySpecialAllowanceDays = holidayInputs.filter(
-            (holiday) => !holiday.isTravelOnly,
-          ).length;
-
-          if (
-            !isHolidaySpecialAllowanceExcluded &&
-            holidaySpecialAllowanceDays > 0
-          ) {
-            const holidaySpecialAllowance = await queryRunner.manager.findOne(
-              TripRegulation,
-              {
-                where: { step: { id: 11 } },
-                relations: { step: true },
-              },
-            );
-
-            if (!holidaySpecialAllowance) {
-              throw new NotFoundException(
-                'not_found_holiday_special_allowance_regulation',
-              );
-            }
-
-            ratesToSave.push({
-              stepId: 11,
-              days: holidaySpecialAllowanceDays,
-              rate: holidaySpecialAllowance.rate,
-            });
-          }
         } else if (schedule?.category.id !== 1 && body.trip.holidays?.length) {
           throw new BadRequestException(
             'bad_request_trip_holidays_not_allowed',
@@ -1707,12 +1716,6 @@ export class ReportService {
               rate: holidaySpecialAllowance.rate,
             });
           }
-        }
-
-        // holidays를 보내지 않는 기존 요청에서도 임원급의 step 11이
-        // 저장되지 않도록 마지막으로 제거한다.
-        if (schedule?.category.id === 1 && isHolidaySpecialAllowanceExcluded) {
-          ratesToSave = ratesToSave.filter((rate) => rate.stepId !== 11);
         }
 
         // 2-1. Expense 생성 (TripReport에 연결)
@@ -1923,9 +1926,10 @@ export class ReportService {
                     ...e,
                     stepId: e.step.id,
                   })) ?? [],
-                rates:
-                  saved.trip.rates?.map((r) => ({ ...r, stepId: r.step.id })) ??
-                  [],
+                rates: this.getApplicableTripRates(
+                  saved.trip.rates,
+                  schedule?.category.id === 1,
+                ).map((r) => ({ ...r, stepId: r.step.id })),
                 fuel: saved.trip.fuel,
                 exchangeRate: saved.trip.exchangeRate ?? null,
                 calculations,
@@ -2053,6 +2057,11 @@ export class ReportService {
       if (trip && body.trip) {
         const scheduleCategoryId = report.schedule?.category?.id;
         const isOverseasTrip = scheduleCategoryId !== 1;
+        const isSameDayDomesticTrip =
+          scheduleCategoryId === 1 &&
+          dayjs(report.schedule.start)
+            .startOf('day')
+            .isSame(dayjs(report.schedule.end).startOf('day'));
 
         // 해외 출장(category 2)은 택시/렌탈 비용으로 공제 여부를 자동 계산하므로
         // 클라이언트가 보낸 isDeducted 값을 사용하지 않는다.
@@ -2247,14 +2256,10 @@ export class ReportService {
         }
 
         if (body.trip.rates) {
-          // 국내 step 11과 해외 step 21~24는 서버가 계산한 항목이므로
+          // 해외 step 21~24는 서버가 계산한 항목이므로
           // 클라이언트 수정 목록에서 제외하고 기존 값을 보호한다.
           const protectedStepIds =
-            scheduleCategoryId === 1
-              ? [11]
-              : scheduleCategoryId === 2
-                ? [21, 22, 23, 24]
-                : [];
+            scheduleCategoryId === 2 ? [21, 22, 23, 24] : [];
           const protectedRates = trip.rates.filter((rate) =>
             protectedStepIds.includes(rate.step.id),
           );
@@ -2267,6 +2272,8 @@ export class ReportService {
           const incomingEditableRates = body.trip.rates.filter(
             (rate) =>
               !protectedStepIds.includes(rate.stepId) &&
+              !(scheduleCategoryId === 1 && rate.stepId === 11) &&
+              !(isSameDayDomesticTrip && rate.stepId === 10) &&
               !protectedRateIds.has(rate.id),
           );
           const incomingRateIds = incomingEditableRates
@@ -2297,10 +2304,28 @@ export class ReportService {
           trip.rates = [...protectedRates, ...savedEditableRates];
         }
 
+        // 국내 특근비와 국내 당일 출장의 기본 일비는 요청 포함 여부와 관계없이 제거한다.
         if (scheduleCategoryId === 1) {
-          const isHolidaySpecialAllowanceExcluded =
-            (report.createdBy.rank?.id ?? Number.POSITIVE_INFINITY) <= 2;
+          const disallowedDomesticRates = trip.rates.filter(
+            (rate) =>
+              rate.step.id === 11 ||
+              (isSameDayDomesticTrip && rate.step.id === 10),
+          );
 
+          if (disallowedDomesticRates.length > 0) {
+            await queryRunner.manager.delete(
+              TripRegulationRate,
+              disallowedDomesticRates.map((rate) => rate.id),
+            );
+          }
+          trip.rates = trip.rates.filter(
+            (rate) =>
+              rate.step.id !== 11 &&
+              !(isSameDayDomesticTrip && rate.step.id === 10),
+          );
+        }
+
+        if (scheduleCategoryId === 1) {
           if (body.trip.holidays !== undefined) {
             // 일정에 저장된 휴일과 정확히 일치하는지 검증한 후
             // 이동 여부와 대체휴무일만 갱신한다.
@@ -2368,67 +2393,6 @@ export class ReportService {
               holidayEntities.length > 0
                 ? await queryRunner.manager.save(holidayEntities)
                 : [];
-
-            // 휴일 정보가 바뀌면 기존 step 11은 폐기하고 서버 정책으로 재계산한다.
-            const existingHolidayRates = trip.rates.filter(
-              (rate) => rate.step.id === 11,
-            );
-
-            if (existingHolidayRates.length > 0) {
-              await queryRunner.manager.delete(
-                TripRegulationRate,
-                existingHolidayRates.map((rate) => rate.id),
-              );
-            }
-            trip.rates = trip.rates.filter((rate) => rate.step.id !== 11);
-
-            const holidaySpecialAllowanceDays = holidayInputs.filter(
-              (holiday) => !holiday.isTravelOnly,
-            ).length;
-
-            if (
-              !isHolidaySpecialAllowanceExcluded &&
-              holidaySpecialAllowanceDays > 0
-            ) {
-              const holidaySpecialAllowance = await queryRunner.manager.findOne(
-                TripRegulation,
-                {
-                  where: { step: { id: 11 } },
-                  relations: { step: true },
-                },
-              );
-
-              if (!holidaySpecialAllowance) {
-                throw new NotFoundException(
-                  'not_found_holiday_special_allowance_regulation',
-                );
-              }
-
-              const savedHolidayRate = await queryRunner.manager.save(
-                queryRunner.manager.create(TripRegulationRate, {
-                  trip,
-                  step: { id: 11 } as TripStep,
-                  days: holidaySpecialAllowanceDays,
-                  rate: holidaySpecialAllowance.rate,
-                }),
-              );
-              trip.rates.push(savedHolidayRate);
-            }
-          }
-
-          // 직급 ID 1, 2는 holidays 수정 여부와 무관하게 step 11을 가질 수 없다.
-          if (isHolidaySpecialAllowanceExcluded) {
-            const excludedHolidayRates = trip.rates.filter(
-              (rate) => rate.step.id === 11,
-            );
-
-            if (excludedHolidayRates.length > 0) {
-              await queryRunner.manager.delete(
-                TripRegulationRate,
-                excludedHolidayRates.map((rate) => rate.id),
-              );
-            }
-            trip.rates = trip.rates.filter((rate) => rate.step.id !== 11);
           }
         } else if (body.trip.holidays?.length) {
           throw new BadRequestException(
@@ -2521,9 +2485,10 @@ export class ReportService {
                     ...e,
                     stepId: e.step.id,
                   })) ?? [],
-                rates:
-                  saved.trip.rates?.map((r) => ({ ...r, stepId: r.step.id })) ??
-                  [],
+                rates: this.getApplicableTripRates(
+                  saved.trip.rates,
+                  schedule?.category.id === 1,
+                ).map((r) => ({ ...r, stepId: r.step.id })),
                 fuel: saved.trip.fuel,
                 exchangeRate: saved.trip.exchangeRate ?? null,
                 calculations,
