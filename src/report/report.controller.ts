@@ -58,8 +58,8 @@ export class ReportController {
     type: [TripStepDto],
   })
   @Get('trip/steps/:id')
-  async getAllTripSteps(@Param('id', ParseIntPipe) id: number) {
-    return this.reportService.getAllTripSteps(id);
+  async getAllTripSteps(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    return this.reportService.getAllTripSteps(req.user, id);
   }
 
   @UseGuards(JwtAccessAuthGuard)
@@ -71,8 +71,11 @@ export class ReportController {
     type: [TripRegulationDto],
   })
   @Get('trip/regulations/:id')
-  async getAllTripRegulations(@Param('id', ParseIntPipe) id: number) {
-    return this.reportService.getAllTripRegulations(id);
+  async getAllTripRegulations(
+    @Request() req,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.reportService.getAllTripRegulations(req.user, id);
   }
 
   @UseGuards(JwtAccessAuthGuard, WriteAccessGuard)

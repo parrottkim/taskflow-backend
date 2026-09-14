@@ -77,6 +77,11 @@ describe('ReportService daily allowance preview', () => {
     rank: { id: 4 },
   } as unknown as User;
 
+  const executiveUser = {
+    isGuest: false,
+    rank: { id: 1 },
+  } as unknown as User;
+
   it('calculates a domestic allowance from trip days and holiday inputs', async () => {
     const service = createService({
       categoryId: 1,
@@ -138,6 +143,32 @@ describe('ReportService daily allowance preview', () => {
       }),
     ).resolves.toEqual({
       totalTripDays: 1,
+      domestic: {
+        workDays: 0,
+        travelDays: 0,
+      },
+      dailyRate: 50,
+      dailyAmount: 0,
+      deductionRate: 0,
+      exchangeRate: 1,
+      totalAmount: 0,
+      currencyCode: 'KRW',
+    });
+  });
+
+  it('does not pay a domestic daily allowance to an executive', async () => {
+    const service = createService({
+      categoryId: 1,
+      regulations: { 10: 50 },
+      holidays: [],
+    });
+
+    await expect(
+      service.previewDailyAllowance(executiveUser, {
+        scheduleId: 123,
+      }),
+    ).resolves.toEqual({
+      totalTripDays: 5,
       domestic: {
         workDays: 0,
         travelDays: 0,
@@ -220,6 +251,40 @@ describe('ReportService daily allowance preview', () => {
       totalCost: 250,
       taxableAmount: 0,
       nonTaxableAmount: 250,
+    });
+  });
+
+  it('excludes a previously stored domestic daily allowance for an executive', async () => {
+    const service = createService({
+      categoryId: 1,
+      regulations: {},
+      holidays: [],
+    });
+    const calculator = service as unknown as {
+      calculateDomesticTripCosts: (report: unknown) => Promise<{
+        totalCost: number;
+        taxableAmount: number;
+        nonTaxableAmount: number;
+      }>;
+    };
+
+    await expect(
+      calculator.calculateDomesticTripCosts({
+        createdBy: executiveUser,
+        schedule: {
+          start: new Date('2026-08-13T00:00:00.000Z'),
+          end: new Date('2026-08-17T00:00:00.000Z'),
+        },
+        trip: {
+          expenses: [],
+          rates: [{ step: { id: 10 }, rate: 50, days: 5 }],
+          fuel: null,
+        },
+      }),
+    ).resolves.toEqual({
+      totalCost: 0,
+      taxableAmount: 0,
+      nonTaxableAmount: 0,
     });
   });
 
