@@ -17,9 +17,8 @@ import { assertOwnerOrAdmin } from '@/common/policies/resource-access.policy';
 import { assertWriteAccess } from '@/common/policies/write-access.policy';
 import { CreateContractIssueDto } from '../dto/create-issue';
 import { UpdateContractIssueDto } from '../dto/update-issue';
-import { ContractIssueDto, ContractIssueItemDto } from '../dto/issue';
+import { ContractIssueItemDto } from '../dto/issue';
 import { IssueFileOperation, IssueService } from '../issue.service';
-import dayjs from 'dayjs';
 
 @Injectable()
 export class ContractIssueService {
@@ -66,11 +65,7 @@ export class ContractIssueService {
 
     if (!issue) return null;
 
-    return plainToInstance(
-      ContractIssueDto,
-      { ...issue, currency: issue.contract?.currency },
-      { excludeExtraneousValues: true },
-    );
+    return this.issueService.mapIssueToDto(issue);
   }
 
   async createContractIssue(user: User, body: CreateContractIssueDto) {
@@ -146,8 +141,8 @@ export class ContractIssueService {
             category,
             price: dto.price,
             ratio: dto.ratio,
-            isPaid: dto.isPaid ?? false,
-            paidAt: dto.paidAt ?? null,
+            isPaid: false,
+            paidAt: null,
             note: dto.note ?? null,
           });
         }),
@@ -282,10 +277,6 @@ export class ContractIssueService {
                 existing.category = category;
                 existing.price = dto.price;
                 existing.ratio = dto.ratio;
-                existing.isPaid = dto.isPaid;
-                existing.paidAt = dto.paidAt
-                  ? dayjs(dto.paidAt).toDate()
-                  : null;
                 existing.note = dto.note;
                 return existing;
               }
@@ -296,8 +287,8 @@ export class ContractIssueService {
               category,
               price: dto.price,
               ratio: dto.ratio,
-              isPaid: dto.isPaid ?? false,
-              paidAt: dto.paidAt ?? null,
+              isPaid: false,
+              paidAt: null,
               note: dto.note ?? null,
             });
           }),

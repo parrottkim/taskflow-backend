@@ -213,11 +213,13 @@ export class IssueService {
     const contractItems = await manager.find(ContractIssueItem, {
       where: { project: { id: issue.project.id }, deletedAt: null },
       relations: ['project'],
+      order: { createdAt: 'ASC' },
     });
 
     const transactionItems = await manager.find(TransactionIssueItem, {
       where: { project: { id: issue.project.id }, deletedAt: null },
       relations: ['project', 'category'],
+      order: { createdAt: 'ASC' },
     });
 
     const dtoMap = {
