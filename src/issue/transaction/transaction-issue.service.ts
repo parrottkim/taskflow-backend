@@ -1,12 +1,12 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
-import { DataSource, Repository } from 'typeorm';
-import { ContractIssue } from '@/entity/issue/contract/contract-issue.entity';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Issue } from '@/entity/issue/issue.entity';
 import { TransactionIssueItemCategory } from '@/entity/issue/transaction/transaction-issue-category.entity';
 import { TransactionIssueItem } from '@/entity/issue/transaction/transaction-issue-item.entity';
@@ -15,10 +15,9 @@ import { User } from '@/entity/user/user.entity';
 import { assertOwnerOrAdmin } from '@/common/policies/resource-access.policy';
 import { assertWriteAccess } from '@/common/policies/write-access.policy';
 import { CreateTransactionIssueDto } from '../dto/create-issue';
-import { TransactionIssueDto, TransactionIssueItemDto } from '../dto/issue';
+import { TransactionIssueItemDto } from '../dto/issue';
 import { UpdateTransactionIssueDto } from '../dto/update-issue';
 import { IssueFileOperation, IssueService } from '../issue.service';
-import dayjs from 'dayjs';
 
 @Injectable()
 export class TransactionIssueService {
@@ -83,16 +82,42 @@ export class TransactionIssueService {
 
     if (!issue) return null;
 
-    const contract = await this.dataSource.manager.findOne(ContractIssue, {
-      where: { project: { id: issue.project.id }, deletedAt: null },
-      relations: ['currency'],
-    });
+    return this.issueService.mapIssueToDto(issue);
+  }
 
-    return plainToInstance(
-      TransactionIssueDto,
-      { ...issue, currency: contract?.currency },
-      { excludeExtraneousValues: true },
+  private async updatePaymentStatuses(
+    manager: EntityManager,
+    projectId: number,
+    transactionItems: CreateTransactionIssueDto['transactionItems'],
+  ) {
+    const existingItems = await manager.find(TransactionIssueItem, {
+      where: { project: { id: projectId } },
+    });
+    const existingItemMap = new Map(
+      existingItems.map((item) => [item.id, item]),
     );
+    const itemsToUpdate: TransactionIssueItem[] = [];
+
+    for (const dto of transactionItems) {
+      if (!dto.id) {
+        throw new BadRequestException('transaction_item_id_required');
+      }
+
+      const existing = existingItemMap.get(dto.id);
+      if (!existing) {
+        throw new NotFoundException('not_found_transaction_item');
+      }
+
+      if (dto.isPaid === undefined) continue;
+
+      existing.isPaid = dto.isPaid;
+      existing.paidAt = dto.isPaid ? (existing.paidAt ?? new Date()) : null;
+      itemsToUpdate.push(existing);
+    }
+
+    if (itemsToUpdate.length) {
+      await manager.save(itemsToUpdate);
+    }
   }
 
   async createTransactionIssue(user: User, body: CreateTransactionIssueDto) {
@@ -143,51 +168,11 @@ export class TransactionIssueService {
       const savedTransaction = await queryRunner.manager.save(transaction);
       savedIssue.transaction = savedTransaction;
 
-      const existingItems = await queryRunner.manager.find(
-        TransactionIssueItem,
-        { where: { project: { id: issue.project.id } } },
+      await this.updatePaymentStatuses(
+        queryRunner.manager,
+        issue.project.id,
+        body.transactionItems,
       );
-
-      const toRemove = existingItems.filter(
-        (e) => !body.transactionItems.some((dto) => dto.id === e.id),
-      );
-      if (toRemove.length) {
-        await queryRunner.manager.softDelete(
-          TransactionIssueItem,
-          toRemove.map((item) => item.id),
-        );
-      }
-
-      const items = await Promise.all(
-        body.transactionItems.map(async (dto) => {
-          const itemCategory = await queryRunner.manager.findOne(
-            TransactionIssueItemCategory,
-            { where: { id: dto.categoryId } },
-          );
-          const existing = dto.id
-            ? existingItems.find((item) => item.id === dto.id)
-            : undefined;
-          if (existing) {
-            existing.category = itemCategory;
-            existing.price = dto.price;
-            existing.ratio = dto.ratio;
-            existing.isPaid = dto.isPaid;
-            existing.paidAt = dto.paidAt ? dayjs(dto.paidAt).toDate() : null;
-            existing.note = dto.note;
-            return existing;
-          }
-          return queryRunner.manager.create(TransactionIssueItem, {
-            project: issue.project,
-            category: itemCategory,
-            price: dto.price,
-            ratio: dto.ratio,
-            isPaid: dto.isPaid ?? false,
-            paidAt: dto.paidAt ?? null,
-            note: dto.note ?? null,
-          });
-        }),
-      );
-      await queryRunner.manager.save(items);
 
       await this.issueService.advanceLatestCategory(
         queryRunner.manager,
@@ -240,51 +225,11 @@ export class TransactionIssueService {
       );
 
       if (body.transactionItems) {
-        const existingItems = await queryRunner.manager.find(
-          TransactionIssueItem,
-          { where: { project: { id: issue.project.id } } },
+        await this.updatePaymentStatuses(
+          queryRunner.manager,
+          issue.project.id,
+          body.transactionItems,
         );
-
-        const toRemove = existingItems.filter(
-          (e) => !body.transactionItems.some((dto) => dto.id === e.id),
-        );
-        if (toRemove.length) {
-          await queryRunner.manager.softDelete(
-            TransactionIssueItem,
-            toRemove.map((item) => item.id),
-          );
-        }
-
-        const items = await Promise.all(
-          body.transactionItems.map(async (dto) => {
-            const itemCategory = await queryRunner.manager.findOne(
-              TransactionIssueItemCategory,
-              { where: { id: dto.categoryId } },
-            );
-            const existing = dto.id
-              ? existingItems.find((item) => item.id === dto.id)
-              : undefined;
-            if (existing) {
-              existing.category = itemCategory;
-              existing.price = dto.price;
-              existing.ratio = dto.ratio;
-              existing.isPaid = dto.isPaid;
-              existing.paidAt = dto.paidAt ? dayjs(dto.paidAt).toDate() : null;
-              existing.note = dto.note;
-              return existing;
-            }
-            return queryRunner.manager.create(TransactionIssueItem, {
-              project: issue.project,
-              category: itemCategory,
-              price: dto.price,
-              ratio: dto.ratio,
-              isPaid: dto.isPaid ?? false,
-              paidAt: dto.paidAt ?? null,
-              note: dto.note ?? null,
-            });
-          }),
-        );
-        await queryRunner.manager.save(items);
       }
 
       // Issue 저장
