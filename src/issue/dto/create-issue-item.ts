@@ -29,6 +29,85 @@ export class CreateContractIssueItemDto {
   price: number;
 }
 
+export class CreateTransactionIssueItemDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  categoryId: number;
+
+  @ApiProperty()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return parseInt(value.replace(/,/g, ''), 10);
+    }
+    return value;
+  })
+  @IsInt()
+  @IsNotEmpty()
+  @Min(0)
+  price: number;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  note?: string;
+
+  @ApiProperty()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return parseInt(value.replace(/,/g, ''), 10);
+    }
+    return value;
+  })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  ratio?: number;
+
+  @ApiProperty()
+  @IsBoolean()
+  @IsOptional()
+  isPaid?: boolean;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  paidAt?: string;
+}
+
+export class CreateKickoffParticipantItemDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  participantId: number;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  role: string;
+}
+
+export class CreateKickoffTripItemDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  categoryId: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  days: number;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  note?: string;
+}
+
 // Procurement
 export class CreateProcurementIssueItemDto {
   @ApiProperty()
@@ -96,51 +175,4 @@ export class CreateProcurementIssueItemDto {
   @IsInt()
   @IsNotEmpty()
   supplierId?: number;
-}
-
-export class CreateTransactionIssueItemDto {
-  @ApiProperty()
-  @Type(() => Number)
-  @IsInt()
-  @IsNotEmpty()
-  categoryId: number;
-
-  @ApiProperty()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return parseInt(value.replace(/,/g, ''), 10);
-    }
-    return value;
-  })
-  @IsInt()
-  @IsNotEmpty()
-  @Min(0)
-  price: number;
-
-  @ApiProperty()
-  @IsString()
-  @IsOptional()
-  note?: string;
-
-  @ApiProperty()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return parseInt(value.replace(/,/g, ''), 10);
-    }
-    return value;
-  })
-  @IsInt()
-  @Min(0)
-  @IsOptional()
-  ratio?: number;
-
-  @ApiProperty()
-  @IsBoolean()
-  @IsOptional()
-  isPaid?: boolean;
-
-  @ApiProperty()
-  @IsOptional()
-  @IsString()
-  paidAt?: string;
 }

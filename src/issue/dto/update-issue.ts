@@ -8,14 +8,11 @@ import {
   CreatePaymentIssueDto,
 } from './create-issue';
 import { Type } from 'class-transformer';
-import {
-  IsOptional,
-  IsNumber,
-  ValidateNested,
-  IsNotEmpty,
-} from 'class-validator';
+import { IsOptional, ValidateNested, IsNotEmpty } from 'class-validator';
 import {
   UpdateContractIssueItemDto,
+  UpdateKickoffIssueParticipantItemDto,
+  UpdateKickoffIssueTripItemDto,
   UpdateTransactionIssueItemDto,
   UpdateProcurementIssueItemDto,
 } from './update-issue-item';
@@ -37,7 +34,25 @@ export class UpdateContractIssueDto extends OmitType(
   transactionItems: UpdateTransactionIssueItemDto[];
 }
 
-export class UpdateKickoffIssueDto extends PartialType(CreateKickoffIssueDto) {}
+export class UpdateKickoffIssueDto extends OmitType(
+  PartialType(CreateKickoffIssueDto),
+  ['participantItems', 'tripItems'],
+) {
+  @ApiProperty({
+    required: false,
+    type: [UpdateKickoffIssueParticipantItemDto],
+  })
+  @ValidateNested({ each: true })
+  @Type(() => UpdateKickoffIssueParticipantItemDto)
+  @IsOptional()
+  participantItems?: UpdateKickoffIssueParticipantItemDto[];
+
+  @ApiProperty({ required: false, type: [UpdateKickoffIssueTripItemDto] })
+  @ValidateNested({ each: true })
+  @Type(() => UpdateKickoffIssueTripItemDto)
+  @IsOptional()
+  tripItems?: UpdateKickoffIssueTripItemDto[];
+}
 
 export class UpdateApprovalIssueDto extends PartialType(
   CreateApprovalIssueDto,

@@ -11,6 +11,8 @@ import { ContractIssue } from '@/entity/issue/contract/contract-issue.entity';
 import { IssueAttachment } from '@/entity/issue/issue-attachment.entity';
 import { IssueCategory } from '@/entity/issue/issue-category.entity';
 import { Issue } from '@/entity/issue/issue.entity';
+import { KickoffIssueParticipantItem } from '@/entity/issue/kickoff/kickoff-issue-participant-item.entity';
+import { KickoffIssueTripItem } from '@/entity/issue/kickoff/kickoff-issue-trip-item.entity';
 import { KickoffIssue } from '@/entity/issue/kickoff/kickoff-issue.entity';
 import { PaymentIssue } from '@/entity/issue/payment/payment-issue.entity';
 import { ProcurementIssueItem } from '@/entity/issue/procurement/procurement-issue-item.entity';
@@ -222,6 +224,26 @@ export class IssueService {
       order: { createdAt: 'ASC' },
     });
 
+    const participantItems = issue.kickoff
+      ? await manager.find(KickoffIssueParticipantItem, {
+          where: { kickoff: { id: issue.kickoff.id }, deletedAt: null },
+          relations: [
+            'participant',
+            'participant.rank',
+            'participant.department',
+          ],
+          order: { createdAt: 'ASC' },
+        })
+      : [];
+
+    const tripItems = issue.kickoff
+      ? await manager.find(KickoffIssueTripItem, {
+          where: { kickoff: { id: issue.kickoff.id }, deletedAt: null },
+          relations: ['category'],
+          order: { createdAt: 'ASC' },
+        })
+      : [];
+
     const dtoMap = {
       1: ContractIssueDto,
       2: KickoffIssueDto,
@@ -245,6 +267,8 @@ export class IssueService {
         break;
       case 2: // KICKOFF
         payload.kickoffDate = issue.kickoff?.kickoffDate ?? null;
+        payload.participantItems = participantItems;
+        payload.tripItems = tripItems;
         break;
       case 4: // PROCUREMENT
         payload.procurementItems = issue.procurement?.items ?? [];
@@ -490,6 +514,12 @@ export class IssueService {
         await queryRunner.manager.softDelete(ContractIssue, issue.contract.id);
       }
       if (issue.kickoff) {
+        await queryRunner.manager.softDelete(KickoffIssueParticipantItem, {
+          kickoff: { id: issue.kickoff.id },
+        });
+        await queryRunner.manager.softDelete(KickoffIssueTripItem, {
+          kickoff: { id: issue.kickoff.id },
+        });
         await queryRunner.manager.softDelete(KickoffIssue, issue.kickoff.id);
       }
       if (issue.payment) {
