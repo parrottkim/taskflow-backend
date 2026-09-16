@@ -24,6 +24,9 @@ import { ProcurementIssueRequestItem } from '@/entity/issue/procurement/procurem
 import { ProcurementIssueRequest } from '@/entity/issue/procurement/procurement-issue-request.entity';
 import { IssueEditGuard } from '@/common/guards/issue-edit.guard';
 import { IssueProcurementRequestGuard } from '@/common/guards/issue-procurement-request.guard';
+import { KickoffIssueParticipantItem } from '@/entity/issue/kickoff/kickoff-issue-participant-item.entity';
+import { KickoffIssueTripItemCategory } from '@/entity/issue/kickoff/kickoff-issue-trip-item-category.entity';
+import { KickoffIssueTripItem } from '@/entity/issue/kickoff/kickoff-issue-trip-item.entity';
 import { ApprovalIssueController } from './approval/approval-issue.controller';
 import { ApprovalIssueService } from './approval/approval-issue.service';
 import { ContractIssueController } from './contract/contract-issue.controller';
@@ -46,6 +49,9 @@ import { TransactionIssueService } from './transaction/transaction-issue.service
       TransactionIssueItem,
       TransactionIssueItemCategory,
       KickoffIssue,
+      KickoffIssueParticipantItem,
+      KickoffIssueTripItem,
+      KickoffIssueTripItemCategory,
       ContractIssue,
       TransactionIssue,
       PaymentIssue,

@@ -22,6 +22,12 @@ import { KickoffIssueService } from './kickoff-issue.service';
 export class KickoffIssueController {
   constructor(private readonly kickoffIssueService: KickoffIssueService) {}
 
+  @ApiOperation({ summary: '킥오프 출장 카테고리 조회' })
+  @Get('categories')
+  getAllTripCategories() {
+    return this.kickoffIssueService.getAllTripCategories();
+  }
+
   @ApiOperation({ summary: '킥어프 이슈 조회' })
   @Get(':id')
   getKickoffIssue(@Param('id', ParseIntPipe) id: number) {

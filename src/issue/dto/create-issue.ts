@@ -6,10 +6,13 @@ import {
   IsString,
   ValidateNested,
   IsDate,
+  IsOptional,
 } from 'class-validator';
 import { IssueAttachmentDto } from './issue-attachment';
 import {
   CreateContractIssueItemDto,
+  CreateKickoffParticipantItemDto,
+  CreateKickoffTripItemDto,
   CreateTransactionIssueItemDto,
   CreateProcurementIssueItemDto,
 } from './create-issue-item';
@@ -80,6 +83,21 @@ export class CreateKickoffIssueDto {
   @IsDate()
   @IsNotEmpty()
   kickoffDate: Date;
+
+  @ApiProperty({
+    required: false,
+    type: [CreateKickoffParticipantItemDto],
+  })
+  @ValidateNested({ each: true })
+  @Type(() => CreateKickoffParticipantItemDto)
+  @IsOptional()
+  participantItems?: CreateKickoffParticipantItemDto[];
+
+  @ApiProperty({ required: false, type: [CreateKickoffTripItemDto] })
+  @ValidateNested({ each: true })
+  @Type(() => CreateKickoffTripItemDto)
+  @IsOptional()
+  tripItems?: CreateKickoffTripItemDto[];
 
   @ApiProperty({ type: [IssueAttachmentDto], description: '첨부 파일 목록' })
   @ValidateNested({ each: true })

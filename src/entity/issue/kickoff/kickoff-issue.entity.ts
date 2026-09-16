@@ -13,6 +13,8 @@ import {
 } from 'typeorm';
 import { Issue } from '../issue.entity';
 import { Project } from '@/entity/project/project.entity';
+import { KickoffIssueTripItem } from './kickoff-issue-trip-item.entity';
+import { KickoffIssueParticipantItem } from './kickoff-issue-participant-item.entity';
 
 @Entity()
 @Index(['project'], {
@@ -30,6 +32,12 @@ export class KickoffIssue {
   @ManyToOne(() => Project, (project) => project.kickoffs)
   @JoinColumn()
   project: Project;
+
+  @OneToMany(() => KickoffIssueParticipantItem, (item) => item.kickoff)
+  participantItems: KickoffIssueParticipantItem[];
+
+  @OneToMany(() => KickoffIssueTripItem, (item) => item.kickoff)
+  tripItems: KickoffIssueTripItem[];
 
   @Column({ type: 'date' })
   kickoffDate: Date;
