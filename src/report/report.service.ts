@@ -1263,60 +1263,6 @@ export class ReportService {
     return reportListDto;
   }
 
-  async backfillOverseasTripExchangeRates(dryRun = true) {
-    const reports = await this.reportRepository
-      .createQueryBuilder('report')
-      .leftJoinAndSelect('report.schedule', 'schedule')
-      .leftJoinAndSelect('schedule.category', 'scheduleCategory')
-      .leftJoinAndSelect('report.trip', 'trip')
-      .leftJoinAndSelect('trip.exchangeRate', 'exchangeRate')
-      .where('trip.id IS NOT NULL')
-      .andWhere('exchangeRate.id IS NULL')
-      .andWhere('scheduleCategory.id != :domesticCategoryId', {
-        domesticCategoryId: 1,
-      })
-      .orderBy('report.id', 'ASC')
-      .getMany();
-
-    const results: Array<{
-      reportId: number;
-      tripId: number;
-      requestedDate: string;
-      appliedDate: string;
-      rate: number;
-    }> = [];
-
-    for (const report of reports) {
-      const requestedDate = dayjs(report.schedule.start).format('YYYYMMDD');
-      const snapshot =
-        await this.currencyService.getExchangeRate(requestedDate);
-
-      if (!dryRun) {
-        const exchangeRate = this.dataSource.manager.create(TripExchangeRate, {
-          trip: report.trip,
-          rate: snapshot.rate,
-          appliedDate: snapshot.appliedDate,
-        });
-
-        await this.dataSource.manager.save(exchangeRate);
-      }
-
-      results.push({
-        reportId: report.id,
-        tripId: report.trip.id,
-        requestedDate,
-        appliedDate: snapshot.appliedDate.replaceAll('-', ''),
-        rate: snapshot.rate,
-      });
-    }
-
-    return {
-      dryRun,
-      total: reports.length,
-      items: results,
-    };
-  }
-
   async getDomesticTripCalculations(user: User, id: number) {
     const report = await this.findReportById(id);
 

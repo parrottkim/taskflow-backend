@@ -24,6 +24,22 @@ import { ProcurementIssueRequestItem } from '@/entity/issue/procurement/procurem
 import { ProcurementIssueRequest } from '@/entity/issue/procurement/procurement-issue-request.entity';
 import { IssueEditGuard } from '@/common/guards/issue-edit.guard';
 import { IssueProcurementRequestGuard } from '@/common/guards/issue-procurement-request.guard';
+import { KickoffIssueParticipantItem } from '@/entity/issue/kickoff/kickoff-issue-participant-item.entity';
+import { KickoffIssueTripItemCategory } from '@/entity/issue/kickoff/kickoff-issue-trip-item-category.entity';
+import { KickoffIssueTripItem } from '@/entity/issue/kickoff/kickoff-issue-trip-item.entity';
+import { ApprovalIssueController } from './approval/approval-issue.controller';
+import { ApprovalIssueService } from './approval/approval-issue.service';
+import { ContractIssueController } from './contract/contract-issue.controller';
+import { ContractIssueService } from './contract/contract-issue.service';
+import { KickoffIssueController } from './kickoff/kickoff-issue.controller';
+import { KickoffIssueService } from './kickoff/kickoff-issue.service';
+import { PaymentIssueController } from './payment/payment-issue.controller';
+import { PaymentIssueService } from './payment/payment-issue.service';
+import { ProcurementIssueController } from './procurement/procurement-issue.controller';
+import { ProcurementIssueExportService } from './procurement/procurement-issue-export.service';
+import { ProcurementIssueService } from './procurement/procurement-issue.service';
+import { TransactionIssueController } from './transaction/transaction-issue.controller';
+import { TransactionIssueService } from './transaction/transaction-issue.service';
 
 @Module({
   imports: [
@@ -33,6 +49,9 @@ import { IssueProcurementRequestGuard } from '@/common/guards/issue-procurement-
       TransactionIssueItem,
       TransactionIssueItemCategory,
       KickoffIssue,
+      KickoffIssueParticipantItem,
+      KickoffIssueTripItem,
+      KickoffIssueTripItemCategory,
       ContractIssue,
       TransactionIssue,
       PaymentIssue,
@@ -50,7 +69,27 @@ import { IssueProcurementRequestGuard } from '@/common/guards/issue-procurement-
     MailModule,
     SftpModule,
   ],
-  controllers: [IssueController],
-  providers: [IssueService, IssueEditGuard, IssueProcurementRequestGuard],
+  // Keep IssueController last because its /issue/:id routes are catch-all routes.
+  controllers: [
+    ApprovalIssueController,
+    ContractIssueController,
+    KickoffIssueController,
+    PaymentIssueController,
+    ProcurementIssueController,
+    TransactionIssueController,
+    IssueController,
+  ],
+  providers: [
+    IssueService,
+    ApprovalIssueService,
+    ContractIssueService,
+    ProcurementIssueExportService,
+    KickoffIssueService,
+    PaymentIssueService,
+    ProcurementIssueService,
+    TransactionIssueService,
+    IssueEditGuard,
+    IssueProcurementRequestGuard,
+  ],
 })
 export class IssueModule {}

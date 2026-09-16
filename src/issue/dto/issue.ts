@@ -40,6 +40,58 @@ export class ContractIssueItemDto {
   price: number;
 }
 
+export class KickoffIssueParticipantItemDto {
+  @ApiProperty()
+  @IsInt()
+  @Expose()
+  id: number;
+
+  @ApiProperty({ type: UserDto })
+  @Type(() => UserDto)
+  @Expose()
+  participant: UserDto;
+
+  @ApiProperty()
+  @IsString()
+  @Expose()
+  role: string;
+}
+
+export class KickoffIssueTripItemCategoryDto {
+  @ApiProperty()
+  @IsInt()
+  @Expose()
+  id: number;
+
+  @ApiProperty()
+  @IsString()
+  @Expose()
+  name: string;
+}
+
+export class KickoffIssueTripItemDto {
+  @ApiProperty()
+  @IsInt()
+  @Expose()
+  id: number;
+
+  @ApiProperty({ type: KickoffIssueTripItemCategoryDto })
+  @Type(() => KickoffIssueTripItemCategoryDto)
+  @Expose()
+  category: KickoffIssueTripItemCategoryDto;
+
+  @ApiProperty()
+  @IsInt()
+  @Expose()
+  days: number;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  @Expose()
+  note?: string;
+}
+
 export class TransactionIssueItemCategoryDto {
   @ApiProperty()
   @IsInt()
@@ -267,6 +319,18 @@ export class KickoffIssueDto extends IssueDto {
   @Type(() => Date)
   @Expose()
   kickoffDate: Date;
+
+  @ApiProperty({ type: [KickoffIssueParticipantItemDto] })
+  @ValidateNested({ each: true })
+  @Type(() => KickoffIssueParticipantItemDto)
+  @Expose()
+  participantItems: KickoffIssueParticipantItemDto[];
+
+  @ApiProperty({ type: [KickoffIssueTripItemDto] })
+  @ValidateNested({ each: true })
+  @Type(() => KickoffIssueTripItemDto)
+  @Expose()
+  tripItems: KickoffIssueTripItemDto[];
 }
 
 export class ContractIssueDto extends IssueDto {
