@@ -24,6 +24,7 @@ import { ProjectItemCountDto } from './dto/project-item-count';
 import { WriteAccessGuard } from '@/common/guards/write-access.guard';
 import { ProjectEditGuard } from '@/common/guards/project-edit.guard';
 import { CloseProjectDto } from './dto/close-project';
+import { ProjectCostSummaryDto } from './dto/project-cost-summary';
 
 @ApiTags('Project (프로젝트)')
 @Controller('project')
@@ -41,6 +42,19 @@ export class ProjectController {
   @Get(':id/count')
   getProjectItemCount(@Param('id', ParseIntPipe) id: number) {
     return this.projectService.getProjectItemCount(id);
+  }
+
+  @UseGuards(JwtAccessAuthGuard)
+  @ApiOperation({ summary: '프로젝트 비용 요약' })
+  @ApiHeader({ name: 'Authorization', description: 'Access Token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successful response',
+    type: ProjectCostSummaryDto,
+  })
+  @Get(':id/cost-summary')
+  getProjectCostSummary(@Param('id', ParseIntPipe) id: number) {
+    return this.projectService.getProjectCostSummary(id);
   }
 
   @UseGuards(JwtAccessAuthGuard, ProjectEditGuard)
