@@ -62,6 +62,10 @@ import {
   DailyAllowancePreviewDto,
   PreviewDailyAllowanceDto,
 } from './dto/preview-daily-allowance';
+import {
+  calculateDomesticTripCosts as calculateDomesticTripCostsValue,
+  calculateOverseasTripCosts as calculateOverseasTripCostsValue,
+} from './functions/trip-cost-calculator';
 
 @Injectable()
 export class ReportService {
@@ -1303,123 +1307,17 @@ export class ReportService {
     report: Report,
     traveler: { rank?: { id: number } | null } = report.createdBy,
   ) {
-    // 헬퍼 함수: stepIds로 지정된 항목들의 합계 계산
-    const sumExpensesByStepIds = (stepIds: number[]): number => {
-      return report.trip.expenses
-        .filter((expense) => stepIds.includes(expense.step.id))
-        .reduce((sum, expense) => sum + this.getExpenseAmountInKrw(expense), 0);
-    };
-
-    // 교통비: step 1, 2, 3
-    const transportationCost = sumExpensesByStepIds([1, 2, 3]);
-
-    // 현지교통비: step 4, 5, 6
-    const localTransportCost = sumExpensesByStepIds([4, 5, 6]);
-
-    // 숙박비 정산액 계산 (step 7, 8, 9)
-    const accommodationRate = [7, 8, 9].reduce((sum, stepId) => {
-      const rate = report.trip.rates.find((r) => r.step.id === stepId);
-      return sum + (rate?.rate ?? 0) * (rate?.days ?? 0);
-    }, 0);
-    const accommodationCost = sumExpensesByStepIds([7, 8, 9]);
-    const accommodationSettlement = accommodationRate - accommodationCost;
-
-    // 국내 출장은 특근비(step 11)를 지급하지 않으며,
-    // 당일 출장 또는 임원(rank 1, 2)은 기본 일비(step 10)도 지급하지 않는다.
-    const excludeDailyAllowance =
-      this.isSameDayTrip(report.schedule) || this.isExecutive(traveler);
-    const dailyStepIds = excludeDailyAllowance ? [] : [10];
-    const dailyRate = dailyStepIds.reduce((sum, stepId) => {
-      const rate = report.trip.rates.find((r) => r.step.id === stepId);
-      return sum + (rate?.rate ?? 0) * (rate?.days ?? 0);
-    }, 0);
-
-    // 개인차량 유류비
-    const personalFuel = report.trip.fuel;
-    const totalPersonalFuel =
-      personalFuel?.mileage !== 0 && personalFuel?.mileage
-        ? personalFuel.rate * (personalFuel.distance / personalFuel.mileage)
-        : 0;
-
-    // 기타 비용: step 12, 13
-    const otherCost = sumExpensesByStepIds([12, 13]) + totalPersonalFuel;
-
-    // 총 비용
-    const totalCost =
-      transportationCost +
-      localTransportCost +
-      accommodationRate +
-      dailyRate +
-      otherCost;
-
     return plainToInstance(
       TripCalculationsDto,
-      {
-        totalCost,
-        taxableAmount: accommodationSettlement,
-        nonTaxableAmount: dailyRate + totalPersonalFuel,
-      },
+      calculateDomesticTripCostsValue(report, traveler),
       { excludeExtraneousValues: true },
     );
   }
 
   private async calculateOverseasTripCosts(report: Report) {
-    const exchangeRate = report.trip?.exchangeRate?.rate;
-
-    if (exchangeRate == null) {
-      throw new NotFoundException('not_found_trip_exchange_rate');
-    }
-
-    // 헬퍼 함수: stepIds로 지정된 항목들의 합계 계산
-    const sumExpensesByStepIds = (stepIds: number[]): number => {
-      return report.trip.expenses
-        .filter((expense) => stepIds.includes(expense.step.id))
-        .reduce((sum, expense) => sum + this.getExpenseAmountInKrw(expense), 0);
-    };
-
-    // 교통비: step 14, 15, 16
-    const transportationCost = sumExpensesByStepIds([14, 15, 16]);
-
-    // 현지교통비: step 17, 18, 19
-    const localTransportCost = sumExpensesByStepIds([17, 18, 19]);
-
-    // 숙박비: step 20
-    const accommodation = sumExpensesByStepIds([20]);
-
-    // 일비 계산 (step 21, 22, 23)
-    const dailyRate = [21, 22, 23].reduce((sum, stepId) => {
-      const rate = report.trip.rates.find((r) => r.step.id === stepId);
-      return sum + (rate?.rate ?? 0) * (rate?.days ?? 0);
-    }, 0);
-
-    // 환율 적용 일비 (step 21~24 + 휴일 보정)
-    const deducted = report.trip.isDeducted ? 0.1 : 0.0;
-    const holidayRate = report.trip.rates.find((r) => r.step.id === 24);
-    const totalHolidayRate =
-      (holidayRate?.rate ?? 0) * (holidayRate?.days ?? 0);
-    const amountReceived = dailyRate * (1 - deducted) + totalHolidayRate;
-    const totalDailyRate = this.convertAmountToKrw(
-      amountReceived,
-      exchangeRate,
-    );
-
-    // 기타 비용: step 25, 26, 27, 28, 29
-    const otherCost = sumExpensesByStepIds([25, 26, 27, 28, 29]);
-
-    // 총 비용
-    const totalCost =
-      transportationCost +
-      localTransportCost +
-      accommodation +
-      totalDailyRate +
-      otherCost;
-
     return plainToInstance(
       TripCalculationsDto,
-      {
-        totalCost,
-        exchangeRate,
-      },
+      calculateOverseasTripCostsValue(report),
       { excludeExtraneousValues: true },
     );
   }
