@@ -38,7 +38,7 @@ import { plainToInstance } from 'class-transformer';
 import path from 'path';
 import dayjs from 'dayjs';
 import * as ExcelJS from 'exceljs';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import {
   CreateReportDto,
   CreateActualExpenseDto,
@@ -156,6 +156,144 @@ export class ReportService {
     }
 
     return snapshot;
+  }
+
+  private async createTripExpenses(
+    manager: EntityManager,
+    trip: TripReport,
+    expenseDtos?: CreateActualExpenseDto[],
+  ) {
+    if (!expenseDtos?.length) {
+      return [];
+    }
+
+    const stepIds = [...new Set(expenseDtos.map((expense) => expense.stepId))];
+    const steps = await manager.findBy(TripStep, { id: In(stepIds) });
+
+    if (steps.length !== stepIds.length) {
+      throw new BadRequestException('bad_request_trip_step_invalid');
+    }
+
+    const stepById = new Map(steps.map((step) => [step.id, step]));
+    const krwCurrency = await manager.findOneBy(Currency, { code: 'KRW' });
+
+    if (!krwCurrency) {
+      throw new InternalServerErrorException(
+        'internal_server_error_krw_currency_not_found',
+      );
+    }
+
+    const currencyIds = [
+      ...new Set(
+        expenseDtos.flatMap((expense) => {
+          const step = stepById.get(expense.stepId);
+
+          if (!step) {
+            throw new BadRequestException('bad_request_trip_step_invalid');
+          }
+
+          if (!step.requiresExpenseCurrency) {
+            return [];
+          }
+
+          if (expense.currencyId == null) {
+            throw new BadRequestException(
+              'bad_request_expense_currency_required',
+            );
+          }
+
+          if (!expense.paymentDate) {
+            throw new BadRequestException(
+              'bad_request_expense_payment_date_required',
+            );
+          }
+
+          return [expense.currencyId];
+        }),
+      ),
+    ];
+    const currencies = currencyIds.length
+      ? await manager.findBy(Currency, { id: In(currencyIds) })
+      : [];
+
+    if (currencies.length !== currencyIds.length) {
+      throw new BadRequestException('bad_request_currency_invalid');
+    }
+
+    const currencyById = new Map(
+      currencies.map((currency) => [currency.id, currency]),
+    );
+    const exchangeRateCache = new Map<
+      string,
+      Promise<{ rate: number; appliedDate: string | null }>
+    >();
+
+    const expenses = await Promise.all(
+      expenseDtos.map(async (expenseDto) => {
+        const step = stepById.get(expenseDto.stepId)!;
+        const requiresCurrency = step.requiresExpenseCurrency;
+        const currency = requiresCurrency
+          ? currencyById.get(expenseDto.currencyId!)
+          : krwCurrency;
+
+        if (!currency) {
+          throw new BadRequestException('bad_request_currency_invalid');
+        }
+
+        const paymentDate = requiresCurrency
+          ? expenseDto.paymentDate
+          : undefined;
+        const snapshot = requiresCurrency
+          ? await this.getExpenseExchangeRate(
+              this.formatExpenseDate(paymentDate!),
+              currency,
+              exchangeRateCache,
+            )
+          : { rate: 1, appliedDate: null };
+
+        return manager.create(TripActualExpense, {
+          trip,
+          step,
+          currency,
+          price: expenseDto.price,
+          paymentDate,
+          exchangeRate: snapshot.rate,
+          exchangeRateAppliedDate:
+            snapshot.appliedDate != null
+              ? new Date(`${snapshot.appliedDate}T00:00:00.000Z`)
+              : undefined,
+          details: expenseDto.details,
+        });
+      }),
+    );
+
+    return manager.save(expenses);
+  }
+
+  private async createTripDailyAllowanceExchangeRate(
+    manager: EntityManager,
+    trip: TripReport,
+    schedule: {
+      start: Date | string;
+      category: { id: number };
+    } | null,
+  ) {
+    if (!schedule || schedule.category.id === 1) {
+      return null;
+    }
+
+    const snapshot = await this.currencyService.getExchangeRate(
+      dayjs(schedule.start).format('YYYYMMDD'),
+      'USD',
+    );
+
+    return manager.save(
+      manager.create(TripExchangeRate, {
+        trip,
+        rate: snapshot.rate,
+        appliedDate: snapshot.appliedDate,
+      }),
+    );
   }
 
   async findAllTripCategories() {
@@ -1410,7 +1548,6 @@ export class ReportService {
         const schedule = body.scheduleId
           ? await this.scheduleService.getSchedule(body.scheduleId)
           : null;
-        const isOverseasTrip = Boolean(schedule) && schedule.category.id !== 1;
         const isOverseasExpenseDeducted =
           schedule?.category.id === 2 &&
           (body.trip.expenses ?? []).some(
@@ -1605,118 +1742,11 @@ export class ReportService {
         }
 
         // 2-1. Expense 생성 (TripReport에 연결)
-        let savedExpenses: TripActualExpense[] = [];
-        if (body.trip.expenses) {
-          const stepIds = [
-            ...new Set(body.trip.expenses.map((expense) => expense.stepId)),
-          ];
-          const steps = await queryRunner.manager.findBy(TripStep, {
-            id: In(stepIds),
-          });
-
-          if (steps.length !== stepIds.length) {
-            throw new BadRequestException('bad_request_trip_step_invalid');
-          }
-
-          const stepById = new Map(steps.map((step) => [step.id, step]));
-          const krwCurrency = await queryRunner.manager.findOneBy(Currency, {
-            code: 'KRW',
-          });
-
-          if (!krwCurrency) {
-            throw new InternalServerErrorException(
-              'internal_server_error_krw_currency_not_found',
-            );
-          }
-
-          const currencyIds = [
-            ...new Set(
-              body.trip.expenses
-                .filter(
-                  (expense) =>
-                    stepById.get(expense.stepId)?.requiresExpenseCurrency,
-                )
-                .map((expense) => {
-                  if (!expense.currencyId) {
-                    throw new BadRequestException(
-                      'bad_request_expense_currency_required',
-                    );
-                  }
-
-                  if (!expense.paymentDate) {
-                    throw new BadRequestException(
-                      'bad_request_expense_payment_date_required',
-                    );
-                  }
-
-                  return expense.currencyId;
-                }),
-            ),
-          ];
-          const currencies = await queryRunner.manager.findBy(Currency, {
-            id: In(currencyIds),
-          });
-
-          if (currencies.length !== currencyIds.length) {
-            throw new BadRequestException('bad_request_currency_invalid');
-          }
-
-          const currencyById = new Map(
-            currencies.map((currency) => [currency.id, currency]),
-          );
-          const exchangeRateCache = new Map<
-            string,
-            Promise<{ rate: number; appliedDate: string | null }>
-          >();
-
-          const expenseEntities = await Promise.all(
-            body.trip.expenses.map(
-              async (expenseDto: CreateActualExpenseDto) => {
-                const step = stepById.get(expenseDto.stepId);
-
-                if (!step) {
-                  throw new BadRequestException(
-                    'bad_request_trip_step_invalid',
-                  );
-                }
-
-                const requiresCurrency = step.requiresExpenseCurrency;
-                const currency = requiresCurrency
-                  ? currencyById.get(expenseDto.currencyId!)
-                  : krwCurrency;
-
-                if (!currency) {
-                  throw new BadRequestException('bad_request_currency_invalid');
-                }
-
-                const paymentDate = requiresCurrency
-                  ? expenseDto.paymentDate
-                  : undefined;
-                const snapshot = requiresCurrency
-                  ? await this.getExpenseExchangeRate(
-                      this.formatExpenseDate(paymentDate!),
-                      currency,
-                      exchangeRateCache,
-                    )
-                  : { rate: 1, appliedDate: null };
-                const expense = new TripActualExpense();
-                expense.trip = savedTrip; // ⭐️ report 대신 trip에 연결
-                expense.step = step;
-                expense.currency = currency;
-                expense.price = expenseDto.price;
-                expense.paymentDate = paymentDate;
-                expense.exchangeRate = snapshot.rate;
-                expense.exchangeRateAppliedDate =
-                  snapshot.appliedDate != null
-                    ? new Date(`${snapshot.appliedDate}T00:00:00.000Z`)
-                    : undefined;
-                expense.details = expenseDto.details;
-                return expense;
-              },
-            ),
-          );
-          savedExpenses = await queryRunner.manager.save(expenseEntities);
-        }
+        const savedExpenses = await this.createTripExpenses(
+          queryRunner.manager,
+          savedTrip,
+          body.trip.expenses,
+        );
 
         // 2-2. Rate 생성 (TripReport에 연결)
         let savedRates: TripRegulationRate[] = [];
@@ -1747,20 +1777,12 @@ export class ReportService {
           savedFuel = await queryRunner.manager.save(fuel);
         }
 
-        let savedExchangeRate: TripExchangeRate | null = null;
-        if (isOverseasTrip) {
-          const snapshot = await this.currencyService.getExchangeRate(
-            dayjs(schedule.start).format('YYYYMMDD'),
+        const savedExchangeRate =
+          await this.createTripDailyAllowanceExchangeRate(
+            queryRunner.manager,
+            savedTrip,
+            schedule,
           );
-
-          savedExchangeRate = await queryRunner.manager.save(
-            queryRunner.manager.create(TripExchangeRate, {
-              trip: savedTrip,
-              rate: snapshot.rate,
-              appliedDate: snapshot.appliedDate,
-            }),
-          );
-        }
 
         // TripReport에 관계 데이터 attach
         savedTrip.expenses = savedExpenses;
