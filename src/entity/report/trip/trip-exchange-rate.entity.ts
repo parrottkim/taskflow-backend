@@ -1,27 +1,25 @@
+import { DecimalColumnTransformer } from '@/common/utils/transformer.utils';
 import {
   Entity,
   PrimaryGeneratedColumn,
   OneToOne,
+  JoinColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
-  JoinColumn,
-  Index,
 } from 'typeorm';
 import { TripReport } from './trip-report.entity';
-import { DecimalColumnTransformer } from '@/common/utils/transformer.utils';
 
 @Entity()
-@Index(['trip'], {
-  unique: true,
-  where: '"deleted_at" IS NULL',
-})
 export class TripExchangeRate {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @OneToOne(() => TripReport, (trip) => trip.exchangeRate)
+  @OneToOne(() => TripReport, (trip) => trip.exchangeRate, {
+    onDelete: 'CASCADE',
+    nullable: false,
+  })
   @JoinColumn({ name: 'trip_id' })
   trip: TripReport;
 
@@ -30,10 +28,10 @@ export class TripExchangeRate {
     scale: 4,
     transformer: new DecimalColumnTransformer(),
   })
-  rate: number; // 1 USD = rate KRW
+  rate: number;
 
   @Column({ type: 'date' })
-  appliedDate: string; // 환율 적용 날짜 (YYYY-MM-DD)
+  appliedDate: string;
 
   @CreateDateColumn()
   createdAt: Date;
