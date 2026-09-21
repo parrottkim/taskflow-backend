@@ -66,6 +66,10 @@ import {
   calculateDomesticTripCosts as calculateDomesticTripCostsValue,
   calculateOverseasTripCosts as calculateOverseasTripCostsValue,
 } from './functions/trip-cost-calculator';
+import {
+  executeFileOperations,
+  FileOperation,
+} from '@/common/utils/file-operation.util';
 
 @Injectable()
 export class ReportService {
@@ -1861,9 +1865,12 @@ export class ReportService {
 
   async updateReport(user: User, reportId: number, body: UpdateReportDto) {
     assertWriteAccess(user);
+    const fileOperations: FileOperation[] = [];
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
+    let saved: Report;
 
     try {
       const report = await queryRunner.manager.findOne(Report, {
@@ -1896,14 +1903,12 @@ export class ReportService {
         const oldUrls = extractImages(report.content);
         const newUrls = extractImages(body.content);
         const removedUrls = oldUrls.filter((url) => !newUrls.includes(url));
-
-        for (const url of removedUrls) {
-          try {
-            await this.sftpService.deleteFileByUrl(url);
-          } catch (e) {
-            console.warn(`삭제 실패: ${url}`, e);
-          }
-        }
+        fileOperations.push(
+          ...removedUrls.map((target) => ({
+            type: 'delete-url' as const,
+            target,
+          })),
+        );
 
         report.content = body.content;
       }
@@ -1916,13 +1921,12 @@ export class ReportService {
             !body.attachments.some((newAtt) => newAtt.id === oldAtt.id),
         );
 
-        for (const att of toRemove) {
-          try {
-            await this.sftpService.deleteFileByPath(att.path);
-          } catch (e) {
-            console.warn(`SFTP 삭제 실패: ${att.path}`, e);
-          }
-        }
+        fileOperations.push(
+          ...toRemove.map((attachment) => ({
+            type: 'delete-path' as const,
+            target: attachment.path,
+          })),
+        );
 
         if (toRemove.length > 0) {
           await queryRunner.manager.remove(ReportAttachment, toRemove);
@@ -2352,7 +2356,7 @@ export class ReportService {
       // report.isDeducted = body.isDeducted; // 이 줄 제거
 
       report.updatedBy = user;
-      const saved = await queryRunner.manager.save(report);
+      saved = await queryRunner.manager.save(report);
       if (saved.project?.id) {
         await queryRunner.manager.update(
           Project,
@@ -2363,62 +2367,61 @@ export class ReportService {
 
       // ... (commitTransaction 및 DTO 반환 로직은 createReport와 유사하게 TripReport 데이터를 매핑하여 수정)
       await queryRunner.commitTransaction();
-
-      const schedule = saved.schedule
-        ? await this.scheduleService.getSchedule(saved.schedule.id)
-        : null;
-
-      // 계산된 값들 추가
-      let calculations = null;
-      if (saved.trip && schedule) {
-        const isDomestic = schedule.category.id === 1;
-        calculations = isDomestic
-          ? await this.calculateDomesticTripCosts(saved)
-          : await this.calculateOverseasTripCosts(saved);
-      }
-
-      const reportDto = plainToInstance(
-        ReportDto,
-        {
-          // Report 엔티티의 직접 속성들
-          ...saved,
-          schedule: schedule,
-          createdBy: saved.createdBy,
-          updatedBy: saved.updatedBy,
-          trip: saved.trip
-            ? {
-                isDeducted: saved.trip.isDeducted,
-                expenses:
-                  saved.trip.expenses?.map((e) => ({
-                    ...e,
-                    stepId: e.step.id,
-                  })) ?? [],
-                rates: this.getApplicableTripRates(
-                  saved.trip.rates,
-                  schedule?.category.id === 1,
-                  this.isSameDayTrip(schedule) ||
-                    this.isExecutive(saved.createdBy),
-                ).map((r) => ({ ...r, stepId: r.step.id })),
-                fuel: saved.trip.fuel,
-                exchangeRate: saved.trip.exchangeRate ?? null,
-                calculations,
-              }
-            : null,
-        },
-        { excludeExtraneousValues: true },
-      );
-
-      return reportDto;
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
       await queryRunner.release();
     }
+
+    await executeFileOperations(this.sftpService, fileOperations, '보고서');
+
+    const schedule = saved.schedule
+      ? await this.scheduleService.getSchedule(saved.schedule.id)
+      : null;
+
+    let calculations = null;
+    if (saved.trip && schedule) {
+      const isDomestic = schedule.category.id === 1;
+      calculations = isDomestic
+        ? await this.calculateDomesticTripCosts(saved)
+        : await this.calculateOverseasTripCosts(saved);
+    }
+
+    return plainToInstance(
+      ReportDto,
+      {
+        ...saved,
+        schedule,
+        createdBy: saved.createdBy,
+        updatedBy: saved.updatedBy,
+        trip: saved.trip
+          ? {
+              isDeducted: saved.trip.isDeducted,
+              expenses:
+                saved.trip.expenses?.map((e) => ({
+                  ...e,
+                  stepId: e.step.id,
+                })) ?? [],
+              rates: this.getApplicableTripRates(
+                saved.trip.rates,
+                schedule?.category.id === 1,
+                this.isSameDayTrip(schedule) ||
+                  this.isExecutive(saved.createdBy),
+              ).map((r) => ({ ...r, stepId: r.step.id })),
+              fuel: saved.trip.fuel,
+              exchangeRate: saved.trip.exchangeRate ?? null,
+              calculations,
+            }
+          : null,
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 
   async deleteReport(user: User, id: number) {
     assertWriteAccess(user);
+    const fileOperations: FileOperation[] = [];
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -2440,14 +2443,12 @@ export class ReportService {
 
       // Attachments는 파일을 아카이브 폴더로 이동 후 DB는 soft delete (복구 가능)
       if (report.attachments?.length) {
-        // SFTP에서 파일 아카이브
-        for (const att of report.attachments) {
-          try {
-            await this.sftpService.archiveFileByPath(att.path);
-          } catch (e) {
-            console.warn(`파일 아카이브 실패: ${att.path}`, e);
-          }
-        }
+        fileOperations.push(
+          ...report.attachments.map((attachment) => ({
+            type: 'archive-path' as const,
+            target: attachment.path,
+          })),
+        );
         await queryRunner.manager.softDelete(
           ReportAttachment,
           report.attachments.map((att) => att.id),
@@ -2463,5 +2464,7 @@ export class ReportService {
     } finally {
       await queryRunner.release();
     }
+
+    await executeFileOperations(this.sftpService, fileOperations, '보고서');
   }
 }
