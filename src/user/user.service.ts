@@ -317,12 +317,12 @@ export class UserService {
   }
 
   async create(dto: CreateUserDto) {
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const hashedPassword = await bcrypt.hash(dto.password, 10);
       const user = queryRunner.manager.create(User, {
         ...dto,
         password: hashedPassword,

@@ -62,24 +62,37 @@ describe('ReportService trip expense conversion', () => {
       create: jest.fn((_entity, payload) => payload),
       save: jest.fn(async (entities) => entities),
     } as unknown as EntityManager;
-    const createTripExpenses = (
+    (
       service as unknown as {
-        createTripExpenses: (
-          manager: EntityManager,
-          trip: TripReport,
+        dataSource: { manager: EntityManager };
+      }
+    ).dataSource = { manager };
+    const prepareTripExpenses = (
+      service as unknown as {
+        prepareTripExpenses: (
           expenses: CreateActualExpenseDto[],
+        ) => Promise<unknown[]>;
+      }
+    ).prepareTripExpenses.bind(service);
+    const saveTripExpenses = (
+      service as unknown as {
+        saveTripExpenses: (
+          entityManager: EntityManager,
+          trip: TripReport,
+          expenses: unknown[],
         ) => Promise<TripActualExpense[]>;
       }
-    ).createTripExpenses.bind(service);
+    ).saveTripExpenses.bind(service);
     const paymentDate = new Date('2026-08-13T00:00:00.000Z');
 
-    const expenses = await createTripExpenses(
+    const prepared = await prepareTripExpenses([
+      { stepId: 14, currencyId: 2, paymentDate, price: 10 },
+      { stepId: 14, currencyId: 2, paymentDate, price: 20 },
+    ]);
+    const expenses = await saveTripExpenses(
       manager,
       { id: 1 } as TripReport,
-      [
-        { stepId: 14, currencyId: 2, paymentDate, price: 10 },
-        { stepId: 14, currencyId: 2, paymentDate, price: 20 },
-      ],
+      prepared,
     );
 
     expect(getExchangeRate).toHaveBeenCalledTimes(1);
@@ -108,23 +121,32 @@ describe('ReportService trip expense conversion', () => {
       create: jest.fn((_entity, payload) => payload),
       save: jest.fn(async (entity) => entity),
     } as unknown as EntityManager;
-    const createExchangeRate = (
+    const resolveExchangeRate = (
       service as unknown as {
-        createTripDailyAllowanceExchangeRate: (
+        resolveTripDailyAllowanceExchangeRate: (schedule: {
+          start: string;
+          category: { id: number };
+        }) => Promise<{ rate: number; appliedDate: string }>;
+      }
+    ).resolveTripDailyAllowanceExchangeRate.bind(service);
+    const saveExchangeRate = (
+      service as unknown as {
+        saveTripDailyAllowanceExchangeRate: (
           manager: EntityManager,
           trip: TripReport,
-          schedule: {
-            start: string;
-            category: { id: number };
-          },
+          snapshot: { rate: number; appliedDate: string },
         ) => Promise<unknown>;
       }
-    ).createTripDailyAllowanceExchangeRate.bind(service);
+    ).saveTripDailyAllowanceExchangeRate.bind(service);
 
-    const exchangeRate = await createExchangeRate(
+    const snapshot = await resolveExchangeRate({
+      start: '2026-08-13',
+      category: { id: 2 },
+    });
+    const exchangeRate = await saveExchangeRate(
       manager,
       { id: 1 } as TripReport,
-      { start: '2026-08-13', category: { id: 2 } },
+      snapshot,
     );
 
     expect(getExchangeRate).toHaveBeenCalledWith('20260813', 'USD');
