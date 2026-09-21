@@ -96,7 +96,7 @@ describe('ReportService trip expense conversion', () => {
     );
 
     expect(getExchangeRate).toHaveBeenCalledTimes(1);
-    expect(getExchangeRate).toHaveBeenCalledWith('20260813', 'USD');
+    expect(getExchangeRate).toHaveBeenCalledWith(paymentDate, 'USD');
     expect(expenses).toHaveLength(2);
     expect(expenses[0]).toMatchObject({
       currency: usd,
@@ -124,7 +124,7 @@ describe('ReportService trip expense conversion', () => {
     const resolveExchangeRate = (
       service as unknown as {
         resolveTripDailyAllowanceExchangeRate: (schedule: {
-          start: string;
+          start: Date;
           category: { id: number };
         }) => Promise<{ rate: number; appliedDate: string }>;
       }
@@ -139,8 +139,9 @@ describe('ReportService trip expense conversion', () => {
       }
     ).saveTripDailyAllowanceExchangeRate.bind(service);
 
+    const startDate = new Date('2026-08-13T00:00:00.000Z');
     const snapshot = await resolveExchangeRate({
-      start: '2026-08-13',
+      start: startDate,
       category: { id: 2 },
     });
     const exchangeRate = await saveExchangeRate(
@@ -149,7 +150,7 @@ describe('ReportService trip expense conversion', () => {
       snapshot,
     );
 
-    expect(getExchangeRate).toHaveBeenCalledWith('20260813', 'USD');
+    expect(getExchangeRate).toHaveBeenCalledWith(startDate, 'USD');
     expect(exchangeRate).toMatchObject({
       rate: 1380.5,
       appliedDate: '2026-08-13',

@@ -151,12 +151,8 @@ export class ReportService {
     );
   }
 
-  private formatExpenseDate(date: Date) {
-    return date.toISOString().slice(0, 10).replaceAll('-', '');
-  }
-
   private async getExpenseExchangeRate(
-    date: string,
+    date: Date,
     currency: Currency,
     cache: Map<string, Promise<{ rate: number; appliedDate: string | null }>>,
   ) {
@@ -164,7 +160,7 @@ export class ReportService {
       return { rate: 1, appliedDate: null };
     }
 
-    const cacheKey = `${currency.code}:${date}`;
+    const cacheKey = `${currency.code}:${dayjs(date).format('YYYY-MM-DD')}`;
     let snapshot = cache.get(cacheKey);
 
     if (!snapshot) {
@@ -298,7 +294,7 @@ export class ReportService {
             }
           : requiresCurrency
             ? await this.getExpenseExchangeRate(
-                this.formatExpenseDate(paymentDate!),
+                paymentDate!,
                 currency,
                 exchangeRateCache,
               )
@@ -349,7 +345,7 @@ export class ReportService {
     if (!schedule || schedule.category.id === 1) return null;
 
     return this.currencyService.getExchangeRate(
-      dayjs(schedule.start).format('YYYYMMDD'),
+      dayjs(schedule.start).toDate(),
       'USD',
     );
   }
@@ -606,10 +602,7 @@ export class ReportService {
           relations: { step: true },
         }),
         this.holidayService.getHolidaysBetween(schedule.start, schedule.end),
-        this.currencyService.getExchangeRate(
-          startDate.format('YYYYMMDD'),
-          'USD',
-        ),
+        this.currencyService.getExchangeRate(startDate.toDate(), 'USD'),
       ],
     );
 

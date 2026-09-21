@@ -21,6 +21,12 @@ import { UpdateContractIssueDto } from '../dto/update-issue';
 import { ContractIssueItemDto } from '../dto/issue';
 import { IssueFileOperation, IssueService } from '../issue.service';
 import { CurrencyService } from '@/currency/currency.service';
+import dayjs from 'dayjs';
+
+type ExchangeRateSnapshot = {
+  rate: number;
+  appliedDate: string;
+};
 
 @Injectable()
 export class ContractIssueService {
@@ -34,23 +40,25 @@ export class ContractIssueService {
     private readonly issueService: IssueService,
   ) {}
 
-  private async resolveExchangeRateSnapshot(
+  private async getContractExchangeRate(
     contractDate: string,
-    currencyCode: string,
-  ) {
-    if (currencyCode === 'KRW') return null;
+    currency: Currency,
+  ): Promise<ExchangeRateSnapshot | null> {
+    if (currency.code === 'KRW') return null;
 
     return this.currencyService.getExchangeRate(
-      contractDate.replace(/-/g, ''),
-      currencyCode,
+      dayjs(contractDate).toDate(),
+      currency.code,
     );
   }
 
-  private async saveExchangeRateSnapshot(
+  private async saveContractExchangeRate(
     manager: EntityManager,
     contract: ContractIssue,
-    snapshot: { rate: number; appliedDate: string },
+    snapshot: ExchangeRateSnapshot | null,
   ) {
+    if (!snapshot) return Promise.resolve(null);
+
     let exchangeRate = await manager.findOne(ContractExchangeRate, {
       where: { contract: { id: contract.id } },
       withDeleted: true,
@@ -131,9 +139,9 @@ export class ContractIssueService {
       throw new NotFoundException('not_found_currency');
     }
 
-    const exchangeRateSnapshot = await this.resolveExchangeRateSnapshot(
+    const contractExchangeRate = await this.getContractExchangeRate(
       body.contractDate,
-      requestedCurrency.code,
+      requestedCurrency,
     );
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -192,13 +200,11 @@ export class ContractIssueService {
       });
       const savedContract = await queryRunner.manager.save(contract);
 
-      if (exchangeRateSnapshot) {
-        savedContract.exchangeRate = await this.saveExchangeRateSnapshot(
-          queryRunner.manager,
-          savedContract,
-          exchangeRateSnapshot,
-        );
-      }
+      savedContract.exchangeRate = await this.saveContractExchangeRate(
+        queryRunner.manager,
+        savedContract,
+        contractExchangeRate,
+      );
 
       savedIssue.contract = savedContract;
 
@@ -282,10 +288,10 @@ export class ContractIssueService {
       (!currentContract?.exchangeRate ||
         requestedCurrency.id !== currentContract.currency?.id ||
         requestedContractDate !== currentContract.contractDate);
-    const exchangeRateSnapshot = shouldRefreshExchangeRate
-      ? await this.resolveExchangeRateSnapshot(
+    const contractExchangeRate = shouldRefreshExchangeRate
+      ? await this.getContractExchangeRate(
           requestedContractDate,
-          requestedCurrency.code,
+          requestedCurrency,
         )
       : null;
 
@@ -339,11 +345,11 @@ export class ContractIssueService {
           );
           issue.contract.exchangeRate = null;
         }
-      } else if (exchangeRateSnapshot) {
-        issue.contract.exchangeRate = await this.saveExchangeRateSnapshot(
+      } else if (shouldRefreshExchangeRate) {
+        issue.contract.exchangeRate = await this.saveContractExchangeRate(
           queryRunner.manager,
           issue.contract,
-          exchangeRateSnapshot,
+          contractExchangeRate,
         );
       }
 
@@ -487,15 +493,15 @@ export class ContractIssueService {
 
     for (const contract of contracts) {
       try {
-        const snapshot = await this.resolveExchangeRateSnapshot(
+        const snapshot = await this.getContractExchangeRate(
           contract.contractDate,
-          contract.currency.code,
+          contract.currency,
         );
 
         if (!snapshot) continue;
 
         if (!dryRun) {
-          await this.saveExchangeRateSnapshot(
+          await this.saveContractExchangeRate(
             this.dataSource.manager,
             contract,
             snapshot,

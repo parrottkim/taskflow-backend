@@ -1,4 +1,11 @@
-import { Controller, UseGuards, HttpStatus, Get, Query } from '@nestjs/common';
+import {
+  Controller,
+  UseGuards,
+  HttpStatus,
+  Get,
+  Query,
+  ParseDatePipe,
+} from '@nestjs/common';
 import {
   ApiOperation,
   ApiHeader,
@@ -29,7 +36,7 @@ export class CurrencyController {
   })
   @Get('exchange')
   async getRate(
-    @Query('date') date: string,
+    @Query('date', ParseDatePipe) date: Date,
     @Query('currency') currency: string = 'USD',
   ) {
     const snapshot = await this.currencyService.getExchangeRate(date, currency);
