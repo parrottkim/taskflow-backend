@@ -1,14 +1,10 @@
 import {
   Injectable,
-  Inject,
   NotFoundException,
   ConflictException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
-import { google, calendar_v3 } from 'googleapis';
-import { join } from 'path';
-import { ConfigType } from '@nestjs/config';
-import config from '@/config/config';
 import { CreateScheduleDto } from './dto/create-schedule';
 import { plainToInstance } from 'class-transformer';
 import { ScheduleDto, ScheduleGroupDto, ScheduleListDto } from './dto/schedule';
@@ -33,11 +29,17 @@ import { Report } from '@/entity/report/report.entity';
 import { ScheduleHoliday } from '@/entity/schedule/schedule-holiday.entity';
 import { HolidayService } from '@/holiday/holiday.service';
 import { UpdateScheduleHolidayDto } from './dto/update-schedule-holiday';
+import { randomUUID } from 'crypto';
+import {
+  ScheduleCalendarSync,
+  ScheduleCalendarSyncOperation,
+} from '@/entity/schedule/schedule-calendar-sync.entity';
+import { ScheduleCalendarEventPayload } from './schedule-calendar.types';
+import { HolidayDto } from '@/holiday/dto/holiday';
 
 @Injectable()
 export class ScheduleService {
-  private calendarClient: calendar_v3.Calendar;
-  private readonly scheduleCalendarId: string;
+  private readonly logger = new Logger(ScheduleService.name);
 
   private toScheduleDate(value: string | Date): Date {
     return new Date(`${dayjs(value).format('YYYY-MM-DD')}T00:00:00.000Z`);
@@ -45,8 +47,6 @@ export class ScheduleService {
 
   constructor(
     private readonly dataSource: DataSource,
-    @Inject(config.KEY)
-    private readonly configService: ConfigType<typeof config>,
     @InjectRepository(Schedule)
     private readonly scheduleRepository: Repository<Schedule>,
     @InjectRepository(ScheduleCategory)
@@ -57,25 +57,70 @@ export class ScheduleService {
     private readonly projectClientService: ProjectClientService,
     private readonly mailService: MailService,
     private readonly holidayService: HolidayService,
+  ) {}
+
+  private buildCalendarEventPayload(
+    schedule: Schedule,
+    project: Project,
+    category: ScheduleCategory,
+    owner: User,
+  ): ScheduleCalendarEventPayload {
+    return {
+      summary: `[${category.name}][${project.client.name}][${owner.username}] ${schedule.summary} (${dayjs(schedule.start).format('MM/DD')} - ${dayjs(schedule.end).format('MM/DD')})`,
+      description:
+        `[URL] ${schedule.url}` +
+        `\n\n[설명]\n${schedule.description ?? '설명 없음'}`,
+      location: project.client.name,
+      colorId: category.color,
+      start: {
+        date: dayjs(schedule.start).format('YYYY-MM-DD'),
+      },
+      end: {
+        date: dayjs(schedule.end).add(1, 'day').format('YYYY-MM-DD'),
+      },
+      extendedProperties: {
+        shared: {
+          categoryId: category.id.toString(),
+          owner: owner.email,
+        },
+      },
+    };
+  }
+
+  private enqueueCalendarSync(
+    manager: EntityManager,
+    schedule: Schedule,
+    operation: ScheduleCalendarSyncOperation,
+    payload: ScheduleCalendarEventPayload = {} as ScheduleCalendarEventPayload,
   ) {
-    const credentialsPath = this.configService.calendar.credentialsPath;
-    this.scheduleCalendarId = this.configService.calendar.scheduleCalendarId;
-
-    const auth = new google.auth.GoogleAuth({
-      keyFile: join(process.cwd(), credentialsPath),
-      scopes: ['https://www.googleapis.com/auth/calendar'],
-    });
-
-    this.calendarClient = google.calendar({ version: 'v3', auth });
+    return manager.save(
+      manager.create(ScheduleCalendarSync, {
+        schedule,
+        operation,
+        eventId: schedule.eventId,
+        payload,
+      }),
+    );
   }
 
   async findCategoryById(id: number) {
     return await this.scheduleCategoryRepository.findOneBy({ id });
   }
 
+  private resolveScheduleDaysOff(
+    categoryId: number,
+    start: Date | string,
+    end: Date | string,
+  ) {
+    return categoryId === 1
+      ? this.holidayService.getDaysOffBetween(start, end)
+      : Promise.resolve([] as HolidayDto[]);
+  }
+
   private async syncScheduleHolidays(
     manager: EntityManager,
     schedule: Schedule,
+    daysOff: HolidayDto[],
     holidayInputs?: UpdateScheduleHolidayDto[],
   ): Promise<ScheduleHoliday[]> {
     await manager.delete(ScheduleHoliday, {
@@ -92,10 +137,6 @@ export class ScheduleService {
       return [];
     }
 
-    const daysOff = await this.holidayService.getDaysOffBetween(
-      schedule.start,
-      schedule.end,
-    );
     const inputs = holidayInputs ?? [];
     const inputByDate = new Map(
       inputs.map((holiday) => [
@@ -434,49 +475,33 @@ export class ScheduleService {
 
   async createSchedule(user: User, body: CreateScheduleDto) {
     assertWriteAccess(user);
+    const scheduleDaysOff = await this.resolveScheduleDaysOff(
+      body.categoryId,
+      body.start,
+      body.end,
+    );
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
+    let saved: Schedule;
+    let project: Project;
+    let ancestors: Awaited<ReturnType<ProjectClientService['findAncestors']>>;
+
     try {
-      const project = await queryRunner.manager.findOne(Project, {
+      project = await queryRunner.manager.findOne(Project, {
         where: { id: body.projectId },
-        relations: ['client'], // 클라이언트 정보가 필요하므로 relations를 포함해야 함
+        relations: ['client'],
       });
       const category = await queryRunner.manager.findOne(ScheduleCategory, {
         where: { id: body.categoryId },
       });
 
-      const summary = `[${category.name}][${project.client.name}][${user.username}] ${body.summary} (${dayjs(body.start).format('MM/DD')} - ${dayjs(body.end).format('MM/DD')})`;
-      const description =
-        `[URL] ${body.url}` + `\n\n[설명]\n${body.description ?? '설명 없음'}`;
+      if (!project) throw new NotFoundException('not_found_project');
+      if (!category) throw new NotFoundException('not_found_schedule_category');
 
-      const res = await this.calendarClient.events.insert({
-        calendarId: this.scheduleCalendarId,
-        requestBody: {
-          summary: summary,
-          description: description,
-          location: project.client.name,
-          colorId: category.color,
-          start: {
-            date: dayjs(body.start).format('YYYY-MM-DD'),
-          },
-          end: {
-            date: dayjs(body.end).add(1, 'day').format('YYYY-MM-DD'),
-          },
-          extendedProperties: {
-            shared: {
-              categoryId: category.id.toString(),
-              owner: user.email,
-            },
-          },
-        },
-      });
-
-      const eventId = res.data.id;
-
-      const saved = await queryRunner.manager.create(Schedule, {
-        eventId,
+      saved = queryRunner.manager.create(Schedule, {
+        eventId: `taskfl0${randomUUID().replace(/-/g, '')}`,
         category,
         project,
         user,
@@ -487,70 +512,98 @@ export class ScheduleService {
         end: this.toScheduleDate(body.end),
       });
 
-      await queryRunner.manager.save(saved);
+      saved = await queryRunner.manager.save(saved);
       saved.holidays = await this.syncScheduleHolidays(
         queryRunner.manager,
         saved,
+        scheduleDaysOff,
         body.holidays,
       );
+      await this.enqueueCalendarSync(
+        queryRunner.manager,
+        saved,
+        ScheduleCalendarSyncOperation.CREATE,
+        this.buildCalendarEventPayload(saved, project, category, user),
+      );
 
-      const ancestors = await this.projectClientService.findAncestors(
+      ancestors = await this.projectClientService.findAncestors(
         project.client.id,
       );
 
       await queryRunner.commitTransaction();
-
-      const scheduleDto = plainToInstance(
-        ScheduleDto,
-        {
-          ...saved,
-          projectId: project.id,
-          projectCode: project.code,
-          projectName: project.name,
-          projectClientId: ancestors[0].id,
-          projectClientName: project.client.name,
-        },
-        {
-          excludeExtraneousValues: true,
-        },
-      );
-
-      const projectDto = plainToInstance(
-        ProjectDto,
-        {
-          ...project,
-          clients: ancestors,
-        },
-        {
-          excludeExtraneousValues: true,
-        },
-      );
-
-      await this.mailService.sendScheduleMail(projectDto, scheduleDto);
-
-      return scheduleDto;
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
       await queryRunner.release();
     }
+
+    const scheduleDto = plainToInstance(
+      ScheduleDto,
+      {
+        ...saved,
+        projectId: project.id,
+        projectCode: project.code,
+        projectName: project.name,
+        projectClientId: ancestors[0].id,
+        projectClientName: project.client.name,
+      },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
+    const projectDto = plainToInstance(
+      ProjectDto,
+      {
+        ...project,
+        clients: ancestors,
+      },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
+
+    try {
+      await this.mailService.sendScheduleMail(projectDto, scheduleDto);
+    } catch (error) {
+      this.logger.warn(
+        `일정 생성 메일 발송 실패: scheduleId=${saved.id}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+
+    return scheduleDto;
   }
 
-  // DataSource를 DI 받았다고 가정 (this.dataSource)
   async updateSchedule(user: User, id: number, body: UpdateScheduleDto) {
     assertWriteAccess(user);
-    // ⬇️ 트랜잭션 시작
+    const scheduleSnapshot = await this.scheduleRepository.findOne({
+      where: { id },
+      relations: ['user', 'category'],
+    });
+    if (!scheduleSnapshot) {
+      throw new NotFoundException('not_found_schedule');
+    }
+    assertOwnerOrAdmin(user, scheduleSnapshot.user.id);
+
+    const scheduleDaysOff =
+      body.holidays !== undefined
+        ? await this.resolveScheduleDaysOff(
+            body.categoryId ?? scheduleSnapshot.category.id,
+            body.start ?? scheduleSnapshot.start,
+            body.end ?? scheduleSnapshot.end,
+          )
+        : [];
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
+    let updatedSchedule: Schedule;
+    let project: Project;
+    let category: ScheduleCategory;
+    let ancestors: Awaited<ReturnType<ProjectClientService['findAncestors']>>;
+
     try {
-      // 1️⃣ 기존 스케줄 조회 (queryRunner.manager 사용)
-      // 기존 schedule 조회 로직을 queryRunner.manager.findOne을 사용하도록 수정하는 것이 일관적입니다.
-      // 하지만 기존 로직(this.findScheduleById)이 트랜잭션 외부에서 작동한다면,
-      // 조회만 외부에서 하고, 수정 및 저장만 트랜잭션 내에서 처리할 수도 있습니다.
-      // 여기서는 안전하게 트랜잭션 내에서 조회하도록 가정합니다.
       const schedule = await queryRunner.manager.findOne(Schedule, {
         where: { id },
         relations: ['user', 'project', 'category', 'holidays'],
@@ -558,11 +611,9 @@ export class ScheduleService {
       });
 
       if (!schedule) {
-        await queryRunner.rollbackTransaction(); // 롤백
         throw new NotFoundException('not_found_schedule');
       }
 
-      // 2️⃣ 권한 체크
       assertOwnerOrAdmin(user, schedule.user.id);
 
       // 보고서 생성 후에는 출장 기간, 구분, 출장자가 계산 근거가 되므로
@@ -578,74 +629,20 @@ export class ScheduleService {
         throw new ConflictException('conflict_schedule_report_exists');
       }
 
-      // 3️⃣ 새 프로젝트/카테고리 값 처리 (queryRunner.manager 사용)
-      let projectId = body.projectId ?? schedule.project.id;
-      let categoryId = body.categoryId ?? schedule.category.id;
-
-      // Project/Category 조회도 queryRunner.manager 사용
-      const project = await queryRunner.manager.findOne(Project, {
+      project = await queryRunner.manager.findOne(Project, {
         where: { id: body.projectId ?? schedule.project.id },
         relations: ['client'],
       });
-      const category = await queryRunner.manager.findOne(ScheduleCategory, {
+      category = await queryRunner.manager.findOne(ScheduleCategory, {
         where: { id: body.categoryId ?? schedule.category.id },
       });
-      const summary = `[${category.name}][${project.client.name}][${user.username}] ${body.summary} (${dayjs(body.start).format('MM/DD')} - ${dayjs(body.end).format('MM/DD')})`;
-      const description =
-        `[URL] ${body.url}` + `\n\n[설명]\n${body.description ?? '설명 없음'}`;
 
-      const eventBody: calendar_v3.Schema$Event = {
-        // summary: summary ?? schedule.summary, // summary는 위에서 새로 만들었으므로
-        summary: summary,
-        // description: description ?? schedule.description, // description도 위에서 새로 만들었으므로
-        description: description,
-        location: project.client.name,
-        colorId: category.color,
-        start: {
-          date: dayjs(body.start ?? schedule.start).format('YYYY-MM-DD'),
-        },
-        end: {
-          date: dayjs(body.end ?? schedule.end)
-            .add(1, 'day')
-            .format('YYYY-MM-DD'),
-        },
-        extendedProperties: {
-          shared: {
-            categoryId: category.id.toString(),
-            owner: user.email,
-          },
-        },
-      };
+      if (!project) throw new NotFoundException('not_found_project');
+      if (!category) throw new NotFoundException('not_found_schedule_category');
 
-      let newEventId = schedule.eventId;
-
-      // 4️⃣ Google Calendar 이벤트 업데이트 시도
-      try {
-        await this.calendarClient.events.update({
-          calendarId: this.scheduleCalendarId,
-          eventId: schedule.eventId,
-          requestBody: eventBody,
-        });
-      } catch (error: any) {
-        // 이벤트가 존재하지 않으면 새로 생성
-        if (error.code === 404) {
-          const res = await this.calendarClient.events.insert({
-            calendarId: this.scheduleCalendarId,
-            requestBody: eventBody,
-          });
-          newEventId = res.data.id;
-        } else {
-          // 기타 오류 발생 시 트랜잭션 롤백 후 예외 던지기
-          await queryRunner.rollbackTransaction();
-          throw error;
-        }
-      }
-
-      // 5️⃣ DB 업데이트 (queryRunner.manager.save 사용)
-      const updatedSchedule = await queryRunner.manager.save(Schedule, {
-        // scheduleRepository 대신 queryRunner.manager 사용
+      updatedSchedule = await queryRunner.manager.save(Schedule, {
         id: schedule.id,
-        eventId: newEventId,
+        eventId: schedule.eventId,
         summary: body.summary ?? schedule.summary,
         description: body.description ?? schedule.description,
         url: body.url ?? schedule.url,
@@ -660,52 +657,48 @@ export class ScheduleService {
           ? await this.syncScheduleHolidays(
               queryRunner.manager,
               updatedSchedule,
+              scheduleDaysOff,
               body.holidays,
             )
           : schedule.holidays;
 
-      // 6️⃣ DTO 반환 전 커밋
-      await queryRunner.commitTransaction(); // ⬇️ 커밋
+      await this.enqueueCalendarSync(
+        queryRunner.manager,
+        updatedSchedule,
+        ScheduleCalendarSyncOperation.UPDATE,
+        this.buildCalendarEventPayload(
+          updatedSchedule,
+          project,
+          category,
+          schedule.user,
+        ),
+      );
 
-      const ancestors = await this.projectClientService.findAncestors(
+      ancestors = await this.projectClientService.findAncestors(
         project.client.id,
       );
 
-      // DTO 생성 및 메일 발송 로직 (트랜잭션 외부에서도 가능하지만, 로직 흐름상 여기에 위치)
-      const scheduleDto = plainToInstance(
-        ScheduleDto,
-        {
-          ...updatedSchedule,
-          projectId: project.id,
-          projectCode: project.code,
-          projectName: project.name,
-          projectClientId: ancestors[0].id,
-          projectClientName: project.client.name,
-          category,
-        },
-        { excludeExtraneousValues: true },
-      );
-
-      const projectDto = plainToInstance(
-        ProjectDto,
-        {
-          ...project,
-          clients: ancestors,
-        },
-        {
-          excludeExtraneousValues: true,
-        },
-      );
-
-      return scheduleDto;
+      await queryRunner.commitTransaction();
     } catch (err) {
-      // 오류 발생 시 롤백
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
-      // 연결 해제
       await queryRunner.release();
     }
+
+    return plainToInstance(
+      ScheduleDto,
+      {
+        ...updatedSchedule,
+        projectId: project.id,
+        projectCode: project.code,
+        projectName: project.name,
+        projectClientId: ancestors[0].id,
+        projectClientName: project.client.name,
+        category,
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 
   async deleteSchedule(user: User, id: number) {
@@ -737,22 +730,12 @@ export class ScheduleService {
         throw new ConflictException('conflict_schedule_report_exists');
       }
 
-      // 2️⃣ Google Calendar 이벤트 삭제
-      try {
-        await this.calendarClient.events.delete({
-          calendarId: this.scheduleCalendarId,
-          eventId: schedule.eventId,
-        });
-      } catch (error: any) {
-        if (error.code !== 404 && error.code !== 410) {
-          console.error(
-            `Google Calendar Event Deletion Error: ${error.message}`,
-          );
-          throw error;
-        }
-      }
+      await this.enqueueCalendarSync(
+        queryRunner.manager,
+        schedule,
+        ScheduleCalendarSyncOperation.DELETE,
+      );
 
-      // 3️⃣ DB에서 Schedule 논리적 삭제 (softDelete)
       await queryRunner.manager.softDelete(Schedule, id);
 
       await queryRunner.commitTransaction();

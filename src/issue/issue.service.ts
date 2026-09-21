@@ -8,6 +8,7 @@ import { assertWriteAccess } from '@/common/policies/write-access.policy';
 import { ApprovalIssue } from '@/entity/issue/approval/approval-issue.entity';
 import { ContractIssueItem } from '@/entity/issue/contract/contract-issue-item.entity';
 import { ContractIssue } from '@/entity/issue/contract/contract-issue.entity';
+import { ContractExchangeRate } from '@/entity/issue/contract/contract-exchange-rate.entity';
 import { IssueAttachment } from '@/entity/issue/issue-attachment.entity';
 import { IssueCategory } from '@/entity/issue/issue-category.entity';
 import { Issue } from '@/entity/issue/issue.entity';
@@ -28,6 +29,10 @@ import { ProjectDto } from '@/project/dto/project';
 import { ProjectClientDto } from '@/project/dto/project-client';
 import { ProjectClientService } from '@/project/project-client.service';
 import { SftpService } from '@/sftp/sftp.service';
+import {
+  executeFileOperations,
+  FileOperation,
+} from '@/common/utils/file-operation.util';
 import { GetLatestIssuesDto } from './dto/get-latest-issues';
 import {
   ApprovalIssueDto,
@@ -52,10 +57,7 @@ export type IssueAttachmentInput = {
   size: number;
 };
 
-export type IssueFileOperation = {
-  type: 'delete-url' | 'delete-path' | 'archive-path';
-  target: string;
-};
+export type IssueFileOperation = FileOperation;
 
 @Injectable()
 export class IssueService {
@@ -183,22 +185,7 @@ export class IssueService {
   }
 
   async executeFileOperations(operations: IssueFileOperation[]) {
-    for (const operation of operations) {
-      try {
-        if (operation.type === 'delete-url') {
-          await this.sftpService.deleteFileByUrl(operation.target);
-        } else if (operation.type === 'delete-path') {
-          await this.sftpService.deleteFileByPath(operation.target);
-        } else {
-          await this.sftpService.archiveFileByPath(operation.target);
-        }
-      } catch (error) {
-        console.warn(
-          `이슈 파일 후처리 실패 (${operation.type}): ${operation.target}`,
-          error,
-        );
-      }
-    }
+    await executeFileOperations(this.sftpService, operations, '이슈');
   }
 
   async mapIssueToDto(
@@ -209,7 +196,7 @@ export class IssueService {
 
     const contract = await manager.findOne(ContractIssue, {
       where: { project: { id: issue.project.id }, deletedAt: null },
-      relations: ['currency'],
+      relations: ['currency', 'exchangeRate'],
     });
 
     const contractItems = await manager.find(ContractIssueItem, {
@@ -262,6 +249,8 @@ export class IssueService {
 
     switch (issue.category?.id) {
       case 1: // CONTRACT
+        payload.contractDate = contract?.contractDate ?? null;
+        payload.exchangeRate = contract?.exchangeRate ?? null;
         payload.contractItems = contractItems;
         payload.transactionItems = transactionItems;
         break;
@@ -275,6 +264,7 @@ export class IssueService {
         payload.requests = issue.procurement?.requests ?? [];
         break;
       case 5: // TRANSACTION
+        payload.exchangeRate = contract?.exchangeRate ?? null;
         payload.contractItems = contractItems;
         payload.transactionItems = transactionItems;
         break;
@@ -505,6 +495,9 @@ export class IssueService {
 
       // Contract 삭제 시 contractItems, transactionItems도 함께 soft delete
       if (issue.contract) {
+        await queryRunner.manager.softDelete(ContractExchangeRate, {
+          contract: { id: issue.contract.id },
+        });
         await queryRunner.manager.softDelete(ContractIssueItem, {
           project: { id: projectId },
         });

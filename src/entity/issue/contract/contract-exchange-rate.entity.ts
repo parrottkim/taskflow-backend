@@ -9,19 +9,19 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
 } from 'typeorm';
-import { TripReport } from './trip-report.entity';
+import { ContractIssue } from './contract-issue.entity';
 
 @Entity()
-export class TripExchangeRate {
+export class ContractExchangeRate {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @OneToOne(() => TripReport, (trip) => trip.exchangeRate, {
+  @OneToOne(() => ContractIssue, (contract) => contract.exchangeRate, {
     onDelete: 'CASCADE',
     nullable: false,
   })
-  @JoinColumn({ name: 'trip_id' })
-  trip: TripReport;
+  @JoinColumn({ name: 'contract_id' })
+  contract: ContractIssue;
 
   @Column('decimal', {
     precision: 10,

@@ -29,6 +29,57 @@ function createQueryBuilder(result: unknown) {
 }
 
 describe('IssueService', () => {
+  describe('mapIssueToDto', () => {
+    it('exposes the saved contract exchange rate on contract issues', async () => {
+      const service = new IssueService(
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+      );
+      const contract = {
+        id: 30,
+        contractDate: '2026-08-13',
+        currency: { id: 2, code: 'USD', symbol: '$' },
+        exchangeRate: {
+          id: 40,
+          rate: 1380.5,
+          appliedDate: '2026-08-13',
+        },
+      };
+      const manager = {
+        findOne: jest.fn().mockResolvedValue(contract),
+        find: jest.fn().mockResolvedValue([]),
+      };
+
+      const dto = await service.mapIssueToDto(
+        {
+          id: 10,
+          project: { id: 20 },
+          category: { id: 1, name: '계약' },
+          createdBy: { id: 1 },
+          updatedBy: { id: 1 },
+          content: 'contract',
+          attachments: [],
+          createdAt: new Date('2026-08-13T00:00:00.000Z'),
+          updatedAt: new Date('2026-08-13T00:00:00.000Z'),
+        } as never,
+        manager as never,
+      );
+
+      expect(dto).toMatchObject({
+        contractDate: '2026-08-13',
+        exchangeRate: {
+          id: 40,
+          rate: 1380.5,
+          appliedDate: '2026-08-13',
+        },
+      });
+    });
+  });
+
   describe('getLatestIssues', () => {
     it('excludes issues without an active project and client', async () => {
       const queryBuilder = {

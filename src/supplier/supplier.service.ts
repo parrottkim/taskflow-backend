@@ -14,6 +14,10 @@ import { UpdateSupplierDto } from './dto/update-supplier';
 import { SftpService } from '@/sftp/sftp.service';
 import { User } from '@/entity/user/user.entity';
 import { assertWriteAccess } from '@/common/policies/write-access.policy';
+import {
+  executeFileOperations,
+  FileOperation,
+} from '@/common/utils/file-operation.util';
 
 @Injectable()
 export class SupplierService {
@@ -130,9 +134,12 @@ export class SupplierService {
 
   async updateSupplier(user: User, id: number, body: UpdateSupplierDto) {
     assertWriteAccess(user);
+    const fileOperations: FileOperation[] = [];
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
+    let saved: Supplier;
 
     try {
       const supplier = await queryRunner.manager.findOne(Supplier, {
@@ -145,11 +152,10 @@ export class SupplierService {
 
       if (body.logo !== undefined && supplier.logo !== body.logo) {
         if (supplier.logo) {
-          try {
-            await this.sftpService.deleteFileByUrl(supplier.logo);
-          } catch (e) {
-            console.warn(`기존 공급업체 로고 삭제 실패: ${supplier.logo}`, e);
-          }
+          fileOperations.push({
+            type: 'delete-url',
+            target: supplier.logo,
+          });
         }
         supplier.logo = body.logo;
       }
@@ -165,25 +171,25 @@ export class SupplierService {
       supplier.email = body.email ?? supplier.email;
       supplier.logo = body.logo ?? supplier.logo;
 
-      const saved = await queryRunner.manager.save(supplier);
+      saved = await queryRunner.manager.save(supplier);
 
       await queryRunner.commitTransaction();
-
-      const supplierDto = plainToInstance(SupplierDto, saved, {
-        excludeExtraneousValues: true,
-      });
-
-      return supplierDto;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
     } finally {
       await queryRunner.release();
     }
+
+    await executeFileOperations(this.sftpService, fileOperations, '공급업체');
+    return plainToInstance(SupplierDto, saved, {
+      excludeExtraneousValues: true,
+    });
   }
 
   async deleteSupplier(user: User, id: number) {
     assertWriteAccess(user);
+    const fileOperations: FileOperation[] = [];
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -198,19 +204,23 @@ export class SupplierService {
       }
 
       if (supplier.logo) {
-        await this.sftpService.deleteFileByUrl(supplier.logo);
+        fileOperations.push({
+          type: 'delete-url',
+          target: supplier.logo,
+        });
       }
 
       await queryRunner.manager.remove(supplier);
 
       await queryRunner.commitTransaction();
-
-      return true;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
     } finally {
       await queryRunner.release();
     }
+
+    await executeFileOperations(this.sftpService, fileOperations, '공급업체');
+    return true;
   }
 }

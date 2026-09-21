@@ -40,6 +40,8 @@ import { ProcurementIssueExportService } from './procurement/procurement-issue-e
 import { ProcurementIssueService } from './procurement/procurement-issue.service';
 import { TransactionIssueController } from './transaction/transaction-issue.controller';
 import { TransactionIssueService } from './transaction/transaction-issue.service';
+import { ContractExchangeRate } from '@/entity/issue/contract/contract-exchange-rate.entity';
+import { CurrencyModule } from '@/currency/currency.module';
 
 @Module({
   imports: [
@@ -64,10 +66,12 @@ import { TransactionIssueService } from './transaction/transaction-issue.service
       IssueAttachment,
       Currency,
       Supplier,
+      ContractExchangeRate,
     ]),
     ProjectClientModule,
     MailModule,
     SftpModule,
+    CurrencyModule,
   ],
   // Keep IssueController last because its /issue/:id routes are catch-all routes.
   controllers: [

@@ -43,10 +43,4 @@ export class TripReportDto {
   @IsOptional()
   @Expose()
   calculations?: TripCalculationsDto;
-
-  @ApiProperty({ type: TripExchangeRateDto, required: false, nullable: true })
-  @Type(() => TripExchangeRateDto)
-  @IsOptional()
-  @Expose()
-  exchangeRate?: TripExchangeRateDto | null;
 }
