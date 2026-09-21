@@ -594,7 +594,6 @@ export class ScheduleService {
             body.end ?? scheduleSnapshot.end,
           )
         : [];
-
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
