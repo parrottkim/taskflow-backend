@@ -41,6 +41,21 @@ describe('ScheduleService schedule holidays', () => {
     jest.clearAllMocks();
   });
 
+  const resolveDaysOff = (service: ScheduleService, schedule: Schedule) =>
+    (
+      service as unknown as {
+        resolveScheduleDaysOff: (
+          categoryId: number,
+          start: Date,
+          end: Date,
+        ) => Promise<Array<{ date: Date; name: string }>>;
+      }
+    ).resolveScheduleDaysOff(
+      schedule.category.id,
+      schedule.start,
+      schedule.end,
+    );
+
   it('creates weekends and public holidays for a domestic schedule', async () => {
     const { service, holidayService } = createService();
     const schedule = {
@@ -50,11 +65,13 @@ describe('ScheduleService schedule holidays', () => {
       end: new Date('2026-08-16T00:00:00.000Z'),
     } as Schedule;
 
+    const daysOff = await resolveDaysOff(service, schedule);
     const holidays = await (
       service as unknown as {
         syncScheduleHolidays: (
           entityManager: typeof manager,
           target: Schedule,
+          preparedDaysOff: Array<{ date: Date; name: string }>,
         ) => Promise<
           Array<{
             date: string;
@@ -63,7 +80,7 @@ describe('ScheduleService schedule holidays', () => {
           }>
         >;
       }
-    ).syncScheduleHolidays(manager, schedule);
+    ).syncScheduleHolidays(manager, schedule, daysOff);
 
     expect(holidayService.getDaysOffBetween).toHaveBeenCalledWith(
       schedule.start,
@@ -92,11 +109,13 @@ describe('ScheduleService schedule holidays', () => {
       end: new Date('2026-08-16T00:00:00.000Z'),
     } as Schedule;
 
+    const daysOff = await resolveDaysOff(service, schedule);
     const holidays = await (
       service as unknown as {
         syncScheduleHolidays: (
           entityManager: typeof manager,
           target: Schedule,
+          preparedDaysOff: Array<{ date: Date; name: string }>,
           inputs: Array<{
             date: Date | string;
             isTravelOnly: boolean;
@@ -110,7 +129,7 @@ describe('ScheduleService schedule holidays', () => {
           }>
         >;
       }
-    ).syncScheduleHolidays(manager, schedule, [
+    ).syncScheduleHolidays(manager, schedule, daysOff, [
       {
         date: '2026-08-15',
         isTravelOnly: true,
@@ -144,15 +163,17 @@ describe('ScheduleService schedule holidays', () => {
       end: new Date('2026-08-16T00:00:00.000Z'),
     } as Schedule;
 
+    const daysOff = await resolveDaysOff(service, schedule);
     const holidays = await (
       service as unknown as {
         syncScheduleHolidays: (
           entityManager: typeof manager,
           target: Schedule,
+          preparedDaysOff: Array<{ date: Date; name: string }>,
           inputs: Array<{ date: Date; isTravelOnly: boolean }>,
         ) => Promise<Array<{ date: Date }>>;
       }
-    ).syncScheduleHolidays(manager, schedule, [
+    ).syncScheduleHolidays(manager, schedule, daysOff, [
       {
         date: new Date('2026-08-15T00:00:00.000Z'),
         isTravelOnly: false,
@@ -160,9 +181,7 @@ describe('ScheduleService schedule holidays', () => {
     ]);
 
     expect(holidays).toHaveLength(1);
-    expect(holidays[0].date).toEqual(
-      new Date('2026-08-15T00:00:00.000Z'),
-    );
+    expect(holidays[0].date).toEqual(new Date('2026-08-15T00:00:00.000Z'));
   });
 
   it('keeps non-domestic schedules free of schedule holidays', async () => {
@@ -170,16 +189,20 @@ describe('ScheduleService schedule holidays', () => {
     const schedule = {
       id: 2,
       category: { id: 2 },
+      start: new Date('2026-08-15T00:00:00.000Z'),
+      end: new Date('2026-08-16T00:00:00.000Z'),
     } as Schedule;
 
+    const daysOff = await resolveDaysOff(service, schedule);
     const holidays = await (
       service as unknown as {
         syncScheduleHolidays: (
           entityManager: typeof manager,
           target: Schedule,
+          preparedDaysOff: Array<{ date: Date; name: string }>,
         ) => Promise<unknown[]>;
       }
-    ).syncScheduleHolidays(manager, schedule);
+    ).syncScheduleHolidays(manager, schedule, daysOff);
 
     expect(holidays).toEqual([]);
     expect(holidayService.getDaysOffBetween).not.toHaveBeenCalled();
