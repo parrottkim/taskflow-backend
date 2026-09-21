@@ -18,6 +18,10 @@ import { CreateDocumentDto } from './dto/create-document';
 import { UpdateDocumentDto } from './dto/update-document';
 import { MailService } from '@/mail/mail.service';
 import { SftpService } from '@/sftp/sftp.service';
+import {
+  executeFileOperations,
+  FileOperation,
+} from '@/common/utils/file-operation.util';
 
 @Injectable()
 export class DocumentService {
@@ -278,9 +282,12 @@ export class DocumentService {
 
   async updateDocument(user: User, id: number, body: UpdateDocumentDto) {
     assertWriteAccess(user);
+    const fileOperations: FileOperation[] = [];
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
+    let saved: Document;
 
     try {
       const document = await queryRunner.manager.findOne(Document, {
@@ -334,9 +341,12 @@ export class DocumentService {
             ),
         );
 
-        for (const attachment of toRemove) {
-          await this.sftpService.deleteFileByPath(attachment.path);
-        }
+        fileOperations.push(
+          ...toRemove.map((attachment) => ({
+            type: 'delete-path' as const,
+            target: attachment.path,
+          })),
+        );
 
         if (toRemove.length > 0) {
           await queryRunner.manager.remove(DocumentAttachment, toRemove);
@@ -366,20 +376,21 @@ export class DocumentService {
 
       document.updatedBy = user;
 
-      const saved = await queryRunner.manager.save(document);
+      saved = await queryRunner.manager.save(document);
       await queryRunner.commitTransaction();
-
-      const updated = await this.findDocumentById(saved.id);
-
-      return plainToInstance(DocumentDto, updated, {
-        excludeExtraneousValues: true,
-      });
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
       await queryRunner.release();
     }
+
+    await executeFileOperations(this.sftpService, fileOperations, '문서');
+    const updated = await this.findDocumentById(saved.id);
+
+    return plainToInstance(DocumentDto, updated, {
+      excludeExtraneousValues: true,
+    });
   }
 
   async deleteDocument(user: User, id: number) {
