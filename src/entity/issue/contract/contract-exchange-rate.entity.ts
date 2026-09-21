@@ -1,17 +1,22 @@
 import { DecimalColumnTransformer } from '@/common/utils/transformer.utils';
 import {
-  Entity,
-  PrimaryGeneratedColumn,
-  OneToOne,
-  JoinColumn,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
   DeleteDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  OneToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { ContractIssue } from './contract-issue.entity';
 
 @Entity()
+@Index('IDX_contract_exchange_rate_active_contract', ['contract'], {
+  unique: true,
+  where: '"deleted_at" IS NULL',
+})
 export class ContractExchangeRate {
   @PrimaryGeneratedColumn()
   id: number;
