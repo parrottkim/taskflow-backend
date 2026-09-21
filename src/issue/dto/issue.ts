@@ -357,6 +357,16 @@ export class ContractIssueDto extends IssueDto {
   @Expose()
   currency: CurrencyDto;
 
+  @ApiProperty({
+    type: ContractExchangeRateDto,
+    required: false,
+    nullable: true,
+  })
+  @Type(() => ContractExchangeRateDto)
+  @IsOptional()
+  @Expose()
+  exchangeRate?: ContractExchangeRateDto | null;
+
   @ApiProperty({ description: '계약 체결일' })
   @IsDateString({ strict: true })
   @Expose()
@@ -382,6 +392,16 @@ export class TransactionIssueDto extends IssueDto {
   @Type(() => CurrencyDto)
   @Expose()
   currency: CurrencyDto;
+
+  @ApiProperty({
+    type: ContractExchangeRateDto,
+    required: false,
+    nullable: true,
+  })
+  @Type(() => ContractExchangeRateDto)
+  @IsOptional()
+  @Expose()
+  exchangeRate?: ContractExchangeRateDto | null;
 
   @ApiProperty()
   @ValidateNested({ each: true })
