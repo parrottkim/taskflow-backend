@@ -1,20 +1,8 @@
-import {
-  Controller,
-  UseGuards,
-  HttpStatus,
-  Get,
-  Query,
-  ParseDatePipe,
-} from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiHeader,
-  ApiQuery,
-  ApiResponse,
-} from '@nestjs/swagger';
+import { Controller, UseGuards, HttpStatus, Get, Query } from '@nestjs/common';
+import { ApiOperation, ApiHeader, ApiResponse } from '@nestjs/swagger';
 import { JwtAccessAuthGuard } from '@/common/guards/jwt-access-auth.guard';
 import { CurrencyService } from './currency.service';
-import { CurrencyDto } from './dto/currency';
+import { CurrencyDto, GetExchangeRateDto } from './dto/currency';
 
 @Controller('currency')
 export class CurrencyController {
@@ -28,18 +16,12 @@ export class CurrencyController {
     description: 'Successful response',
     type: String,
   })
-  @ApiQuery({
-    name: 'currency',
-    required: false,
-    enum: ['USD', 'CNH', 'EUR'],
-    default: 'USD',
-  })
   @Get('exchange')
-  async getRate(
-    @Query('date', ParseDatePipe) date: Date,
-    @Query('currency') currency: string = 'USD',
-  ) {
-    const snapshot = await this.currencyService.getExchangeRate(date, currency);
+  async getRate(@Query() query: GetExchangeRateDto) {
+    const snapshot = await this.currencyService.getExchangeRate(
+      new Date(`${query.date}T00:00:00.000Z`),
+      query.currency,
+    );
     return snapshot.rate;
   }
 
