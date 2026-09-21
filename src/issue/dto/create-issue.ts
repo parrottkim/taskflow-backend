@@ -6,6 +6,7 @@ import {
   IsString,
   ValidateNested,
   IsDate,
+  IsDateString,
   IsOptional,
 } from 'class-validator';
 import { IssueAttachmentDto } from './issue-attachment';
@@ -41,6 +42,11 @@ export class CreateContractIssueDto {
   @IsInt()
   @IsNotEmpty()
   currencyId: number;
+
+  @ApiProperty()
+  @IsDateString({ strict: true })
+  @IsNotEmpty()
+  contractDate: string;
 
   @ApiProperty()
   @ValidateNested({ each: true })

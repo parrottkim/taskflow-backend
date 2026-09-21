@@ -10,6 +10,8 @@ import {
   IsString,
   Min,
   ValidateIf,
+  IsDateString,
+  IsNumber,
 } from 'class-validator';
 import { UserDto } from '@/user/dto/user';
 import { IssueAttachmentDto } from './issue-attachment';
@@ -17,6 +19,22 @@ import { IssueCategoryDto } from './issue-category';
 import { CurrencyDto } from '@/currency/dto/currency';
 import { SupplierDto } from '@/supplier/dto/supplier';
 import { ProcurementIssueRequestDto } from './procurement-issue-request';
+
+export class ContractExchangeRateDto {
+  @ApiProperty()
+  @Expose()
+  id: number;
+
+  @ApiProperty({ description: '적용 환율 (1 외화 = rate KRW)' })
+  @IsNumber()
+  @Expose()
+  rate: number;
+
+  @ApiProperty({ description: '환율 적용 기준일' })
+  @IsDateString({ strict: true })
+  @Expose()
+  appliedDate: string;
+}
 
 export class ContractIssueItemDto {
   @ApiProperty()
@@ -32,8 +50,8 @@ export class ContractIssueItemDto {
   item: string;
 
   @ApiProperty()
-  @Transform(({ value }) => value.toLocaleString('ko-KR'))
-  @IsInt()
+  @Transform(({ value }) => Number(value).toLocaleString('ko-KR'))
+  @IsNumber({ maxDecimalPlaces: 2 })
   @IsNotEmpty()
   @Min(0)
   @Expose()
@@ -338,6 +356,21 @@ export class ContractIssueDto extends IssueDto {
   @Type(() => CurrencyDto)
   @Expose()
   currency: CurrencyDto;
+
+  @ApiProperty({ description: '계약 체결일' })
+  @IsDateString({ strict: true })
+  @Expose()
+  contractDate: string;
+
+  @ApiProperty({
+    type: ContractExchangeRateDto,
+    required: false,
+    nullable: true,
+  })
+  @Type(() => ContractExchangeRateDto)
+  @IsOptional()
+  @Expose()
+  exchangeRate?: ContractExchangeRateDto | null;
 
   @ApiProperty()
   @ValidateNested({ each: true })

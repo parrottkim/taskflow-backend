@@ -30,9 +30,11 @@ import { Issue } from '@/entity/issue/issue.entity';
 import { CloseProjectDto } from './dto/close-project';
 import { TransactionIssueItem } from '@/entity/issue/transaction/transaction-issue-item.entity';
 import { ContractIssueItem } from '@/entity/issue/contract/contract-issue-item.entity';
+import { ContractIssue } from '@/entity/issue/contract/contract-issue.entity';
 import { ProcurementIssueRequestItem } from '@/entity/issue/procurement/procurement-issue-request-item.entity';
 import { ProjectCostSummaryDto } from './dto/project-cost-summary';
 import { calculateTripCosts } from '@/report/functions/trip-cost-calculator';
+import { calculateContractAmountInKrw } from './functions/contract-cost-calculator';
 
 @Injectable()
 export class ProjectService {
@@ -429,45 +431,67 @@ export class ProjectService {
       throw new NotFoundException('not_found_project');
     }
 
-    const [contractResult, purchaseResult, tripReports] = await Promise.all([
-      this.dataSource.manager
-        .getRepository(ContractIssueItem)
-        .createQueryBuilder('item')
-        .leftJoin('item.project', 'project')
-        .select('COALESCE(SUM(item.price), 0)', 'amount')
-        .where('project.id = :id', { id })
-        .getRawOne<{ amount: string | number }>(),
-      this.dataSource.manager
-        .getRepository(ProcurementIssueRequestItem)
-        .createQueryBuilder('item')
-        .innerJoin('item.request', 'request')
-        .innerJoin('request.procurement', 'procurement')
-        .innerJoin('procurement.project', 'project')
-        .select('COALESCE(SUM(item.totalAmount), 0)', 'amount')
-        .where('project.id = :id', { id })
-        .andWhere(
-          '(request.requiresApproval = false OR request.isApproved = true)',
-        )
-        .getRawOne<{ amount: string | number }>(),
-      this.reportRepository
-        .createQueryBuilder('report')
-        .innerJoin('report.project', 'project')
-        .innerJoinAndSelect('report.schedule', 'schedule')
-        .innerJoinAndSelect('schedule.category', 'scheduleCategory')
-        .leftJoinAndSelect('report.createdBy', 'createdBy')
-        .leftJoinAndSelect('createdBy.rank', 'rank')
-        .innerJoinAndSelect('report.trip', 'trip')
-        .leftJoinAndSelect('trip.expenses', 'expense')
-        .leftJoinAndSelect('expense.step', 'expenseStep')
-        .leftJoinAndSelect('trip.rates', 'rate')
-        .leftJoinAndSelect('rate.step', 'rateStep')
-        .leftJoinAndSelect('trip.fuel', 'fuel')
-        .leftJoinAndSelect('trip.exchangeRate', 'exchangeRate')
-        .where('project.id = :id', { id })
-        .getMany(),
-    ]);
+    const [contractResult, contract, purchaseResult, tripReports] =
+      await Promise.all([
+        this.dataSource.manager
+          .getRepository(ContractIssueItem)
+          .createQueryBuilder('item')
+          .leftJoin('item.project', 'project')
+          .select('COALESCE(SUM(item.price), 0)', 'amount')
+          .where('project.id = :id', { id })
+          .getRawOne<{ amount: string | number }>(),
+        this.dataSource.manager.findOne(ContractIssue, {
+          where: { project: { id }, deletedAt: IsNull() },
+          relations: ['currency', 'exchangeRate'],
+        }),
+        this.dataSource.manager
+          .getRepository(ProcurementIssueRequestItem)
+          .createQueryBuilder('item')
+          .innerJoin('item.request', 'request')
+          .innerJoin('request.procurement', 'procurement')
+          .innerJoin('procurement.project', 'project')
+          .select('COALESCE(SUM(item.totalAmount), 0)', 'amount')
+          .where('project.id = :id', { id })
+          .andWhere(
+            '(request.requiresApproval = false OR request.isApproved = true)',
+          )
+          .getRawOne<{ amount: string | number }>(),
+        this.reportRepository
+          .createQueryBuilder('report')
+          .innerJoin('report.project', 'project')
+          .innerJoinAndSelect('report.schedule', 'schedule')
+          .innerJoinAndSelect('schedule.category', 'scheduleCategory')
+          .leftJoinAndSelect('report.createdBy', 'createdBy')
+          .leftJoinAndSelect('createdBy.rank', 'rank')
+          .innerJoinAndSelect('report.trip', 'trip')
+          .leftJoinAndSelect('trip.expenses', 'expense')
+          .leftJoinAndSelect('expense.step', 'expenseStep')
+          .leftJoinAndSelect('trip.rates', 'rate')
+          .leftJoinAndSelect('rate.step', 'rateStep')
+          .leftJoinAndSelect('trip.fuel', 'fuel')
+          .leftJoinAndSelect('trip.exchangeRate', 'exchangeRate')
+          .where('project.id = :id', { id })
+          .getMany(),
+      ]);
 
-    const contractAmount = Number(contractResult?.amount ?? 0);
+    const rawContractAmount = Number(contractResult?.amount ?? 0);
+    if (contract && !contract.currency) {
+      throw new ConflictException('conflict_contract_currency_required');
+    }
+    if (
+      contract?.currency?.code !== 'KRW' &&
+      contract != null &&
+      contract.exchangeRate?.rate == null
+    ) {
+      throw new ConflictException('conflict_contract_exchange_rate_required');
+    }
+    const contractAmount = contract
+      ? calculateContractAmountInKrw(
+          rawContractAmount,
+          contract.currency.code,
+          contract.exchangeRate?.rate,
+        )
+      : rawContractAmount;
     const purchaseAmount = Number(purchaseResult?.amount ?? 0);
     const tripSettlementAmount = tripReports.reduce(
       (sum, report) => sum + calculateTripCosts(report).totalCost,

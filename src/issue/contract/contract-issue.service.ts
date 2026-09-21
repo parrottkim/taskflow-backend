@@ -5,8 +5,9 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Currency } from '@/entity/currency/currency.entity';
+import { ContractExchangeRate } from '@/entity/issue/contract/contract-exchange-rate.entity';
 import { ContractIssueItem } from '@/entity/issue/contract/contract-issue-item.entity';
 import { ContractIssue } from '@/entity/issue/contract/contract-issue.entity';
 import { Issue } from '@/entity/issue/issue.entity';
@@ -19,17 +20,59 @@ import { CreateContractIssueDto } from '../dto/create-issue';
 import { UpdateContractIssueDto } from '../dto/update-issue';
 import { ContractIssueItemDto } from '../dto/issue';
 import { IssueFileOperation, IssueService } from '../issue.service';
+import { CurrencyService } from '@/currency/currency.service';
 
 @Injectable()
 export class ContractIssueService {
   constructor(
     private readonly dataSource: DataSource,
+    private readonly currencyService: CurrencyService,
     @InjectRepository(Issue)
     private readonly issueRepository: Repository<Issue>,
     @InjectRepository(ContractIssueItem)
     private readonly contractIssueItemRepository: Repository<ContractIssueItem>,
     private readonly issueService: IssueService,
   ) {}
+
+  private async resolveExchangeRateSnapshot(
+    contractDate: string,
+    currencyCode: string,
+  ) {
+    if (currencyCode === 'KRW') return null;
+
+    return this.currencyService.getExchangeRate(
+      contractDate.replace(/-/g, ''),
+      currencyCode,
+    );
+  }
+
+  private async saveExchangeRateSnapshot(
+    manager: EntityManager,
+    contract: ContractIssue,
+    snapshot: { rate: number; appliedDate: string },
+  ) {
+    let exchangeRate = await manager.findOne(ContractExchangeRate, {
+      where: { contract: { id: contract.id } },
+      withDeleted: true,
+    });
+
+    if (exchangeRate) {
+      if (exchangeRate.deletedAt) {
+        await manager.restore(ContractExchangeRate, exchangeRate.id);
+      }
+      exchangeRate.rate = snapshot.rate;
+      exchangeRate.appliedDate = snapshot.appliedDate;
+      exchangeRate.deletedAt = null;
+    } else {
+      exchangeRate = manager.create(ContractExchangeRate, {
+        contract,
+        rate: snapshot.rate,
+        appliedDate: snapshot.appliedDate,
+      });
+    }
+
+    return manager.save(exchangeRate);
+  }
 
   async getContractItems(id: number) {
     const items = await this.contractIssueItemRepository
@@ -70,9 +113,34 @@ export class ContractIssueService {
 
   async createContractIssue(user: User, body: CreateContractIssueDto) {
     assertWriteAccess(user);
+
+    const existingContract = await this.dataSource.manager.exists(
+      ContractIssue,
+      {
+        where: { project: { id: body.projectId } },
+      },
+    );
+    if (existingContract) {
+      throw new ConflictException('conflict_contract_issue_already_exists');
+    }
+
+    const requestedCurrency = await this.currencyService.findCurrencyById(
+      body.currencyId,
+    );
+    if (!requestedCurrency) {
+      throw new NotFoundException('not_found_currency');
+    }
+
+    const exchangeRateSnapshot = await this.resolveExchangeRateSnapshot(
+      body.contractDate,
+      requestedCurrency.code,
+    );
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
+    let savedIssue: Issue;
 
     try {
       const project = await this.issueService.findAndLockProject(
@@ -87,7 +155,7 @@ export class ContractIssueService {
         1,
       );
 
-      const existingContract = await queryRunner.manager.findOne(
+      const lockedExistingContract = await queryRunner.manager.findOne(
         ContractIssue,
         {
           where: {
@@ -95,13 +163,17 @@ export class ContractIssueService {
           },
         },
       );
-      if (existingContract) {
+      if (lockedExistingContract) {
         throw new ConflictException('conflict_contract_issue_already_exists');
       }
 
       const currency = await queryRunner.manager.findOne(Currency, {
         where: { id: body.currencyId },
       });
+
+      if (!currency) {
+        throw new NotFoundException('not_found_currency');
+      }
 
       const issue = await queryRunner.manager.create(Issue, {
         project,
@@ -110,14 +182,24 @@ export class ContractIssueService {
         updatedBy: user,
         content: body.content,
       });
-      const savedIssue = await queryRunner.manager.save(issue);
+      savedIssue = await queryRunner.manager.save(issue);
 
       const contract = await queryRunner.manager.create(ContractIssue, {
         issue: savedIssue,
         project,
         currency,
+        contractDate: body.contractDate,
       });
       const savedContract = await queryRunner.manager.save(contract);
+
+      if (exchangeRateSnapshot) {
+        savedContract.exchangeRate = await this.saveExchangeRateSnapshot(
+          queryRunner.manager,
+          savedContract,
+          exchangeRateSnapshot,
+        );
+      }
+
       savedIssue.contract = savedContract;
 
       const contractItems = body.contractItems.map((dto) =>
@@ -156,13 +238,14 @@ export class ContractIssueService {
       );
 
       await queryRunner.commitTransaction();
-      return await this.issueService.mapIssueToDto(savedIssue);
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
       await queryRunner.release();
     }
+
+    return this.issueService.mapIssueToDto(savedIssue);
   }
 
   async updateContractIssue(
@@ -171,6 +254,41 @@ export class ContractIssueService {
     body: UpdateContractIssueDto,
   ) {
     assertWriteAccess(user);
+
+    const currentContract = await this.dataSource.manager.findOne(
+      ContractIssue,
+      {
+        where: { issue: { id } },
+        relations: ['currency', 'exchangeRate'],
+      },
+    );
+
+    let requestedCurrency = currentContract?.currency;
+    if (body.currencyId !== undefined) {
+      requestedCurrency = await this.currencyService.findCurrencyById(
+        body.currencyId,
+      );
+      if (!requestedCurrency) {
+        throw new NotFoundException('not_found_currency');
+      }
+    }
+
+    const requestedContractDate =
+      body.contractDate ?? currentContract?.contractDate;
+    const shouldRefreshExchangeRate =
+      requestedCurrency != null &&
+      requestedCurrency.code !== 'KRW' &&
+      requestedContractDate != null &&
+      (!currentContract?.exchangeRate ||
+        requestedCurrency.id !== currentContract.currency?.id ||
+        requestedContractDate !== currentContract.contractDate);
+    const exchangeRateSnapshot = shouldRefreshExchangeRate
+      ? await this.resolveExchangeRateSnapshot(
+          requestedContractDate,
+          requestedCurrency.code,
+        )
+      : null;
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -186,6 +304,8 @@ export class ContractIssueService {
           'createdBy',
           'category',
           'contract',
+          'contract.currency',
+          'contract.exchangeRate',
           'attachments',
         ],
       });
@@ -193,15 +313,41 @@ export class ContractIssueService {
 
       assertOwnerOrAdmin(user, issue.createdBy.id);
 
-      // Currency 업데이트
-      if (body.currencyId) {
+      if (body.currencyId !== undefined) {
         const currency = await queryRunner.manager.findOne(Currency, {
           where: { id: body.currencyId },
         });
-        if (currency) {
-          issue.contract.currency = currency;
+        if (!currency) {
+          throw new NotFoundException('not_found_currency');
         }
+        issue.contract.currency = currency;
       }
+
+      if (body.contractDate !== undefined) {
+        issue.contract.contractDate = body.contractDate;
+      }
+
+      if (!issue.contract.currency) {
+        throw new NotFoundException('not_found_currency');
+      }
+
+      if (issue.contract.currency.code === 'KRW') {
+        if (issue.contract.exchangeRate) {
+          await queryRunner.manager.softDelete(
+            ContractExchangeRate,
+            issue.contract.exchangeRate.id,
+          );
+          issue.contract.exchangeRate = null;
+        }
+      } else if (exchangeRateSnapshot) {
+        issue.contract.exchangeRate = await this.saveExchangeRateSnapshot(
+          queryRunner.manager,
+          issue.contract,
+          exchangeRateSnapshot,
+        );
+      }
+
+      await queryRunner.manager.save(issue.contract);
 
       fileOperations = await this.issueService.applyCommonIssueUpdate(
         queryRunner.manager,
@@ -311,5 +457,70 @@ export class ContractIssueService {
 
     await this.issueService.executeFileOperations(fileOperations);
     return await this.issueService.mapIssueToDto(saved);
+  }
+
+  async backfillContractExchangeRates(dryRun = true) {
+    const contracts = await this.dataSource.manager
+      .getRepository(ContractIssue)
+      .createQueryBuilder('contract')
+      .innerJoinAndSelect('contract.currency', 'currency')
+      .innerJoinAndSelect('contract.issue', 'issue')
+      .leftJoinAndSelect(
+        'contract.exchangeRate',
+        'exchangeRate',
+        'exchangeRate.deletedAt IS NULL',
+      )
+      .where('contract.deletedAt IS NULL')
+      .andWhere('issue.deletedAt IS NULL')
+      .andWhere('currency.code <> :krw', { krw: 'KRW' })
+      .andWhere('exchangeRate.id IS NULL')
+      .orderBy('contract.id', 'ASC')
+      .getMany();
+
+    const items: Array<{
+      contractId: number;
+      requestedDate: string;
+      appliedDate: string;
+      rate: number;
+    }> = [];
+    const failures: Array<{ contractId: number; reason: string }> = [];
+
+    for (const contract of contracts) {
+      try {
+        const snapshot = await this.resolveExchangeRateSnapshot(
+          contract.contractDate,
+          contract.currency.code,
+        );
+
+        if (!snapshot) continue;
+
+        if (!dryRun) {
+          await this.saveExchangeRateSnapshot(
+            this.dataSource.manager,
+            contract,
+            snapshot,
+          );
+        }
+
+        items.push({
+          contractId: contract.id,
+          requestedDate: contract.contractDate,
+          appliedDate: snapshot.appliedDate,
+          rate: snapshot.rate,
+        });
+      } catch (error) {
+        failures.push({
+          contractId: contract.id,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return {
+      dryRun,
+      total: items.length,
+      items,
+      failures,
+    };
   }
 }
