@@ -264,6 +264,7 @@ export class IssueService {
         payload.requests = issue.procurement?.requests ?? [];
         break;
       case 5: // TRANSACTION
+        payload.exchangeRate = contract?.exchangeRate ?? null;
         payload.contractItems = contractItems;
         payload.transactionItems = transactionItems;
         break;
