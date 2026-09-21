@@ -17,6 +17,7 @@ import { User } from '../user/user.entity';
 import { Report } from '../report/report.entity';
 import { ScheduleHoliday } from './schedule-holiday.entity';
 import { DateColumnTransformer } from '@/common/utils/transformer.utils';
+import { ScheduleCalendarSync } from './schedule-calendar-sync.entity';
 
 @Entity()
 export class Schedule {
@@ -39,6 +40,9 @@ export class Schedule {
 
   @OneToMany(() => ScheduleHoliday, (holiday) => holiday.schedule)
   holidays: ScheduleHoliday[];
+
+  @OneToMany(() => ScheduleCalendarSync, (sync) => sync.schedule)
+  calendarSyncs: ScheduleCalendarSync[];
 
   @ManyToOne(() => User, (user) => user.schedules)
   user: User;

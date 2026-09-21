@@ -13,6 +13,9 @@ import { UserDepartmentClosure } from '@/entity/user/user-department-closure.ent
 import { Report } from '@/entity/report/report.entity';
 import { ScheduleHoliday } from '@/entity/schedule/schedule-holiday.entity';
 import { HolidayModule } from '@/holiday/holiday.module';
+import { ScheduleCalendarSync } from '@/entity/schedule/schedule-calendar-sync.entity';
+import { ScheduleCalendarClient } from './schedule-calendar.client';
+import { ScheduleCalendarSyncProcessor } from './schedule-calendar-sync.processor';
 
 @Module({
   imports: [
@@ -22,6 +25,7 @@ import { HolidayModule } from '@/holiday/holiday.module';
       UserDepartmentClosure,
       Report,
       ScheduleHoliday,
+      ScheduleCalendarSync,
     ]),
     ProjectModule,
     ProjectClientModule,
@@ -30,7 +34,12 @@ import { HolidayModule } from '@/holiday/holiday.module';
     HolidayModule,
   ],
   controllers: [ScheduleController],
-  providers: [ScheduleService, ScheduleEditGuard],
+  providers: [
+    ScheduleService,
+    ScheduleCalendarClient,
+    ScheduleCalendarSyncProcessor,
+    ScheduleEditGuard,
+  ],
   exports: [ScheduleService],
 })
 export class ScheduleModule {}
