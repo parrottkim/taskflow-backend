@@ -67,6 +67,21 @@ import {
   calculateOverseasTripCosts as calculateOverseasTripCostsValue,
 } from './functions/trip-cost-calculator';
 
+type ExchangeRateSnapshot = {
+  rate: number;
+  appliedDate: string | null;
+};
+
+type PreparedTripExpense = {
+  id?: number;
+  dto: CreateActualExpenseDto | UpdateActualExpenseDto;
+  step: TripStep;
+  currency: Currency;
+  paymentDate?: Date;
+  exchangeRate: number;
+  exchangeRateAppliedDate?: Date;
+};
+
 @Injectable()
 export class ReportService {
   constructor(
@@ -158,24 +173,43 @@ export class ReportService {
     return snapshot;
   }
 
-  private async createTripExpenses(
-    manager: EntityManager,
-    trip: TripReport,
-    expenseDtos?: CreateActualExpenseDto[],
-  ) {
+  private async prepareTripExpenses(
+    expenseDtos?: Array<CreateActualExpenseDto | UpdateActualExpenseDto>,
+    existingExpenses: TripActualExpense[] = [],
+  ): Promise<PreparedTripExpense[]> {
     if (!expenseDtos?.length) {
       return [];
     }
 
-    const stepIds = [...new Set(expenseDtos.map((expense) => expense.stepId))];
-    const steps = await manager.findBy(TripStep, { id: In(stepIds) });
+    const existingExpenseById = new Map(
+      existingExpenses.map((expense) => [expense.id, expense]),
+    );
+    const resolvedExpenses = expenseDtos.map((dto) => {
+      const id = 'id' in dto ? dto.id : undefined;
+      const existingExpense = id ? existingExpenseById.get(id) : undefined;
+      const stepId = dto.stepId ?? existingExpense?.step?.id;
+
+      if (!stepId) {
+        throw new BadRequestException('bad_request_trip_step_invalid');
+      }
+
+      return { id, dto, existingExpense, stepId };
+    });
+    const stepIds = [
+      ...new Set(resolvedExpenses.map((expense) => expense.stepId)),
+    ];
+    const steps = await this.dataSource.manager.findBy(TripStep, {
+      id: In(stepIds),
+    });
 
     if (steps.length !== stepIds.length) {
       throw new BadRequestException('bad_request_trip_step_invalid');
     }
 
     const stepById = new Map(steps.map((step) => [step.id, step]));
-    const krwCurrency = await manager.findOneBy(Currency, { code: 'KRW' });
+    const krwCurrency = await this.dataSource.manager.findOneBy(Currency, {
+      code: 'KRW',
+    });
 
     if (!krwCurrency) {
       throw new InternalServerErrorException(
@@ -185,8 +219,8 @@ export class ReportService {
 
     const currencyIds = [
       ...new Set(
-        expenseDtos.flatMap((expense) => {
-          const step = stepById.get(expense.stepId);
+        resolvedExpenses.flatMap(({ dto, existingExpense, stepId }) => {
+          const step = stepById.get(stepId);
 
           if (!step) {
             throw new BadRequestException('bad_request_trip_step_invalid');
@@ -196,24 +230,25 @@ export class ReportService {
             return [];
           }
 
-          if (expense.currencyId == null) {
+          const currencyId = dto.currencyId ?? existingExpense?.currency?.id;
+          if (currencyId == null) {
             throw new BadRequestException(
               'bad_request_expense_currency_required',
             );
           }
 
-          if (!expense.paymentDate) {
+          if (!dto.paymentDate && !existingExpense?.paymentDate) {
             throw new BadRequestException(
               'bad_request_expense_payment_date_required',
             );
           }
 
-          return [expense.currencyId];
+          return [currencyId];
         }),
       ),
     ];
     const currencies = currencyIds.length
-      ? await manager.findBy(Currency, { id: In(currencyIds) })
+      ? await this.dataSource.manager.findBy(Currency, { id: In(currencyIds) })
       : [];
 
     if (currencies.length !== currencyIds.length) {
@@ -228,12 +263,12 @@ export class ReportService {
       Promise<{ rate: number; appliedDate: string | null }>
     >();
 
-    const expenses = await Promise.all(
-      expenseDtos.map(async (expenseDto) => {
-        const step = stepById.get(expenseDto.stepId)!;
+    return Promise.all(
+      resolvedExpenses.map(async ({ id, dto, existingExpense, stepId }) => {
+        const step = stepById.get(stepId)!;
         const requiresCurrency = step.requiresExpenseCurrency;
         const currency = requiresCurrency
-          ? currencyById.get(expenseDto.currencyId!)
+          ? currencyById.get(dto.currencyId ?? existingExpense?.currency?.id)
           : krwCurrency;
 
         if (!currency) {
@@ -241,51 +276,86 @@ export class ReportService {
         }
 
         const paymentDate = requiresCurrency
-          ? expenseDto.paymentDate
+          ? (dto.paymentDate ?? existingExpense?.paymentDate)
           : undefined;
-        const snapshot = requiresCurrency
-          ? await this.getExpenseExchangeRate(
-              this.formatExpenseDate(paymentDate!),
-              currency,
-              exchangeRateCache,
-            )
-          : { rate: 1, appliedDate: null };
+        const canReuseSnapshot =
+          requiresCurrency &&
+          existingExpense?.currency?.id === currency.id &&
+          dayjs(existingExpense.paymentDate).isSame(paymentDate, 'day') &&
+          existingExpense.exchangeRate != null;
+        const snapshot = canReuseSnapshot
+          ? {
+              rate: existingExpense.exchangeRate,
+              appliedDate: existingExpense.exchangeRateAppliedDate
+                ? dayjs(existingExpense.exchangeRateAppliedDate).format(
+                    'YYYY-MM-DD',
+                  )
+                : null,
+            }
+          : requiresCurrency
+            ? await this.getExpenseExchangeRate(
+                this.formatExpenseDate(paymentDate!),
+                currency,
+                exchangeRateCache,
+              )
+            : { rate: 1, appliedDate: null };
 
-        return manager.create(TripActualExpense, {
-          trip,
+        return {
+          id,
+          dto,
           step,
           currency,
-          price: expenseDto.price,
           paymentDate,
           exchangeRate: snapshot.rate,
           exchangeRateAppliedDate:
             snapshot.appliedDate != null
               ? new Date(`${snapshot.appliedDate}T00:00:00.000Z`)
               : undefined,
-          details: expenseDto.details,
-        });
+        };
       }),
     );
-
-    return manager.save(expenses);
   }
 
-  private async createTripDailyAllowanceExchangeRate(
+  private saveTripExpenses(
     manager: EntityManager,
     trip: TripReport,
+    expenses: PreparedTripExpense[],
+  ) {
+    if (!expenses.length) return Promise.resolve([] as TripActualExpense[]);
+
+    return manager.save(
+      expenses.map(({ id, dto, ...prepared }) =>
+        manager.create(TripActualExpense, {
+          id,
+          trip,
+          ...prepared,
+          price: dto.price,
+          details: dto.details,
+        }),
+      ),
+    );
+  }
+
+  private async resolveTripDailyAllowanceExchangeRate(
     schedule: {
       start: Date | string;
       category: { id: number };
     } | null,
-  ) {
-    if (!schedule || schedule.category.id === 1) {
-      return null;
-    }
+  ): Promise<ExchangeRateSnapshot | null> {
+    if (!schedule || schedule.category.id === 1) return null;
 
-    const snapshot = await this.currencyService.getExchangeRate(
+    return this.currencyService.getExchangeRate(
       dayjs(schedule.start).format('YYYYMMDD'),
       'USD',
     );
+  }
+
+  private saveTripDailyAllowanceExchangeRate(
+    manager: EntityManager,
+    trip: TripReport,
+    snapshot: ExchangeRateSnapshot | null,
+  ) {
+    if (!snapshot) return Promise.resolve(null);
 
     return manager.save(
       manager.create(TripExchangeRate, {
@@ -1508,6 +1578,39 @@ export class ReportService {
 
   async createReport(user: User, body: CreateReportDto) {
     assertWriteAccess(user);
+
+    if (body.scheduleId) {
+      const existingReport = await this.reportRepository.findOne({
+        where: { schedule: { id: body.scheduleId }, deletedAt: null },
+      });
+      if (existingReport) {
+        throw new ConflictException('conflict_report_already_exists');
+      }
+    }
+
+    const schedule = body.scheduleId
+      ? await this.scheduleService.getSchedule(body.scheduleId)
+      : null;
+    let preparedTripExpenses: PreparedTripExpense[] = [];
+    let overseasHolidays: Awaited<
+      ReturnType<HolidayService['getHolidaysBetween']>
+    > = [];
+    let dailyAllowanceExchangeRate: ExchangeRateSnapshot | null = null;
+
+    if (body.trip) {
+      [preparedTripExpenses, overseasHolidays, dailyAllowanceExchangeRate] =
+        await Promise.all([
+          this.prepareTripExpenses(body.trip.expenses),
+          schedule?.category.id === 2
+            ? this.holidayService.getHolidaysBetween(
+                schedule.start,
+                schedule.end,
+              )
+            : Promise.resolve([]),
+          this.resolveTripDailyAllowanceExchangeRate(schedule),
+        ]);
+    }
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1545,9 +1648,6 @@ export class ReportService {
       const saved = await queryRunner.manager.save(report);
 
       if (body.trip) {
-        const schedule = body.scheduleId
-          ? await this.scheduleService.getSchedule(body.scheduleId)
-          : null;
         const isOverseasExpenseDeducted =
           schedule?.category.id === 2 &&
           (body.trip.expenses ?? []).some(
@@ -1706,12 +1806,8 @@ export class ReportService {
             rate: overseasDailyRegulation.rate,
           });
 
-          const holidays = await this.holidayService.getHolidaysBetween(
-            schedule.start,
-            schedule.end,
-          );
           const holidaySpecialAllowanceDays = new Set(
-            holidays
+            overseasHolidays
               .filter(
                 (holiday) => holiday.name === '설날' || holiday.name === '추석',
               )
@@ -1742,10 +1838,10 @@ export class ReportService {
         }
 
         // 2-1. Expense 생성 (TripReport에 연결)
-        const savedExpenses = await this.createTripExpenses(
+        const savedExpenses = await this.saveTripExpenses(
           queryRunner.manager,
           savedTrip,
-          body.trip.expenses,
+          preparedTripExpenses,
         );
 
         // 2-2. Rate 생성 (TripReport에 연결)
@@ -1777,12 +1873,11 @@ export class ReportService {
           savedFuel = await queryRunner.manager.save(fuel);
         }
 
-        const savedExchangeRate =
-          await this.createTripDailyAllowanceExchangeRate(
-            queryRunner.manager,
-            savedTrip,
-            schedule,
-          );
+        const savedExchangeRate = await this.saveTripDailyAllowanceExchangeRate(
+          queryRunner.manager,
+          savedTrip,
+          dailyAllowanceExchangeRate,
+        );
 
         // TripReport에 관계 데이터 attach
         savedTrip.expenses = savedExpenses;
@@ -1800,10 +1895,6 @@ export class ReportService {
           { updatedAt: new Date() },
         );
       }
-
-      const schedule = saved.schedule
-        ? await this.scheduleService.getSchedule(saved.schedule.id)
-        : null;
 
       await queryRunner.commitTransaction();
 
@@ -1861,6 +1952,37 @@ export class ReportService {
 
   async updateReport(user: User, reportId: number, body: UpdateReportDto) {
     assertWriteAccess(user);
+
+    const reportSnapshot = await this.reportRepository.findOne({
+      where: { id: reportId },
+      relations: [
+        'schedule',
+        'schedule.category',
+        'createdBy',
+        'trip',
+        'trip.expenses',
+        'trip.expenses.step',
+        'trip.expenses.currency',
+        'trip.exchangeRate',
+      ],
+    });
+    if (!reportSnapshot) throw new NotFoundException('not_found_report');
+
+    assertOwnerOrAdmin(user, reportSnapshot.createdBy.id);
+
+    const preparedTripExpenses = body.trip?.expenses
+      ? await this.prepareTripExpenses(
+          body.trip.expenses,
+          reportSnapshot.trip?.expenses ?? [],
+        )
+      : null;
+    const dailyAllowanceExchangeRate =
+      body.trip && !reportSnapshot.trip?.exchangeRate
+        ? await this.resolveTripDailyAllowanceExchangeRate(
+            reportSnapshot.schedule,
+          )
+        : null;
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1979,9 +2101,6 @@ export class ReportService {
         await queryRunner.manager.save(trip);
 
         if (body.trip.expenses) {
-          const existingExpenseById = new Map(
-            trip.expenses.map((expense) => [expense.id, expense]),
-          );
           const currentExpenseIds = trip.expenses.map((e) => e.id);
           const incomingExpenseIds = body.trip.expenses
             .map((e) => e.id)
@@ -1998,159 +2117,11 @@ export class ReportService {
               expensesToDelete,
             );
           }
-
-          const resolvedExpenses = body.trip.expenses.map((expense) => {
-            const existingExpense = expense.id
-              ? existingExpenseById.get(expense.id)
-              : undefined;
-            const stepId = expense.stepId ?? existingExpense?.step?.id;
-
-            if (!stepId) {
-              throw new BadRequestException('bad_request_trip_step_invalid');
-            }
-
-            return { expense, existingExpense, stepId };
-          });
-          const stepIds = [
-            ...new Set(resolvedExpenses.map(({ stepId }) => stepId)),
-          ];
-          const steps = await queryRunner.manager.findBy(TripStep, {
-            id: In(stepIds),
-          });
-
-          if (steps.length !== stepIds.length) {
-            throw new BadRequestException('bad_request_trip_step_invalid');
-          }
-
-          const stepById = new Map(steps.map((step) => [step.id, step]));
-          const krwCurrency = await queryRunner.manager.findOneBy(Currency, {
-            code: 'KRW',
-          });
-
-          if (!krwCurrency) {
-            throw new InternalServerErrorException(
-              'internal_server_error_krw_currency_not_found',
-            );
-          }
-
-          const normalizedExpenses = resolvedExpenses.map(
-            ({ expense, existingExpense, stepId }) => {
-              const step = stepById.get(stepId);
-
-              if (!step) {
-                throw new BadRequestException('bad_request_trip_step_invalid');
-              }
-
-              const requiresCurrency = step.requiresExpenseCurrency;
-              const currencyId = requiresCurrency
-                ? (expense.currencyId ?? existingExpense?.currency?.id)
-                : krwCurrency.id;
-
-              if (!currencyId) {
-                throw new BadRequestException(
-                  'bad_request_expense_currency_required',
-                );
-              }
-
-              const paymentDate = requiresCurrency
-                ? (expense.paymentDate ?? existingExpense?.paymentDate)
-                : undefined;
-
-              if (requiresCurrency && !paymentDate) {
-                throw new BadRequestException(
-                  'bad_request_expense_payment_date_required',
-                );
-              }
-
-              return {
-                expense,
-                existingExpense,
-                step,
-                currencyId,
-                paymentDate,
-                requiresCurrency,
-              };
-            },
+          trip.expenses = await this.saveTripExpenses(
+            queryRunner.manager,
+            trip,
+            preparedTripExpenses ?? [],
           );
-          const currencyIds = [
-            ...new Set(normalizedExpenses.map(({ currencyId }) => currencyId)),
-          ];
-          const currencies =
-            currencyIds.length > 0
-              ? await queryRunner.manager.findBy(Currency, {
-                  id: In(currencyIds),
-                })
-              : [];
-
-          if (currencies.length !== currencyIds.length) {
-            throw new BadRequestException('bad_request_currency_invalid');
-          }
-
-          const currencyById = new Map(
-            currencies.map((currency) => [currency.id, currency]),
-          );
-          const exchangeRateCache = new Map<
-            string,
-            Promise<{ rate: number; appliedDate: string | null }>
-          >();
-
-          // 생성 또는 업데이트할 항목 엔티티 생성
-          const expenseEntities = await Promise.all(
-            normalizedExpenses.map(
-              async ({
-                expense: e,
-                existingExpense,
-                step,
-                currencyId,
-                paymentDate,
-                requiresCurrency,
-              }) => {
-                const currency = currencyById.get(currencyId);
-
-                if (!currency) {
-                  throw new BadRequestException('bad_request_currency_invalid');
-                }
-
-                const canReuseSnapshot =
-                  existingExpense?.currency?.id === currency.id &&
-                  existingExpense?.paymentDate?.getTime() ===
-                    paymentDate?.getTime() &&
-                  existingExpense.exchangeRate != null;
-                let exchangeRate = requiresCurrency
-                  ? (existingExpense?.exchangeRate ?? 1)
-                  : 1;
-                let exchangeRateAppliedDate = requiresCurrency
-                  ? existingExpense?.exchangeRateAppliedDate
-                  : undefined;
-
-                if (requiresCurrency && !canReuseSnapshot) {
-                  const snapshot = await this.getExpenseExchangeRate(
-                    this.formatExpenseDate(paymentDate!),
-                    currency,
-                    exchangeRateCache,
-                  );
-                  exchangeRate = snapshot.rate;
-                  exchangeRateAppliedDate =
-                    snapshot.appliedDate != null
-                      ? new Date(`${snapshot.appliedDate}T00:00:00.000Z`)
-                      : undefined;
-                }
-
-                return queryRunner.manager.create(TripActualExpense, {
-                  id: e.id,
-                  trip: trip, // TripReport에 연결
-                  step,
-                  currency,
-                  price: e.price,
-                  paymentDate,
-                  exchangeRate,
-                  exchangeRateAppliedDate,
-                  details: e.details,
-                });
-              },
-            ),
-          );
-          trip.expenses = await queryRunner.manager.save(expenseEntities);
         }
 
         if (scheduleCategoryId === 2) {
@@ -2332,18 +2303,15 @@ export class ReportService {
           await queryRunner.manager.remove(fuelToDelete);
         }
 
-        if (isOverseasTrip && !trip.exchangeRate) {
-          const today = new Date();
-          const snapshot = await this.currencyService.getExchangeRate(
-            dayjs(today).format('YYYYMMDD'),
-          );
-
-          trip.exchangeRate = await queryRunner.manager.save(
-            queryRunner.manager.create(TripExchangeRate, {
-              trip,
-              rate: snapshot.rate,
-              appliedDate: snapshot.appliedDate,
-            }),
+        if (
+          isOverseasTrip &&
+          !trip.exchangeRate &&
+          dailyAllowanceExchangeRate
+        ) {
+          trip.exchangeRate = await this.saveTripDailyAllowanceExchangeRate(
+            queryRunner.manager,
+            trip,
+            dailyAllowanceExchangeRate,
           );
         }
       }

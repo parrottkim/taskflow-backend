@@ -33,6 +33,7 @@ import { Report } from '@/entity/report/report.entity';
 import { ScheduleHoliday } from '@/entity/schedule/schedule-holiday.entity';
 import { HolidayService } from '@/holiday/holiday.service';
 import { UpdateScheduleHolidayDto } from './dto/update-schedule-holiday';
+import { HolidayDto } from '@/holiday/dto/holiday';
 
 @Injectable()
 export class ScheduleService {
@@ -73,9 +74,20 @@ export class ScheduleService {
     return await this.scheduleCategoryRepository.findOneBy({ id });
   }
 
+  private resolveScheduleDaysOff(
+    categoryId: number,
+    start: Date | string,
+    end: Date | string,
+  ) {
+    return categoryId === 1
+      ? this.holidayService.getDaysOffBetween(start, end)
+      : Promise.resolve([] as HolidayDto[]);
+  }
+
   private async syncScheduleHolidays(
     manager: EntityManager,
     schedule: Schedule,
+    daysOff: HolidayDto[],
     holidayInputs?: UpdateScheduleHolidayDto[],
   ): Promise<ScheduleHoliday[]> {
     await manager.delete(ScheduleHoliday, {
@@ -92,10 +104,6 @@ export class ScheduleService {
       return [];
     }
 
-    const daysOff = await this.holidayService.getDaysOffBetween(
-      schedule.start,
-      schedule.end,
-    );
     const inputs = holidayInputs ?? [];
     const inputByDate = new Map(
       inputs.map((holiday) => [
@@ -434,6 +442,11 @@ export class ScheduleService {
 
   async createSchedule(user: User, body: CreateScheduleDto) {
     assertWriteAccess(user);
+    const scheduleDaysOff = await this.resolveScheduleDaysOff(
+      body.categoryId,
+      body.start,
+      body.end,
+    );
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -491,14 +504,15 @@ export class ScheduleService {
       saved.holidays = await this.syncScheduleHolidays(
         queryRunner.manager,
         saved,
+        scheduleDaysOff,
         body.holidays,
       );
+
+      await queryRunner.commitTransaction();
 
       const ancestors = await this.projectClientService.findAncestors(
         project.client.id,
       );
-
-      await queryRunner.commitTransaction();
 
       const scheduleDto = plainToInstance(
         ScheduleDto,
@@ -540,6 +554,23 @@ export class ScheduleService {
   // DataSource를 DI 받았다고 가정 (this.dataSource)
   async updateSchedule(user: User, id: number, body: UpdateScheduleDto) {
     assertWriteAccess(user);
+    const scheduleSnapshot = await this.scheduleRepository.findOne({
+      where: { id },
+      relations: ['user', 'category'],
+    });
+    if (!scheduleSnapshot) {
+      throw new NotFoundException('not_found_schedule');
+    }
+    assertOwnerOrAdmin(user, scheduleSnapshot.user.id);
+
+    const scheduleDaysOff =
+      body.holidays !== undefined
+        ? await this.resolveScheduleDaysOff(
+            body.categoryId ?? scheduleSnapshot.category.id,
+            body.start ?? scheduleSnapshot.start,
+            body.end ?? scheduleSnapshot.end,
+          )
+        : [];
     // ⬇️ 트랜잭션 시작
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -660,6 +691,7 @@ export class ScheduleService {
           ? await this.syncScheduleHolidays(
               queryRunner.manager,
               updatedSchedule,
+              scheduleDaysOff,
               body.holidays,
             )
           : schedule.holidays;
