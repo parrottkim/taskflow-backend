@@ -61,14 +61,8 @@ export class CurrencyService {
     return result;
   }
 
-  private toDateCursor(date: string) {
-    if (!/^\d{8}$/.test(date)) {
-      throw new BadRequestException('bad_request_exchange_date_invalid');
-    }
-
-    const parsedDate = dayjs(
-      `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`,
-    );
+  private toDateCursor(date: Date) {
+    const parsedDate = dayjs(date);
 
     if (!parsedDate.isValid()) {
       throw new BadRequestException('bad_request_exchange_date_invalid');
@@ -77,7 +71,7 @@ export class CurrencyService {
     return parsedDate;
   }
 
-  async getExchangeRate(date: string, currency: string = 'USD') {
+  async getExchangeRate(date: Date, currency: string = 'USD') {
     const url = this.configService.exchange.url;
     const apiKey = this.configService.exchange.key;
 
