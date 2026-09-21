@@ -1405,7 +1405,6 @@ export class ReportService {
                 stepId: rate.step?.id,
               })),
               fuel: report.trip.fuel ?? null,
-              exchangeRate: report.trip.exchangeRate ?? null,
               calculations,
             }
           : null,
@@ -1458,7 +1457,6 @@ export class ReportService {
                   stepId: rate.step?.id,
                 })),
                 fuel: report.trip.fuel ?? null,
-                exchangeRate: report.trip.exchangeRate ?? null,
                 calculations: calculations,
               }
             : null,
@@ -1568,7 +1566,6 @@ export class ReportService {
                 stepId: rate.step?.id,
               })),
               fuel: report.trip.fuel ?? null,
-              exchangeRate: report.trip.exchangeRate ?? null,
             }
           : null,
       },

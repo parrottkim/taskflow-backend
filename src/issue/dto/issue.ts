@@ -362,16 +362,6 @@ export class ContractIssueDto extends IssueDto {
   @Expose()
   contractDate: string;
 
-  @ApiProperty({
-    type: ContractExchangeRateDto,
-    required: false,
-    nullable: true,
-  })
-  @Type(() => ContractExchangeRateDto)
-  @IsOptional()
-  @Expose()
-  exchangeRate?: ContractExchangeRateDto | null;
-
   @ApiProperty()
   @ValidateNested({ each: true })
   @Type(() => ContractIssueItemDto)
