@@ -8,6 +8,7 @@ import { assertWriteAccess } from '@/common/policies/write-access.policy';
 import { ApprovalIssue } from '@/entity/issue/approval/approval-issue.entity';
 import { ContractIssueItem } from '@/entity/issue/contract/contract-issue-item.entity';
 import { ContractIssue } from '@/entity/issue/contract/contract-issue.entity';
+import { ContractExchangeRate } from '@/entity/issue/contract/contract-exchange-rate.entity';
 import { IssueAttachment } from '@/entity/issue/issue-attachment.entity';
 import { IssueCategory } from '@/entity/issue/issue-category.entity';
 import { Issue } from '@/entity/issue/issue.entity';
@@ -195,7 +196,7 @@ export class IssueService {
 
     const contract = await manager.findOne(ContractIssue, {
       where: { project: { id: issue.project.id }, deletedAt: null },
-      relations: ['currency'],
+      relations: ['currency', 'exchangeRate'],
     });
 
     const contractItems = await manager.find(ContractIssueItem, {
@@ -248,6 +249,8 @@ export class IssueService {
 
     switch (issue.category?.id) {
       case 1: // CONTRACT
+        payload.contractDate = contract?.contractDate ?? null;
+        payload.exchangeRate = contract?.exchangeRate ?? null;
         payload.contractItems = contractItems;
         payload.transactionItems = transactionItems;
         break;
@@ -491,6 +494,9 @@ export class IssueService {
 
       // Contract 삭제 시 contractItems, transactionItems도 함께 soft delete
       if (issue.contract) {
+        await queryRunner.manager.softDelete(ContractExchangeRate, {
+          contract: { id: issue.contract.id },
+        });
         await queryRunner.manager.softDelete(ContractIssueItem, {
           project: { id: projectId },
         });

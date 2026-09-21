@@ -1,17 +1,19 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
-  OneToOne,
-  JoinColumn,
+  Column,
   CreateDateColumn,
-  UpdateDateColumn,
   DeleteDateColumn,
+  Entity,
   Index,
+  JoinColumn,
   ManyToOne,
+  OneToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { Issue } from '@/entity/issue/issue.entity';
 import { Project } from '@/entity/project/project.entity';
 import { Currency } from '@/entity/currency/currency.entity';
+import { ContractExchangeRate } from './contract-exchange-rate.entity';
 
 @Entity()
 @Index(['project'], {
@@ -32,6 +34,15 @@ export class ContractIssue {
 
   @ManyToOne(() => Currency, { nullable: true })
   currency?: Currency;
+
+  @OneToOne(() => ContractExchangeRate, (rate) => rate.contract, {
+    cascade: true,
+    orphanedRowAction: 'delete',
+  })
+  exchangeRate?: ContractExchangeRate;
+
+  @Column({ type: 'date' })
+  contractDate: string;
 
   @CreateDateColumn()
   createdAt: Date;

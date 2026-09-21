@@ -8,6 +8,7 @@ import {
   IsBoolean,
   ValidateIf,
   IsOptional,
+  IsNumber,
 } from 'class-validator';
 
 export class CreateContractIssueItemDto {
@@ -19,11 +20,11 @@ export class CreateContractIssueItemDto {
   @ApiProperty()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
-      return parseInt(value.replace(/,/g, ''), 10);
+      return Number(value.replace(/,/g, ''));
     }
     return value;
   })
-  @IsInt()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @IsNotEmpty()
   @Min(0)
   price: number;
