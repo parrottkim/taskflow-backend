@@ -112,6 +112,7 @@ export class TransactionIssueService {
 
       existing.isPaid = dto.isPaid;
       existing.paidAt = dto.isPaid ? (existing.paidAt ?? new Date()) : null;
+      existing.note = dto.note;
       itemsToUpdate.push(existing);
     }
 
