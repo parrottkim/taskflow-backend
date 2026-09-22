@@ -112,7 +112,7 @@ describe('KickoffIssueService', () => {
     );
   });
 
-  it('synchronizes kickoff items and soft-deletes omitted rows', async () => {
+  it('synchronizes kickoff items, recreates missing rows, and soft-deletes omitted rows', async () => {
     const originalParticipant = { id: 20 };
     const newParticipant = { id: 21 };
     const originalTripCategory = { id: 30 };
@@ -198,11 +198,11 @@ describe('KickoffIssueService', () => {
     await service.updateKickoffIssue(user as never, issue.id, {
       participantItems: [
         { id: existingParticipant.id, role: 'changed' },
-        { participantId: newParticipant.id, role: 'new' },
+        { id: 999, participantId: newParticipant.id, role: 'new' },
       ],
       tripItems: [
         { id: existingTrip.id, days: 5 },
-        { categoryId: newTripCategory.id, days: 2 },
+        { id: 999, categoryId: newTripCategory.id, days: 2 },
       ],
     });
 
