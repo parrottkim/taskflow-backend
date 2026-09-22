@@ -101,10 +101,6 @@ export class KickoffIssueService {
             ? existingItems.find((item) => item.id === dto.id)
             : undefined;
 
-        if (dto.id !== undefined && !existing) {
-          throw new NotFoundException('not_found_kickoff_participant_item');
-        }
-
         const participantId = dto.participantId ?? existing?.participant?.id;
         const role = dto.role ?? existing?.role;
         if (participantId === undefined || role === undefined) {
@@ -169,10 +165,6 @@ export class KickoffIssueService {
           dto.id !== undefined
             ? existingItems.find((item) => item.id === dto.id)
             : undefined;
-
-        if (dto.id !== undefined && !existing) {
-          throw new NotFoundException('not_found_kickoff_trip_item');
-        }
 
         const categoryId = dto.categoryId ?? existing?.category?.id;
         const days = dto.days ?? existing?.days;
