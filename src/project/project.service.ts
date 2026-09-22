@@ -35,6 +35,7 @@ import { ProcurementIssueRequestItem } from '@/entity/issue/procurement/procurem
 import { ProjectCostSummaryDto } from './dto/project-cost-summary';
 import { calculateTripCosts } from '@/report/functions/trip-cost-calculator';
 import { calculateContractAmountInKrw } from './functions/contract-cost-calculator';
+import { ProjectParticipantSummaryDto } from './dto/project-participant-summary';
 
 @Injectable()
 export class ProjectService {
@@ -420,6 +421,41 @@ export class ProjectService {
     });
 
     return countDto;
+  }
+
+  async getProjectParticipantSummary(id: number) {
+    const project = await this.projectRepository
+      .createQueryBuilder('project')
+      .leftJoinAndSelect('project.manager', 'manager')
+      .leftJoinAndSelect('manager.rank', 'managerRank')
+      .leftJoinAndSelect('manager.position', 'managerPosition')
+      .leftJoinAndSelect('manager.department', 'managerDepartment')
+      .leftJoinAndSelect('project.kickoffs', 'kickoff')
+      .leftJoinAndSelect('kickoff.participantItems', 'participantItem')
+      .leftJoinAndSelect('participantItem.participant', 'participant')
+      .leftJoinAndSelect('participant.rank', 'participantRank')
+      .leftJoinAndSelect('participant.position', 'participantPosition')
+      .leftJoinAndSelect('participant.department', 'participantDepartment')
+      .where('project.id = :id', { id })
+      .orderBy('participantItem.createdAt', 'ASC')
+      .getOne();
+
+    if (!project) {
+      throw new NotFoundException('not_found_project');
+    }
+
+    const participants =
+      project.kickoffs?.flatMap((kickoff) => kickoff.participantItems ?? []) ??
+      [];
+
+    return plainToInstance(
+      ProjectParticipantSummaryDto,
+      {
+        manager: project.manager ?? null,
+        participants,
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 
   async getProjectCostSummary(id: number) {
